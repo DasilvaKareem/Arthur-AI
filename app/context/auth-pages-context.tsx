@@ -64,12 +64,39 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
-      toast.success('Signed in successfully');
-      router.push('/');
+      
+      // Add basic input validation
+      if (!email || !password) {
+        throw new Error('Please enter both email and password');
+      }
+
+      // Check for rate limiting in localStorage
+      const attempts = JSON.parse(localStorage.getItem('signInAttempts') || '{"count": 0, "timestamp": 0}');
+      const now = Date.now();
+      const timeWindow = 15 * 60 * 1000; // 15 minutes
+
+      if (now - attempts.timestamp < timeWindow && attempts.count >= 5) {
+        const minutesLeft = Math.ceil((timeWindow - (now - attempts.timestamp)) / 60000);
+        throw new Error(`Too many login attempts. Please try again in ${minutesLeft} minutes.`);
+      }
+
+      try {
+        await signInWithEmailAndPassword(firebaseAuth, email, password);
+        // Reset attempts on successful login
+        localStorage.setItem('signInAttempts', JSON.stringify({ count: 0, timestamp: now }));
+        toast.success('Signed in successfully');
+        router.push('/dashboard-app');
+      } catch (error: any) {
+        // Update attempts count on failure
+        localStorage.setItem('signInAttempts', JSON.stringify({
+          count: attempts.count + 1,
+          timestamp: attempts.timestamp || now
+        }));
+        throw error;
+      }
     } catch (error: any) {
       console.error("Sign In Error:", error);
-      const errorMessage = getAuthErrorMessage(error.code);
+      const errorMessage = getAuthErrorMessage(error.code || error.message);
       toast.error(errorMessage);
       throw error;
     } finally {
@@ -89,7 +116,7 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
       }
       
       toast.success('Account created successfully');
-      router.push('/');
+      router.push('/dashboard-app');
     } catch (error: any) {
       console.error("Sign Up Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);
@@ -119,7 +146,8 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
       case 'auth/user-not-found':
         return 'No account found with this email address.';
       case 'auth/wrong-password':
-        return 'Incorrect password. Please try again.';
+      case 'auth/invalid-credential':
+        return 'Invalid email or password. Please try again.';
       case 'auth/email-already-in-use':
         return 'This email is already registered. Try signing in instead.';
       case 'auth/weak-password':
@@ -130,7 +158,12 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
         return 'Too many unsuccessful attempts. Please try again later.';
       case 'auth/network-request-failed':
         return 'Network error. Check your internet connection.';
+      case 'Please enter both email and password':
+        return errorCode;
       default:
+        if (errorCode.includes('try again in')) {
+          return errorCode;
+        }
         return 'An unexpected error occurred. Please try again.';
     }
   };

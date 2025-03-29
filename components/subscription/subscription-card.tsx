@@ -48,7 +48,7 @@ export function SubscriptionCard({
         ))}
       </ul>
       <button
-        onClick={() => onSubscribe(STRIPE_PLANS[interval][price])}
+        onClick={() => onSubscribe(interval === 'month' ? STRIPE_PLANS.MONTHLY : STRIPE_PLANS.YEARLY)}
         disabled={loading}
         className={`mt-8 w-full rounded-md bg-blue-500 px-4 py-2 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
           loading ? 'opacity-50 cursor-not-allowed' : ''

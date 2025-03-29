@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useAuthPages } from "../../context/auth-pages-context";
+import { toast } from "sonner";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -18,9 +19,15 @@ export default function SignInPage() {
     setIsSubmitting(true);
 
     try {
-      await signIn(email, password);
-    } catch (error) {
-      // Error is already handled by the context
+      if (!email.trim() || !password.trim()) {
+        throw new Error("Please enter both email and password");
+      }
+
+      await signIn(email.trim(), password);
+      // Success is handled by the context (redirect)
+    } catch (error: any) {
+      console.error("Sign In Error:", error);
+      setError(error.message || "Failed to sign in");
       setIsSubmitting(false);
     }
   };
@@ -44,7 +51,10 @@ export default function SignInPage() {
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(""); // Clear error on input change
+              }}
               required
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               placeholder="you@example.com"
@@ -59,7 +69,10 @@ export default function SignInPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(""); // Clear error on input change
+              }}
               required
               className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               placeholder="••••••••"
@@ -68,13 +81,15 @@ export default function SignInPage() {
         </div>
 
         {error && (
-          <div className="text-sm text-red-500 text-center">{error}</div>
+          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200">
+            {error}
+          </div>
         )}
 
         <div>
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !email.trim() || !password.trim()}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
