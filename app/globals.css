@@ -32,7 +32,7 @@
     }
 
     .dark {
-        --background: 0 0% 3.9%;
+        --background: linear-gradient(170deg, #7f5fc5 1%, #0a0e2a 20%);
         --foreground: 0 0% 98%;
         --card: 0 0% 3.9%;
         --card-foreground: 0 0% 98%;
@@ -65,5 +65,94 @@
     }
     body {
         @apply bg-background text-foreground;
+        background: var(--background);
+        color: hsl(var(--foreground));
     }
 }
+
+@keyframes particleAnimation {
+    0% {
+      transform: translateY(-100px) rotate(0deg);
+    }
+    50% {
+      transform: translateY(100px) rotate(180deg);
+    }
+    100% {
+      transform: translateY(-100px) rotate(360deg);
+    }
+  }
+
+  .particle {
+    position: absolute;
+    width: 10px; /* Smaller square particles */
+    height: 10px;
+    background-color: rgba(255, 255, 255, 0.3); /* Light particles */
+    animation: particleAnimation 4s infinite;
+    opacity: 0.5;
+    pointer-events: none;
+    transform-origin: center;
+  }
+
+  .particle1 {
+    left: 10%;
+    animation-duration: 13s;
+  }
+  
+  .particle2 {
+    left: 20%;
+    animation-duration: 14s;
+  }
+  
+  .particle3 {
+    left: 30%;
+    animation-duration: 12.5s;
+  }
+  
+  .particle4 {
+    left: 40%;
+    animation-duration: 13.5s;
+  }
+  
+  .particle5 {
+    left: 50%;
+    animation-duration: 12s;
+  }
+  
+  .particle6 {
+    left: 60%;
+    animation-duration: 13s;
+  }
+  
+  .particle7 {
+    left: 70%;
+    animation-duration: 12.5s;
+  }
+  
+  .particle8 {
+    left: 80%;
+    animation-duration: 14s;
+  }
+  
+  .particle9 {
+    left: 90%;
+    animation-duration: 13.5s;
+  }
+
+  
+  .dark .form-animated-border  {
+    border: 1px solid transparent;
+    animation: borderColorChange 5s infinite;
+  }
+  
+  @keyframes borderColorChange {
+    0% {
+      border-color: #5f4db8;
+    }
+    50% {
+      border-color: #131219;
+    }
+    100% {
+      border-color: #5f4db8;
+    }
+  }
+  

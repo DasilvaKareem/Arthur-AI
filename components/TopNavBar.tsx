@@ -105,15 +105,16 @@ const TopNavBar = () => {
   }
 
   return (
-    <nav className="text-foreground p-4 flex justify-between items-center border-b bg-background">
+    <nav className="text-foreground p-4 flex justify-between items-center bg-background">
       <Link href="/" className="font-bold text-xl flex gap-2 items-center">
         <Image
-          src={theme === "dark" ? "/wordmark-dark.svg" : "/wordmark.svg"}
+          src="logo.svg"
           alt="Company Wordmark"
-          width={112}
-          height={20}
+          width={40}
+          height={40}
           priority
         />
+        <span className="">Arthur AI</span>
       </Link>
       <div className="flex items-center gap-2">
         <DropdownMenu>

@@ -35,6 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ImageGenerator from "./ImageGenerator";
+import { useTheme } from "next-themes";
 
 const TypedText = ({ text = "", delay = 5 }) => {
   const [displayedText, setDisplayedText] = useState("");
@@ -353,11 +354,16 @@ function ChatArea() {
   const [showHeader, setShowHeader] = useState(false);
   const [selectedModel, setSelectedModel] = useState("llama3-70b-8192");
   const [showAvatar, setShowAvatar] = useState(false);
+  const { theme } = useTheme();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState(
     "your-knowledge-base-id",
   );
+
+  const currentMode = theme === 'system'
+  ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  : theme;
 
   const knowledgeBases: KnowledgeBase[] = [
     { id: "your-knowledge-base-id", name: "Your KB Name" },
@@ -637,14 +643,14 @@ function ChatArea() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in-up">
-              <Avatar className="w-10 h-10 mb-4 border">
-                <AvatarImage
-                  src="/ant-logo.svg"
+              <div className="mb-4">
+                <Image
+                  src="/logo.svg"
                   alt="AI Assistant Avatar"
-                  width={40}
-                  height={40}
+                  width={80}
+                  height={80}
                 />
-              </Avatar>
+              </div>
               <h2 className="text-2xl font-semibold mb-8">
                 Here&apos;s how I can help
               </h2>
@@ -729,8 +735,8 @@ function ChatArea() {
       <CardFooter className="p-4 pt-0">
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col w-full relative bg-background border rounded-xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
-        >
+          className={`flex flex-col w-full relative bg-background border rounded-xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ${currentMode === 'dark' ? 'form-animated-border' : ''}`}
+>
           <Textarea
             value={input}
             onChange={handleInputChange}
