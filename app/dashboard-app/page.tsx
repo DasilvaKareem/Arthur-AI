@@ -4,6 +4,7 @@ import TopNavBar from "../../components/TopNavBar";
 import ChatArea from "../../components/ChatArea";
 import config from "../../config";
 import ProtectedRoute from "../components/auth/protected-route";
+import { Particles } from "app/components/Particle";
 
 const LeftSidebar = dynamic(() => import("../../components/LeftSidebar"), {
   ssr: false,
@@ -15,7 +16,8 @@ const RightSidebar = dynamic(() => import("../../components/RightSidebar"), {
 export default function DashboardAppPage() {
   return (
     <ProtectedRoute>
-      <div className="flex flex-col h-screen w-full">
+      <div className="flex flex-col h-screen w-full bg-background text-foreground">
+        <Particles />
         <TopNavBar />
         <div className="flex flex-1 overflow-hidden h-screen w-full">
           {config.includeLeftSidebar && <LeftSidebar />}
