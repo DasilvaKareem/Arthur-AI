@@ -5,9 +5,17 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { RAGSource } from "@/app/lib/utils";
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+
+// Define RAGSource interface directly
+interface RAGSource {
+  id: string;
+  fileName: string;
+  snippet: string;
+  score: number;
+  timestamp?: string;
+}
 
 interface FullSourceModalProps {
   isOpen: boolean;

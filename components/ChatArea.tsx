@@ -139,6 +139,7 @@ const MessageContent = ({
     user_mood?: string;
     suggested_questions?: string[];
     redirect_to_agent?: { should_redirect: boolean; reason: string };
+    can_generate_project?: boolean;
     debug?: {
       context_used: boolean;
     };
@@ -156,6 +157,7 @@ const MessageContent = ({
     try {
       const result = JSON.parse(content);
       console.log("🔍 Parsed Result:", result);
+      console.log("🟢 Can Generate Project Flag:", result.can_generate_project);
 
       if (
         result.response &&
@@ -175,6 +177,31 @@ const MessageContent = ({
     return () => clearTimeout(timer);
   }, [content, role]);
 
+  const handleGenerateProject = () => {
+    if (parsed.response) {
+      console.log("🎬 Generating project from script!");
+      alert("Preparing your script project...");
+      const encodedScript = encodeURIComponent(parsed.response);
+      const title = encodeURIComponent("Script Project");
+      setTimeout(() => {
+        window.location.href = `/project?script=${encodedScript}&title=${title}`;
+      }, 500);
+    }
+  };
+
+  const isScriptResponse = (response: string | undefined): boolean => {
+    if (!response) return false;
+    
+    // Check for script-specific elements
+    const hasSceneHeading = response.includes("INT.") || response.includes("EXT.");
+    const hasDuration = response.includes("DURATION:");
+    const hasCharacterDialogue = /[A-Z]{2,}\s*\n/.test(response);
+    
+    console.log("📝 Script detection:", { hasSceneHeading, hasDuration, hasCharacterDialogue });
+    
+    return hasSceneHeading && (hasDuration || hasCharacterDialogue);
+  };
+
   if (thinking && role === "assistant") {
     return (
       <div className="flex items-center">
@@ -193,9 +220,21 @@ const MessageContent = ({
       <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeHighlight]}>
         {parsed.response || content}
       </ReactMarkdown>
-      {parsed.redirect_to_agent && (
-        <UISelector redirectToAgent={parsed.redirect_to_agent} />
-      )}
+      <div className="flex space-x-2 mt-3">
+        {parsed.redirect_to_agent && (
+          <UISelector redirectToAgent={parsed.redirect_to_agent} />
+        )}
+        {(parsed.can_generate_project || isScriptResponse(parsed.response)) && parsed.response && (
+          <Button 
+            onClick={handleGenerateProject}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
+            size="sm"
+          >
+            <WandSparkles className="mr-2 h-4 w-4" />
+            Create Scene Project
+          </Button>
+        )}
+      </div>
     </>
   );
 };
