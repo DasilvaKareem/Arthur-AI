@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import TopNavBar from "../../components/TopNavBar";
 import { Button } from "../../components/ui/button";
@@ -27,7 +27,7 @@ type Scene = {
   shots: Shot[];
 };
 
-export default function ProjectPage() {
+function ProjectContent() {
   const searchParams = useSearchParams();
   const [script, setScript] = useState<string>("");
   const [title, setTitle] = useState<string>("My Script Project");
@@ -469,5 +469,13 @@ export default function ProjectPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ProjectPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProjectContent />
+    </Suspense>
   );
 } 

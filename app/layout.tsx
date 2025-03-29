@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "../components/theme-provider";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Chat Assistant",
-  description: "Chat with an AI assistant powered by Groq",
+  title: "Arthur AI - Conversational AI Assistant",
+  description: "Chat with a powerful AI assistant powered by state-of-the-art models",
 };
 
 export default function RootLayout({
@@ -26,6 +27,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <Toaster position="top-right" closeButton />
         </ThemeProvider>
       </body>
     </html>
