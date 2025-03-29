@@ -30,7 +30,7 @@ export const themes = {
       "chart-5": "27 87% 67%",
     },
     dark: {
-      background: "linear-gradient(170deg, #7f5fc5 1%, #0a0e2a 20%)",
+      background: "linear-gradient(170deg, #5f7fc5 0%, #0a0e2a 20%, #0a0e2a 100%)",
       foreground: "0 0% 98%",
       card: "0 0% 3.9%",
       "card-foreground": "0 0% 98%",

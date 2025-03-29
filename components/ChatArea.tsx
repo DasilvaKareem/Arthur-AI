@@ -635,7 +635,7 @@ function ChatArea() {
           selectedModel={selectedModel}
           setSelectedModel={setSelectedModel}
           models={models}
-          showAvatar={showAvatar}
+          showAvatar={false}
           selectedKnowledgeBase={selectedKnowledgeBase}
           setSelectedKnowledgeBase={setSelectedKnowledgeBase}
           knowledgeBases={knowledgeBases}
@@ -694,18 +694,20 @@ function ChatArea() {
                     }}
                   >
                     {message.role === "assistant" && (
-                      <Avatar className="w-8 h-8 mr-2 border">
-                        <AvatarImage
-                          src="/ant-logo.svg"
+                      <div className="w-8 h-8 mr-2">
+                        <Image
+                          src="/logo.svg"
                           alt="AI Assistant Avatar"
+                          width={30}
+                          height={30}
                         />
-                        <AvatarFallback>AI</AvatarFallback>
-                      </Avatar>
+                      </div>
                     )}
                     <div
                       className={`p-3 rounded-md text-sm max-w-[65%] ${
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground"
+                          // ? "bg-primary text-primary-foreground"
+                          ? "bg-[rgba(0,122,255,0.15)] dark:bg-[rgba(0,122,255,0.25)] text-primary"
                           : "bg-muted border"
                       }`}
                     >
