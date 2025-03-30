@@ -22,6 +22,7 @@ export interface Scene {
   style: string;
   shots: Shot[];
   generatedVideo?: string;
+  sceneNumber?: number;
 }
 
 export interface Shot {
@@ -35,11 +36,16 @@ export interface Shot {
   narration: string | null;
   dialogue: string | null;
   soundEffects: string | null;
-  generatedImage: string | null;
-  generatedVideo: string | null;
   location: string | null;
   lighting: string | null;
   weather: string | null;
+  generatedImage: string | null;
+  generatedVideo: string | null;
+  // Additional Gemini-specific fields
+  cameraMotion?: string;
+  action?: string;
+  characters?: string[];
+  shotNumber?: number;
 }
 
 // Create a new story

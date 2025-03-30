@@ -179,10 +179,10 @@ const MessageContent = ({
 
   const handleGenerateProject = () => {
     if (parsed.response) {
-      console.log("🎬 Generating project from script!");
-      alert("Preparing your script project...");
+      console.log("🎬 Generating project from story description!");
+      alert("Preparing your storyboard project...");
       const encodedScript = encodeURIComponent(parsed.response);
-      const title = encodeURIComponent("Script Project");
+      const title = encodeURIComponent("Storyboard Project");
       setTimeout(() => {
         window.location.href = `/project?script=${encodedScript}&title=${title}`;
       }, 500);
@@ -192,14 +192,22 @@ const MessageContent = ({
   const isScriptResponse = (response: string | undefined): boolean => {
     if (!response) return false;
     
-    // Check for script-specific elements
-    const hasSceneHeading = response.includes("INT.") || response.includes("EXT.");
-    const hasDuration = response.includes("DURATION:");
-    const hasCharacterDialogue = /[A-Z]{2,}\s*\n/.test(response);
+    // Check for story description elements rather than script-specific elements
+    // Look for indicators of a complete story description
+    const hasTitle = /[A-Z\s]{3,}/.test(response.substring(0, 100)); // All caps title at the beginning
+    const hasMultipleParagraphs = response.split('\n\n').length >= 2;
+    const hasStoryElements = 
+      response.includes("character") || 
+      response.includes("setting") || 
+      response.includes("conflict") || 
+      response.includes("theme") ||
+      response.includes("follows") ||
+      response.includes("journey");
     
-    console.log("📝 Script detection:", { hasSceneHeading, hasDuration, hasCharacterDialogue });
+    console.log("📝 Story description detection:", { hasTitle, hasMultipleParagraphs, hasStoryElements });
     
-    return hasSceneHeading && (hasDuration || hasCharacterDialogue);
+    // More lenient detection for story descriptions
+    return hasMultipleParagraphs && hasStoryElements;
   };
 
   if (thinking && role === "assistant") {

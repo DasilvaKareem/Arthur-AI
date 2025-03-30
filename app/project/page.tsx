@@ -39,6 +39,7 @@ function ProjectContent() {
   const [currentScene, setCurrentScene] = useState<Scene | null>(null);
   const [storyId, setStoryId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState<string>("hyperrealistic");
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -52,28 +53,44 @@ function ProjectContent() {
       // If we have a script and user is authenticated, create a new story immediately
       const createNewStory = async () => {
         try {
+          setIsSaving(true);
           const decodedScript = decodeURIComponent(scriptParam);
           setScript(decodedScript);
           
-          // Parse script into scenes and shots
-          parseScriptIntoScenes(decodedScript);
+          // Show loading toast
+          toast.loading("Generating scenes from your story description...", {
+            id: "creating-story",
+          });
+          
+          // Parse script into scenes using Gemini
+          const generatedScenes = await parseScriptIntoScenes(decodedScript);
           
           // Create new story in Firebase
           const newStoryId = await createStory(
             user.uid,
-            titleParam ? decodeURIComponent(titleParam) : `Script Project - ${new Date().toLocaleString()}`,
+            titleParam ? decodeURIComponent(titleParam) : `Storyboard Project - ${new Date().toLocaleString()}`,
             decodedScript,
-            scenes
+            generatedScenes
           );
           
           setStoryId(newStoryId);
+          
           // Update URL with new story ID
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.set('id', newStoryId);
           router.push(newUrl.toString());
+          
+          // Success message
+          toast.success("Story created with Gemini-generated scenes!", {
+            id: "creating-story",
+          });
         } catch (error) {
           console.error("Error creating story:", error);
-          alert("Failed to create story. Please try again.");
+          toast.error("Failed to create story. Please try again.", {
+            id: "creating-story",
+          });
+        } finally {
+          setIsSaving(false);
         }
       };
       
@@ -83,11 +100,10 @@ function ProjectContent() {
         const decodedScript = decodeURIComponent(scriptParam);
         setScript(decodedScript);
         
-        // Parse script into scenes and shots
+        // Non-authenticated users still get script parsing
         parseScriptIntoScenes(decodedScript);
       } catch (error) {
         console.error("Error decoding script:", error);
-        setScript("Error loading script");
       }
     }
 
@@ -214,150 +230,77 @@ function ProjectContent() {
   };
 
   // Parse the script into scenes and shots
-  const parseScriptIntoScenes = (scriptText: string) => {
+  const parseScriptIntoScenes = async (scriptText: string) => {
     try {
       console.log("Parsing script:", scriptText);
       
-      // Split the script into sections
-      const sections = scriptText.split(/\n\n+/);
-      const scenes: Scene[] = [];
-      
-      sections.forEach((section, sceneIndex) => {
-        console.log(`Processing section ${sceneIndex + 1}:`, section);
-        
-        // Extract scene heading and location
-        const headingMatch = section.match(/^SCENE\s+(\d+):\s+(.+)$/m);
-        
-        // Enhanced location extraction
-        let location = "Default Location";
-        const locationMatches = section.match(/(?:INT\.|EXT\.)\s+([^\n-]+)/g);
-        if (locationMatches) {
-          location = locationMatches[0]
-            .replace(/^(INT\.|EXT\.)\s+/, '')
-            .replace(/\s*-\s*$/, '')
-            .trim();
-        }
-        
-        // Create scene object with default values
-        const scene: Scene = {
-          id: `scene-${sceneIndex + 1}`,
-          title: headingMatch ? headingMatch[2] : `SCENE ${sceneIndex + 1}`,
-          location: location,
-          description: section.split('\n')[0].trim(), // Use first line as description
-          lighting: "Natural lighting",
-          weather: "Clear",
-          style: "hyperrealistic",
-          shots: []
-        };
-
-        // Extract scene description
-        const descriptionMatch = section.match(/Description:\n(.*?)(?=\n\n|$)/s);
-        if (descriptionMatch) {
-          scene.description = descriptionMatch[1].trim();
-        }
-
-        // Extract lighting
-        const lightingMatch = section.match(/Lighting:\n(.*?)(?=\n\n|$)/s);
-        if (lightingMatch) {
-          scene.lighting = lightingMatch[1].trim();
-        }
-
-        // Extract weather
-        const weatherMatch = section.match(/Weather:\n(.*?)(?=\n\n|$)/s);
-        if (weatherMatch) {
-          scene.weather = weatherMatch[1].trim();
-        }
-
-        // Parse shots
-        const shotSections = section.split(/(?=SHOT:|CLOSE-UP:|TRACKING SHOT:|WIDE SHOT:)/);
-        
-        shotSections.forEach((shotSection, shotIndex) => {
-          if (!shotSection.trim()) return;
-
-          console.log(`Processing shot ${shotIndex + 1}:`, shotSection);
-
-          const shot: Shot = {
-            id: `shot-${shotIndex + 1}`,
-            type: "ESTABLISHING SHOT",
-            description: shotSection.split('\n')[0].trim(), // Use first line as description
-            hasNarration: false,
-            hasDialogue: false,
-            hasSoundEffects: false,
-            prompt: shotSection.split('\n')[0].trim(), // Use first line as prompt
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null
-          };
-
-          // Extract shot type
-          const typeMatch = shotSection.match(/^(SHOT|CLOSE-UP|TRACKING SHOT|WIDE SHOT):/);
-          if (typeMatch) {
-            shot.type = typeMatch[1];
-          }
-
-          // Extract shot description
-          const descriptionMatch = shotSection.match(/Description:\n(.*?)(?=\n\n|$)/s);
-          if (descriptionMatch) {
-            shot.description = descriptionMatch[1].trim();
-            shot.prompt = shot.description;
-          }
-
-          // Extract narration
-          const narrationMatch = shotSection.match(/Narration:\n(.*?)(?=\n\n|$)/s);
-          if (narrationMatch) {
-            shot.hasNarration = true;
-            shot.narration = narrationMatch[1].trim();
-          }
-
-          // Extract dialogue
-          const dialogueMatch = shotSection.match(/Dialogue:\n(.*?)(?=\n\n|$)/s);
-          if (dialogueMatch) {
-            shot.hasDialogue = true;
-            shot.dialogue = dialogueMatch[1].trim();
-          }
-
-          // Extract sound effects
-          const soundMatch = shotSection.match(/Sound Effects:\n(.*?)(?=\n\n|$)/s);
-          if (soundMatch) {
-            shot.hasSoundEffects = true;
-            shot.soundEffects = soundMatch[1].trim();
-          }
-
-          scene.shots.push(shot);
-        });
-
-        // If no shots were created, create a default shot
-        if (scene.shots.length === 0) {
-          const defaultShot: Shot = {
-            id: "shot-1",
-            type: "ESTABLISHING SHOT",
-            description: scene.description,
-            hasNarration: false,
-            hasDialogue: false,
-            hasSoundEffects: false,
-            prompt: scene.description,
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null
-          };
-          scene.shots.push(defaultShot);
-        }
-
-        scenes.push(scene);
+      // Show loading toast
+      toast.loading("Generating scenes and shots using Gemini AI. This may take a minute...", {
+        id: "gemini-generation",
       });
 
-      // If no scenes were created, create a default scene
-      if (scenes.length === 0) {
+      try {
+        console.log(`Generating ${selectedStyle}-style scenes from script using Gemini AI`);
+        
+        // Call the API to generate scenes and shots
+        const response = await fetch("/api/gemini", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            script: scriptText,
+            style: selectedStyle,
+            duration: 1.0 // Default to 1 minute video
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || errorData.details || "Failed to generate scenes");
+        }
+
+        const data = await response.json();
+        console.log("Generated scenes and shots:", data);
+
+        // Check if we have valid shots data
+        if (!data.shots || !Array.isArray(data.shots) || data.shots.length === 0) {
+          throw new Error("No valid scenes or shots generated");
+        }
+        
+        // Log details about the response for debugging
+        console.log(`Received ${data.shots.length} shots from Gemini`);
+        const sceneNumbers = [...new Set(data.shots.map((shot: GeminiShot) => shot.scene_number))];
+        console.log(`Detected scene numbers: ${sceneNumbers.join(', ')}`);
+
+        // Convert Gemini shot format to our scene/shot format
+        const convertedScenes = convertGeminiShotsToScenes(data.shots);
+        
+        // Sort scenes by scene number if available
+        convertedScenes.sort((a, b) => {
+          return (a.sceneNumber || 0) - (b.sceneNumber || 0);
+        });
+        
+        // Update the scenes state with the new scenes
+        setScenes(convertedScenes);
+        
+        // Set the current scene to the first scene
+        if (convertedScenes.length > 0) {
+          setCurrentScene(convertedScenes[0]);
+        }
+
+        toast.success(`Generated ${convertedScenes.length} scenes with a total of ${data.shots.length} shots!`, {
+          id: "gemini-generation",
+        });
+
+        return convertedScenes;
+      } catch (error) {
+        console.error("Error generating scenes:", error);
+        toast.error(error instanceof Error ? error.message : "Failed to generate scenes. Please try again.", {
+          id: "gemini-generation",
+        });
+        
+        // Create a default scene if Gemini parsing fails
         const defaultScene: Scene = {
           id: "scene-1",
           title: "SCENE 1",
@@ -386,12 +329,10 @@ function ProjectContent() {
             }
           ]
         };
-        scenes.push(defaultScene);
+        setScenes([defaultScene]);
+        setCurrentScene(defaultScene);
+        return [defaultScene];
       }
-
-      console.log("Parsed scenes:", scenes);
-      setScenes(scenes);
-      setCurrentScene(scenes[0]);
     } catch (error) {
       console.error("Error parsing script into scenes:", error);
       // Create a default scene if parsing fails
@@ -425,7 +366,77 @@ function ProjectContent() {
       };
       setScenes([defaultScene]);
       setCurrentScene(defaultScene);
+      return [defaultScene];
     }
+  };
+
+  // Function to convert Gemini shots to our scene/shot format
+  const convertGeminiShotsToScenes = (geminiShots: GeminiShot[]): Scene[] => {
+    console.log(`Processing ${geminiShots.length} shots from Gemini`);
+    
+    // Group shots by scene number
+    const shotsByScene: Record<number, GeminiShot[]> = {};
+    
+    geminiShots.forEach(shot => {
+      const sceneNumber = shot.scene_number || 1;
+      if (!shotsByScene[sceneNumber]) {
+        shotsByScene[sceneNumber] = [];
+      }
+      shotsByScene[sceneNumber].push(shot);
+    });
+    
+    console.log(`Found ${Object.keys(shotsByScene).length} distinct scenes`);
+    
+    // Convert each group to a scene
+    const scenes = Object.entries(shotsByScene).map(([sceneNumber, shots]) => {
+      // Find a good scene title based on the setting of the first shot
+      const firstShot = shots[0];
+      const setting = firstShot.setting || "";
+      const sceneTitle = `SCENE ${sceneNumber}: ${setting.split('.')[0]}`;
+      
+      console.log(`Creating scene ${sceneNumber} with ${shots.length} shots`);
+      
+      // Convert each Gemini shot to our shot format
+      const convertedShots = shots.map((shot, index) => {
+        return {
+          id: `shot-${index + 1}`,
+          type: shot.camera_view || "MEDIUM SHOT",
+          description: shot.starting_image_description || "",
+          hasNarration: false,
+          hasDialogue: !!shot.dialogue,
+          hasSoundEffects: false,
+          prompt: shot.starting_image_description || "",
+          narration: null,
+          dialogue: shot.dialogue || null,
+          soundEffects: null,
+          location: shot.setting || null,
+          lighting: null,
+          weather: null,
+          generatedImage: null,
+          generatedVideo: null,
+          // Additional Gemini-specific fields
+          cameraMotion: shot.camera_motion || "Static",
+          action: shot.action || "",
+          characters: shot.characters || [],
+          shotNumber: shot.shot_number || index + 1
+        } as Shot;
+      });
+      
+      return {
+        id: `scene-${sceneNumber}`,
+        title: sceneTitle,
+        location: firstShot.setting || "",
+        description: firstShot.action || "",
+        lighting: "Natural lighting",
+        weather: "Clear",
+        style: "hyperrealistic",
+        shots: convertedShots,
+        sceneNumber: parseInt(sceneNumber)
+      } as Scene;
+    });
+    
+    console.log(`Successfully created ${scenes.length} scenes`);
+    return scenes;
   };
 
   // Update scene details
@@ -693,6 +704,7 @@ function ProjectContent() {
           prompt,
           aspectRatio: "16:9",
           model: "photon-1",
+          style: selectedStyle,
         }),
       });
 
@@ -787,164 +799,153 @@ function ProjectContent() {
     }
   };
 
-  // Add a new function to generate images for all shots
-  const generateAllShotImages = async () => {
-    if (!currentScene || !currentScene.shots) {
-      toast.error('No shots to generate images for');
+  // Regenerate scenes using Gemini
+  const regenerateScenesWithGemini = async () => {
+    if (!script || !storyId) {
+      toast.error("No script available or story is not saved yet");
       return;
     }
-
-    console.log(`Starting image generation for ${currentScene.shots.length} shots`);
-    
-    // Process shots sequentially
-    for (let i = 0; i < currentScene.shots.length; i++) {
-      const shot = currentScene.shots[i];
-      const promptElement = document.getElementById(`shot-${i}-prompt`) as HTMLTextAreaElement;
-      
-      if (promptElement && promptElement.value.trim()) {
-        console.log(`Generating image for shot ${i + 1}/${currentScene.shots.length}`);
-        await generateShotFromPrompt(i, promptElement.value);
-        // Wait a bit between shots to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-  };
-
-  // Add new function to generate scenes from Gemini AI
-  const generateScenesFromGemini = async () => {
-    if (!script) {
-      toast.error('No script to generate scenes from');
-      return;
-    }
-
-    // Show loading toast
-    toast.loading("Generating scenes and shots using Gemini AI. This may take a minute...", {
-      id: "gemini-generation",
-    });
 
     try {
-      console.log("Generating scenes from script using Gemini AI");
-      
-      // Call the API to generate scenes and shots
-      const response = await fetch("/api/gemini", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          script: script,
-          style: "hyperrealistic",
-          duration: 1.0 // Default to 1 minute video
-        }),
+      // Show loading toast
+      toast.loading("Regenerating scenes with Gemini AI...", {
+        id: "regenerate-scenes",
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.details || "Failed to generate scenes");
-      }
-
-      const data = await response.json();
-      console.log("Generated scenes and shots:", data);
-
-      // Check if we have valid shots data
-      if (!data.shots || !Array.isArray(data.shots) || data.shots.length === 0) {
-        throw new Error("No valid scenes or shots generated");
-      }
-
-      // Convert Gemini shot format to our scene/shot format
-      const convertedScenes = convertGeminiShotsToScenes(data.shots as GeminiShot[]);
+      // Parse script into scenes using Gemini
+      const regeneratedScenes = await parseScriptIntoScenes(script);
       
-      // Update the scenes state with the new scenes
-      setScenes(convertedScenes);
+      // Update the existing story with new scenes
+      await updateStory(storyId, {
+        scenes: regeneratedScenes,
+        updatedAt: Date.now()
+      });
       
-      // Set the current scene to the first scene
-      if (convertedScenes.length > 0) {
-        setCurrentScene(convertedScenes[0]);
-      }
-
-      // If we have a storyId, save the updated scenes
-      if (storyId && user) {
-        await updateStory(storyId, {
-          scenes: convertedScenes,
-          updatedAt: Date.now()
-        });
-      }
-
-      toast.success("Scenes and shots generated successfully!", {
-        id: "gemini-generation",
+      toast.success("Scenes regenerated and saved successfully!", {
+        id: "regenerate-scenes",
       });
     } catch (error) {
-      console.error("Error generating scenes:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate scenes. Please try again.", {
-        id: "gemini-generation",
+      console.error("Error regenerating scenes:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to regenerate scenes. Please try again.", {
+        id: "regenerate-scenes",
       });
     }
   };
 
-  // Function to convert Gemini shots to our scene/shot format
-  const convertGeminiShotsToScenes = (geminiShots: GeminiShot[]): Scene[] => {
-    // Group shots by scene number
-    const shotsByScene: Record<number, GeminiShot[]> = {};
-    
-    geminiShots.forEach(shot => {
-      const sceneNumber = shot.scene_number || 1;
-      if (!shotsByScene[sceneNumber]) {
-        shotsByScene[sceneNumber] = [];
-      }
-      shotsByScene[sceneNumber].push(shot);
-    });
-    
-    // Convert each group to a scene
-    const scenes = Object.entries(shotsByScene).map(([sceneNumber, shots]) => {
-      // Find a good scene title based on the setting of the first shot
-      const firstShot = shots[0];
-      const setting = firstShot.setting || "";
-      const sceneTitle = `SCENE ${sceneNumber}: ${setting.split('.')[0]}`;
-      
-      // Convert each Gemini shot to our shot format
-      const convertedShots = shots.map((shot, index) => {
-        return {
-          id: `shot-${index + 1}`,
-          type: shot.camera_view || "MEDIUM SHOT",
-          description: shot.starting_image_description || "",
-          hasNarration: false,
-          hasDialogue: !!shot.dialogue,
-          hasSoundEffects: false,
-          prompt: shot.starting_image_description || "",
-          narration: null,
-          dialogue: shot.dialogue || null,
-          soundEffects: null,
-          location: null,
-          lighting: null,
-          weather: null,
-          generatedImage: null,
-          generatedVideo: null,
-          // Additional Gemini-specific fields
-          cameraMotion: shot.camera_motion || "Static",
-          action: shot.action || "",
-          characters: shot.characters || []
-        } as Shot;
+  // Update the generateAllShotImages function
+  const generateAllShotImages = async () => {
+    if (!currentScene || !currentScene.shots) {
+      toast.error('Please select a scene first');
+      return;
+    }
+
+    try {
+      toast.loading(`Generating images for all ${currentScene.shots.length} shots in scene ${currentScene.title}...`, {
+        id: "bulk-image-generation",
       });
+
+      let updatedShots = [...currentScene.shots];
+      let successCount = 0;
+      let failCount = 0;
+
+      // Generate images for each shot sequentially
+      for (let i = 0; i < updatedShots.length; i++) {
+        try {
+          const shot = updatedShots[i];
+          
+          // Skip shots that already have images
+          if (shot.generatedImage) {
+            successCount++;
+            continue;
+          }
+          
+          // Update toast with current progress
+          toast.loading(`Generating image ${i+1}/${currentScene.shots.length} for scene ${currentScene.title}...`, {
+            id: "bulk-image-generation",
+          });
+          
+          const response = await fetch('/api/image', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              prompt: shot.prompt || shot.description,
+              style: selectedStyle,
+              aspectRatio: "16:9",
+              model: "photon-1",
+            }),
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Failed to generate image for shot ${i+1}`);
+          }
+          
+          const data = await response.json();
+          
+          // Update the shot with the generated image URL
+          updatedShots[i] = {
+            ...updatedShots[i],
+            generatedImage: data.url,
+          };
+          
+          successCount++;
+        } catch (error) {
+          console.error(`Error generating image for shot ${i+1}:`, error);
+          failCount++;
+        }
+      }
       
-      return {
-        id: `scene-${sceneNumber}`,
-        title: sceneTitle,
-        location: firstShot.setting || "",
-        description: firstShot.action || "",
-        lighting: "Natural lighting",
-        weather: "Clear",
-        style: "hyperrealistic",
-        shots: convertedShots
-      } as Scene;
-    });
-    
-    return scenes;
+      // Update the current scene with the updated shots
+      const updatedScene = {
+        ...currentScene,
+        shots: updatedShots,
+      };
+      
+      // Update state
+      setCurrentScene(updatedScene);
+      setScenes(scenes.map(scene => 
+        scene.id === currentScene.id ? updatedScene : scene
+      ));
+      
+      // Save to Firebase if story ID exists
+      if (storyId) {
+        try {
+          await updateScene(storyId, currentScene.id, {
+            shots: updatedShots
+          });
+        } catch (error) {
+          console.error("Error saving shots to Firebase:", error);
+          toast.error("Generated images successfully but failed to save to database.");
+          return;
+        }
+      }
+      
+      // Show success toast
+      if (failCount === 0) {
+        toast.success(`Successfully generated ${successCount} images for scene ${currentScene.title}!`, {
+          id: "bulk-image-generation",
+        });
+      } else {
+        toast.error(`Generated ${successCount} images, but failed to generate ${failCount} images.`, {
+          id: "bulk-image-generation",
+        });
+      }
+    } catch (error) {
+      console.error("Error in bulk image generation:", error);
+      toast.error("Failed to generate images for all shots. Please try again.", {
+        id: "bulk-image-generation",
+      });
+    }
   };
 
   // Generate video for a single shot
   const generateShotVideo = async (shotIndex: number) => {
-    if (!currentScene?.shots[shotIndex]) return;
-    
+    if (!currentScene) {
+      toast.error('Please select a scene first');
+      return;
+    }
+
     const shot = currentScene.shots[shotIndex];
     if (!shot.generatedImage) {
       toast.error("Please generate an image for this shot first");
@@ -953,6 +954,10 @@ function ProjectContent() {
 
     try {
       // Start video generation
+      toast.loading("Generating video...", {
+        id: "video-generation",
+      });
+      
       const response = await fetch("/api/video", {
         method: "POST",
         headers: {
@@ -962,7 +967,7 @@ function ProjectContent() {
           imageUrl: shot.generatedImage,
           prompt: shot.description,
           duration: 5,
-          style: "cinematic",
+          style: selectedStyle, // Use the selected style
         }),
       });
 
@@ -973,11 +978,6 @@ function ProjectContent() {
 
       const data = await response.json();
       console.log("Video generation started with ID:", data.id);
-
-      // Show loading toast
-      toast.loading("Generating video...", {
-        id: "video-generation",
-      });
 
       // Poll for video generation status
       const pollStatus = async () => {
@@ -1010,7 +1010,20 @@ function ProjectContent() {
                 setScenes(scenes.map(scene => 
                   scene.id === currentScene.id ? updatedScene : scene
                 ));
-                console.log("Successfully updated shot with generated video");
+                
+                // Save to Firebase if story ID exists
+                if (storyId) {
+                  try {
+                    await updateShot(storyId, currentScene.id, shot.id, {
+                      generatedVideo: statusData.assets.video
+                    });
+                  } catch (error) {
+                    console.error("Error saving video to Firebase:", error);
+                    toast.error("Generated video successfully but failed to save to database.");
+                    return;
+                  }
+                }
+   
                 toast.success("Video generated successfully!", {
                   id: "video-generation",
                 });
@@ -1042,7 +1055,7 @@ function ProjectContent() {
     }
   };
 
-  // Generate video for all shots in a scene
+  // Update the generateSceneVideo function to save to Firebase
   const generateSceneVideo = async (sceneId: string) => {
     if (!currentScene) {
       toast.error("No scene selected");
@@ -1057,115 +1070,110 @@ function ProjectContent() {
     }
 
     try {
+      toast.loading(`Generating video for scene ${currentScene.title}...`, {
+        id: "scene-video-generation",
+      });
+
       // Format shots data for the API
       const shots = currentScene.shots.map(shot => ({
         imageUrl: shot.generatedImage,
         prompt: shot.description,
-        duration: 5
+        duration: 2, // Each shot is 2 seconds
+        style: selectedStyle,
       }));
-      
-      console.log("Starting sequential video generation for shots:", shots);
 
-      // Process shots sequentially
-      for (let i = 0; i < shots.length; i++) {
-        const shot = shots[i];
-        console.log(`Processing shot ${i + 1}/${shots.length}`);
+      // Call the API to start scene video generation
+      const response = await fetch("/api/scene-video", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shots,
+          title: currentScene.title,
+          style: selectedStyle,
+        }),
+      });
 
-        // Start video generation for current shot
-        const response = await fetch("/api/video", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            shots: [shot], // Send only one shot at a time
-            style: currentScene.style || "cinematic",
-            prompt: shot.prompt || "Create a cinematic video",
-            duration: 5
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || data.details || "Failed to start video generation");
-        }
-
-        console.log(`Video generation started for shot ${i + 1} with ID:`, data.id);
-
-        // Show loading toast for current shot
-        toast.loading(`Generating video for shot ${i + 1}/${shots.length}...`, {
-          id: "video-generation",
-        });
-
-        // Poll for video generation status
-        await new Promise<void>((resolve, reject) => {
-          const pollStatus = async () => {
-            try {
-              const statusResponse = await fetch(`/api/video?id=${data.id}`);
-              if (!statusResponse.ok) {
-                throw new Error("Failed to check video generation status");
-              }
-              
-              const statusData = await statusResponse.json();
-              console.log(`Shot ${i + 1} video generation status:`, statusData.state);
-
-              if (statusData.state === "completed") {
-                try {
-                  if (!statusData.assets?.video) {
-                    throw new Error("No video URL in completed generation");
-                  }
-
-                  // Update the shot with the generated video URL
-                  const updatedShots = [...currentScene.shots];
-                  if (updatedShots[i]) {
-                    const updatedShot = {
-                      ...updatedShots[i],
-                      generatedVideo: statusData.assets.video || undefined,
-                    } as Shot;
-                    updatedShots[i] = updatedShot;
-                    
-                    const updatedScene = {
-                      ...currentScene,
-                      shots: updatedShots,
-                    } as Scene;
-                    
-                    // Update state with proper type casting
-                    setCurrentScene(updatedScene as Scene);
-                    setScenes(prevScenes => 
-                      prevScenes.map(s => s.id === sceneId ? updatedScene as Scene : s)
-                    );
-                    console.log(`Successfully updated shot ${i + 1} with generated video`);
-                    resolve();
-                  }
-                } catch (error) {
-                  console.error(`Error updating shot ${i + 1} with video:`, error);
-                  reject(error);
-                }
-              } else if (statusData.state === "failed") {
-                reject(new Error(statusData.failure_reason || "Video generation failed"));
-              } else {
-                // Continue polling
-                setTimeout(pollStatus, 3000);
-              }
-            } catch (error) {
-              reject(error);
-            }
-          };
-
-          pollStatus();
-        });
-
-        // Wait a bit before processing the next shot
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start scene video generation");
       }
 
-      toast.success("All shot videos generated successfully!", {
-        id: "video-generation",
-      });
+      const data = await response.json();
+      console.log("Scene video generation started with ID:", data.id);
+
+      // Poll for video generation status
+      const pollStatus = async () => {
+        try {
+          const statusResponse = await fetch(`/api/scene-video?id=${data.id}`);
+          if (!statusResponse.ok) {
+            throw new Error("Failed to check scene video generation status");
+          }
+          
+          const statusData = await statusResponse.json();
+          console.log("Scene video generation status:", statusData.state);
+
+          if (statusData.state === "completed") {
+            try {
+              // Check if we have a valid video URL
+              if (!statusData.videoUrl) {
+                throw new Error("No video URL in response");
+              }
+
+              // Update the scene with the generated video URL
+              const updatedScene = {
+                ...currentScene,
+                generatedVideo: statusData.videoUrl,
+              };
+              
+              setCurrentScene(updatedScene);
+              setScenes(scenes.map(scene => 
+                scene.id === currentScene.id ? updatedScene : scene
+              ));
+              
+              // Save to Firebase if story ID exists
+              if (storyId) {
+                try {
+                  await updateScene(storyId, sceneId, {
+                    generatedVideo: statusData.videoUrl
+                  });
+                } catch (error) {
+                  console.error("Error saving scene video to Firebase:", error);
+                  toast.error("Generated scene video successfully but failed to save to database.");
+                  return;
+                }
+              }
+   
+              toast.success("Scene video generated successfully!", {
+                id: "scene-video-generation",
+              });
+            } catch (error) {
+              console.error("Error updating scene with video:", error);
+              toast.error("Failed to save generated scene video. Please try again.", {
+                id: "scene-video-generation",
+              });
+            }
+          } else if (statusData.state === "failed") {
+            throw new Error(statusData.failure_reason || "Scene video generation failed");
+          } else {
+            // Continue polling
+            setTimeout(pollStatus, 3000);
+          }
+        } catch (error) {
+          console.error("Error during scene video status polling:", error);
+          toast.error(error instanceof Error ? error.message : "Failed to check scene video generation status. Please try again.", {
+            id: "scene-video-generation",
+          });
+        }
+      };
+
+      pollStatus();
     } catch (error) {
-      console.error("Error generating scene videos:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate scene videos. Please try again.");
+      console.error("Error generating scene video:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate scene video. Please try again.", {
+        id: "scene-video-generation",
+      });
     }
   };
 
@@ -1264,6 +1272,38 @@ function ProjectContent() {
       <div className="flex flex-col md:flex-row">
         {/* Left sidebar with scene info */}
         <div className="w-full md:w-64 bg-gray-50 p-4 flex flex-col border-r">
+          {/* Add scene selector at the top */}
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Scenes</h3>
+            <div className="max-h-40 overflow-y-auto">
+              {scenes.map((scene) => (
+                <div 
+                  key={scene.id} 
+                  className={`flex justify-between items-center p-2 rounded-md mb-1 cursor-pointer ${
+                    currentScene?.id === scene.id ? "bg-purple-100 border border-purple-300" : "hover:bg-gray-100"
+                  }`}
+                  onClick={() => handleSceneSelect(scene)}
+                >
+                  <span className="text-sm font-medium truncate">
+                    {scene.title}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-500 bg-gray-200 px-1 rounded">
+                      {scene.shots.length} shots
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button 
+              onClick={addNewScene}
+              className="w-full mt-2 bg-gray-800 hover:bg-gray-700 text-white"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Scene
+            </Button>
+          </div>
+
           <div className="mb-4">
             <h2 className="text-xl font-bold text-amber-600">{currentScene?.title || "SCENE 1"}</h2>
             <p className="text-sm text-gray-600 mt-1">
@@ -1289,122 +1329,125 @@ function ProjectContent() {
               </div>
             )}
 
-            <div className="flex flex-col space-y-2 mt-3">
-              <Button 
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
-                onClick={generateScenesFromGemini}
-              >
-                <Camera className="mr-2 h-5 w-5" />
-                Generate Scenes with Gemini
-              </Button>
-              {currentScene && (
-                <button
-                  onClick={() => generateSceneVideo(currentScene.id)}
-                  disabled={!currentScene.shots.some(shot => shot.generatedImage)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
+            <Card className="mb-4">
+              <CardHeader className="py-3">
+                <CardTitle className="text-xl font-bold">Scene Controls</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button 
+                    onClick={regenerateScenesWithGemini}
+                    className="bg-violet-600 hover:bg-violet-700 text-white font-bold flex items-center gap-2"
+                    disabled={isSaving || !script}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span>Generate Scene Video</span>
-                </button>
-              )}
+                    <RefreshCw className="h-4 w-4" />
+                    Regenerate Scenes
+                  </Button>
+                  
+                  <Button 
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md flex items-center gap-2"
+                    onClick={generateAllShotImages}
+                    disabled={!currentScene || currentScene.shots.length === 0}
+                  >
+                    <Camera className="h-4 w-4" />
+                    Generate All Images
+                  </Button>
+                  
+                  {currentScene && currentScene.shots && currentScene.shots.length > 0 && 
+                    currentScene.shots.every(shot => shot.generatedImage) && (
+                    <Button 
+                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md flex items-center gap-2"
+                      onClick={() => generateSceneVideo(currentScene.id)}
+                    >
+                      <Film className="h-4 w-4" />
+                      Generate Video
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+            
+            <div className="mb-4">
+              <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Description</h3>
+              <textarea
+                className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                rows={3}
+                placeholder="Describe the location"
+                defaultValue="Describe the location"
+              ></textarea>
             </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Generates images and video for all shots in this scene
-            </p>
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Description</h3>
-            <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-              rows={3}
-              placeholder="Describe the location"
-              defaultValue="Describe the location"
-            ></textarea>
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Lighting</h3>
-            <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-              rows={2}
-              placeholder="Describe the lighting"
-              defaultValue="Describe the lighting"
-            ></textarea>
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Weather</h3>
-            <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-              rows={2}
-              placeholder="Describe the weather"
-              defaultValue="Describe the weather"
-            ></textarea>
-          </div>
-          
-          <div className="mt-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Style</h3>
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Camera className="text-gray-500 h-5 w-5" />
-                <p className="text-sm text-gray-700">Video Style</p>
+            
+            <div className="mb-4">
+              <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Lighting</h3>
+              <textarea
+                className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                rows={2}
+                placeholder="Describe the lighting"
+                defaultValue="Describe the lighting"
+              ></textarea>
+            </div>
+            
+            <div className="mb-4">
+              <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Weather</h3>
+              <textarea
+                className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                rows={2}
+                placeholder="Describe the weather"
+                defaultValue="Describe the weather"
+              ></textarea>
+            </div>
+            
+            <div className="mt-4">
+              <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Style</h3>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Camera className="text-gray-500 h-5 w-5" />
+                  <p className="text-sm text-gray-700">Video Style</p>
+                </div>
+                <select 
+                  className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={selectedStyle}
+                  onChange={(e) => setSelectedStyle(e.target.value)}
+                >
+                  <option value="hyperrealistic">Hyperrealistic</option>
+                  <option value="anime">Anime</option>
+                  <option value="90s-cartoon">90s Cartoon</option>
+                  <option value="cyberpunk">Cyberpunk</option>
+                  <option value="steampunk">Steampunk</option>
+                  <option value="pixar">Pixar Style</option>
+                  <option value="studio-ghibli">Studio Ghibli</option>
+                  <option value="comic-book">Comic Book</option>
+                  <option value="watercolor">Watercolor</option>
+                  <option value="oil-painting">Oil Painting</option>
+                  <option value="pixel-art">Pixel Art</option>
+                  <option value="low-poly">Low Poly</option>
+                  <option value="retro-wave">Retro Wave</option>
+                  <option value="vaporwave">Vaporwave</option>
+                  <option value="synthwave">Synthwave</option>
+                  <option value="neon">Neon</option>
+                  <option value="noir">Film Noir</option>
+                  <option value="western">Western</option>
+                  <option value="sci-fi">Sci-Fi</option>
+                  <option value="fantasy">Fantasy</option>
+                  <option value="horror">Horror</option>
+                  <option value="documentary">Documentary</option>
+                  <option value="vintage">Vintage</option>
+                  <option value="minimalist">Minimalist</option>
+                  <option value="abstract">Abstract</option>
+                  <option value="surreal">Surreal</option>
+                  <option value="pop-art">Pop Art</option>
+                  <option value="impressionist">Impressionist</option>
+                  <option value="expressionist">Expressionist</option>
+                  <option value="cubist">Cubist</option>
+                  <option value="art-deco">Art Deco</option>
+                  <option value="brutalism">Brutalism</option>
+                  <option value="retro-futuristic">Retro Futuristic</option>
+                  <option value="biopunk">Biopunk</option>
+                  <option value="dieselpunk">Dieselpunk</option>
+                  <option value="solarpunk">Solarpunk</option>
+                  <option value="atompunk">Atompunk</option>
+                </select>
               </div>
-              <select 
-                className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                defaultValue="hyperrealistic"
-              >
-                <option value="hyperrealistic">Hyperrealistic</option>
-                <option value="anime">Anime</option>
-                <option value="90s-cartoon">90s Cartoon</option>
-                <option value="cyberpunk">Cyberpunk</option>
-                <option value="steampunk">Steampunk</option>
-                <option value="pixar">Pixar Style</option>
-                <option value="studio-ghibli">Studio Ghibli</option>
-                <option value="comic-book">Comic Book</option>
-                <option value="watercolor">Watercolor</option>
-                <option value="oil-painting">Oil Painting</option>
-                <option value="pixel-art">Pixel Art</option>
-                <option value="low-poly">Low Poly</option>
-                <option value="retro-wave">Retro Wave</option>
-                <option value="vaporwave">Vaporwave</option>
-                <option value="synthwave">Synthwave</option>
-                <option value="neon">Neon</option>
-                <option value="noir">Film Noir</option>
-                <option value="western">Western</option>
-                <option value="sci-fi">Sci-Fi</option>
-                <option value="fantasy">Fantasy</option>
-                <option value="horror">Horror</option>
-                <option value="documentary">Documentary</option>
-                <option value="vintage">Vintage</option>
-                <option value="minimalist">Minimalist</option>
-                <option value="abstract">Abstract</option>
-                <option value="surreal">Surreal</option>
-                <option value="pop-art">Pop Art</option>
-                <option value="impressionist">Impressionist</option>
-                <option value="expressionist">Expressionist</option>
-                <option value="cubist">Cubist</option>
-                <option value="art-deco">Art Deco</option>
-                <option value="brutalism">Brutalism</option>
-                <option value="retro-futuristic">Retro Futuristic</option>
-                <option value="biopunk">Biopunk</option>
-                <option value="dieselpunk">Dieselpunk</option>
-                <option value="solarpunk">Solarpunk</option>
-                <option value="atompunk">Atompunk</option>
-              </select>
             </div>
           </div>
         </div>
@@ -1416,7 +1459,7 @@ function ProjectContent() {
             {currentScene?.shots.map((shot, index) => (
               <div key={shot.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm flex flex-col">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm text-gray-500">#{index + 1}</span>
+                  <span className="text-sm text-gray-500">#{shot.shotNumber || index + 1}</span>
                   <div className="flex items-center space-x-2">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                       <Edit className="h-4 w-4 text-gray-500" />
@@ -1443,6 +1486,28 @@ function ProjectContent() {
                     )}
                   </div>
                 </div>
+                
+                {/* Shot Camera Motion Information */}
+                {shot.cameraMotion && (
+                  <div className="mb-2 text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+                    <span className="px-2 py-1 bg-gray-100 rounded-md">{shot.type}</span>
+                    <span className="px-2 py-1 bg-gray-100 rounded-md">{shot.cameraMotion}</span>
+                  </div>
+                )}
+
+                {/* Characters */}
+                {shot.characters && shot.characters.length > 0 && (
+                  <div className="mb-2">
+                    <h3 className="text-xs text-gray-500 uppercase">Characters</h3>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {shot.characters.map((character, i) => (
+                        <span key={i} className="px-2 py-1 bg-blue-50 text-blue-600 rounded-md text-xs">
+                          {character}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Image Preview */}
                 {shot.generatedImage && (
@@ -1478,19 +1543,37 @@ function ProjectContent() {
                     placeholder="Describe this shot..."
                     defaultValue={shot.description}
                   />
+                  
+                  {/* Shot Type Selection */}
                   <div>
                     <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Shot Type</h3>
-                    <select className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700">
+                    <select 
+                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                      defaultValue={shot.type}
+                    >
                       <option value="">Select shot type</option>
-                      <option value="establishing">Establishing Shot</option>
-                      <option value="closeup">Close-Up</option>
-                      <option value="medium">Medium Shot</option>
-                      <option value="wide">Wide Shot</option>
-                      <option value="pov">POV</option>
-                      <option value="tracking">Tracking Shot</option>
+                      <option value="ESTABLISHING SHOT">Establishing Shot</option>
+                      <option value="CLOSE-UP">Close-Up</option>
+                      <option value="MEDIUM SHOT">Medium Shot</option>
+                      <option value="WIDE SHOT">Wide Shot</option>
+                      <option value="POV">POV</option>
+                      <option value="TRACKING SHOT">Tracking Shot</option>
                     </select>
                   </div>
                   
+                  {/* Action Description */}
+                  <div>
+                    <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Action</h3>
+                    <textarea
+                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                      rows={2}
+                      placeholder="Action description..."
+                      defaultValue={shot.action || ""}
+                      onChange={(e) => updateShotDetails(currentScene.id, shot.id, { action: e.target.value })}
+                    />
+                  </div>
+                  
+                  {/* Character Dialogue */}
                   <div>
                     <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Character Dialogue</h3>
                     <textarea
@@ -1501,6 +1584,7 @@ function ProjectContent() {
                     />
                   </div>
                   
+                  {/* Sound Effects */}
                   <div>
                     <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Sound Effects</h3>
                     <textarea
