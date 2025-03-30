@@ -271,6 +271,54 @@ function ProjectContent() {
     }, 1500);
   };
 
+  const addNewScene = () => {
+    const newScene: Scene = {
+      id: `scene-${scenes.length + 1}`,
+      title: `SCENE ${scenes.length + 1}`,
+      shots: [
+        {
+          id: "shot-1",
+          type: "ESTABLISHING SHOT",
+          description: "Describe your shot...",
+          dialogue: "",
+          soundEffects: ""
+        }
+      ]
+    };
+    
+    setScenes([...scenes, newScene]);
+    setCurrentScene(newScene);
+  };
+
+  const handleSceneSelect = (scene: Scene) => {
+    setCurrentScene(scene);
+  };
+
+  const handleSceneDelete = (sceneId: string) => {
+    if (scenes.length <= 1) {
+      alert("Cannot delete the last scene");
+      return;
+    }
+    
+    const updatedScenes = scenes.filter(s => s.id !== sceneId);
+    setScenes(updatedScenes);
+    
+    if (currentScene?.id === sceneId) {
+      setCurrentScene(updatedScenes[0]);
+    }
+  };
+
+  const handleSceneRename = (sceneId: string, newTitle: string) => {
+    const updatedScenes = scenes.map(scene => 
+      scene.id === sceneId ? { ...scene, title: newTitle } : scene
+    );
+    setScenes(updatedScenes);
+    
+    if (currentScene?.id === sceneId) {
+      setCurrentScene({ ...currentScene, title: newTitle });
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
       <div className="bg-white border-b p-3 flex justify-between items-center">
@@ -302,6 +350,79 @@ function ProjectContent() {
       <div className="flex flex-col md:flex-row">
         {/* Left sidebar with scene info */}
         <div className="w-full md:w-64 bg-gray-50 p-4 flex flex-col border-r">
+          {/* Scene List */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Scenes</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={addNewScene}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="h-4 w-4 text-purple-600" />
+              </Button>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {scenes.map((scene) => (
+                <div
+                  key={scene.id}
+                  className={`flex items-center justify-between p-2 rounded ${
+                    currentScene?.id === scene.id
+                      ? "bg-purple-100 border border-purple-200"
+                      : "bg-white border border-gray-200"
+                  }`}
+                >
+                  <button
+                    className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-purple-600"
+                    onClick={() => handleSceneSelect(scene)}
+                  >
+                    {scene.title}
+                  </button>
+                  <div className="flex items-center space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => {
+                        const newTitle = prompt("Enter new scene title:", scene.title);
+                        if (newTitle) handleSceneRename(scene.id, newTitle);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3 text-gray-500" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleSceneDelete(scene.id)}
+                    >
+                      <Trash className="h-3 w-3 text-gray-500" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Generate Video Button */}
+          <div className="mb-6">
+            <Button 
+              className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
+              onClick={() => {
+                // TODO: Implement video generation logic
+                alert("Video generation coming soon! This will create a video from your storyboard shots.");
+              }}
+            >
+              <Film className="mr-2 h-5 w-5" />
+              Generate Video
+            </Button>
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Creates a video from your storyboard shots
+            </p>
+          </div>
+
+          {/* Current Scene Details */}
           <div className="mb-4">
             <h2 className="text-xl font-bold text-amber-600">{currentScene?.title || "SCENE 1"}</h2>
             <p className="text-sm text-gray-600 mt-1">
