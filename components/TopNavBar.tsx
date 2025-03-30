@@ -46,60 +46,79 @@ const ColorCircle: React.FC<ColorCircleProps> = ({ themeName, isSelected }) => (
 );
 
 const TopNavBar = () => {
-  const { theme, setTheme } = useTheme();
-  const [colorTheme, setColorTheme] = useState<ThemeName>("neutral");
   const [mounted, setMounted] = useState(false);
-  const { user, signOut, loading: authLoading } = useAuth();
 
   useEffect(() => {
     setMounted(true);
-    const savedColorTheme = (localStorage.getItem("color-theme") ||
-      "neutral") as ThemeName;
-    setColorTheme(savedColorTheme);
-    applyTheme(savedColorTheme, true);
-  }, [theme]);
+  }, []);
 
-  const applyTheme = (newColorTheme: ThemeName, isDark: boolean) => {
-    if (typeof window === 'undefined') return;
-    const root = document.documentElement;
-    const themeVariables = isDark
-      ? themes[newColorTheme]?.dark
-      : themes[newColorTheme]?.light;
+  if (!mounted) return <nav className="h-[60px]" />;
 
-    if (!themeVariables) {
-        console.warn(`Theme variables not found for ${newColorTheme}`);
-        return;
+  return <TopNavBarClient />;
+}
+
+
+const TopNavBarClient = () => {
+  const { theme, setTheme } = useTheme();
+  const [colorTheme, setColorTheme] = useState<ThemeName>("neutral");
+  const { user, signOut, loading: authLoading } = useAuth();
+  
+  const getCurrentMode = (theme: string): "dark" | "light" => {
+    if (theme === "system") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-
+    return theme as "dark" | "light";
+  };
+  
+  const applyThemeFromName = (themeName: ThemeName, themeMode: "dark" | "light") => {
+    const root = document.documentElement;
+    const themeVariables = themes[themeName]?.[themeMode];
+  
+    if (!themeVariables) {
+      console.warn(`Theme variables not found for ${themeName}`);
+      return;
+    }
+  
     Object.entries(themeVariables).forEach(([key, value]) => {
       root.style.setProperty(`--${key}`, value as string);
     });
   };
-
+  
+  useEffect(() => {
+    setTheme("dark"); // Set mode to dark initially
+    const savedColorTheme = (localStorage.getItem("color-theme") || "neutral") as ThemeName;
+    setColorTheme(savedColorTheme);
+  
+    const currentMode = getCurrentMode("dark");
+    applyThemeFromName(savedColorTheme, currentMode);
+  }, []);
+  
+  // 🔄 Reapply theme if user changes mode
+  useEffect(() => {
+    const currentMode = getCurrentMode(theme);
+    applyThemeFromName(colorTheme, currentMode);
+  }, [theme, colorTheme]);
+  
   const handleThemeChange = (newColorTheme: ThemeName) => {
     setColorTheme(newColorTheme);
     localStorage.setItem("color-theme", newColorTheme);
-    const currentMode = theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-      : theme;
-    applyTheme(newColorTheme, currentMode === "dark");
+  
+    const currentMode = getCurrentMode(theme);
+    applyThemeFromName(newColorTheme, currentMode);
   };
-
+  
   const handleModeChange = (mode: "light" | "dark" | "system") => {
     setTheme(mode);
-    const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    applyTheme(colorTheme, isDark);
+    const currentMode = getCurrentMode(mode);
+    applyThemeFromName(colorTheme, currentMode);
   };
-
-  if (!mounted) {
-    return <nav className="text-foreground p-4 flex justify-between items-center h-[60px]"></nav>;
-  }
-
+  
   const getInitials = (email?: string | null) => {
-    if (!email) return '??';
-    const parts = email.split('@')[0].split(/[._-]/);
-    return parts.map(p => p[0]).slice(0, 2).join('').toUpperCase();
-  }
+    if (!email) return "??";
+    const parts = email.split("@")[0].split(/[._-]/);
+    return parts.map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  };
+  
 
   return (
     <nav className="text-foreground p-4 flex justify-between items-center bg-background">
