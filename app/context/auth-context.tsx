@@ -30,6 +30,7 @@ export interface AuthContextType {
   updateUserProfile: (displayName?: string, photoURL?: string) => Promise<void>;
   updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteUserAccount: (password: string) => Promise<void>;
+  initialized: boolean; // Indicates if the auth state has been initialized
 }
 
 // Create context with default values
@@ -44,45 +45,46 @@ const AuthContext = createContext<AuthContextType>({
   updateUserProfile: async () => {},
   updateUserPassword: async () => {},
   deleteUserAccount: async () => {},
+  initialized: false, // Default to false until auth state is initialized
 });
 
 // Auth provider component
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   // Listen for auth state changes
   useEffect(() => {
+    setLoading(true); // Start loading immediately
+    let tokenRefreshInterval: NodeJS.Timeout | null = null;
+  
     const unsubscribe = onIdTokenChanged(firebaseAuth, async (user) => {
-      setLoading(true);
       if (user) {
         setUser(user);
-        
-        // Refresh token every 55 minutes to prevent expiration
-        // Firebase tokens expire in 60 minutes by default
-        const tokenRefreshInterval = setInterval(async () => {
-          const token = await user.getIdToken(true);
+  
+        // Start refresh loop
+        tokenRefreshInterval = setInterval(async () => {
+          await user.getIdToken(true);
           console.log("Token refreshed:", new Date().toISOString());
         }, 55 * 60 * 1000);
-        
-        return () => clearInterval(tokenRefreshInterval);
       } else {
         setUser(null);
       }
+  
       setLoading(false);
+      setInitialized(true);
     });
-
-    // Initial check (handles page refresh)
-    const checkInitialAuth = async () => {
-      await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to prevent flicker
-      setLoading(false);
+  
+    return () => {
+      unsubscribe();
+      if (tokenRefreshInterval) {
+        clearInterval(tokenRefreshInterval);
+      }
     };
-    checkInitialAuth();
-
-    return () => unsubscribe();
-  }, []);
+  }, []);  
 
   // Auth redirection logic
   useEffect(() => {
@@ -244,6 +246,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     updateUserProfile,
     updateUserPassword,
     deleteUserAccount,
+    initialized
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

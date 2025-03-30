@@ -10,11 +10,12 @@ interface SubscriptionCheckProps {
 }
 
 export default function SubscriptionCheck({ children }: SubscriptionCheckProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, initialized } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
+    if (!initialized) return;
     const checkAuth = async () => {
       if (authLoading) return;
       
@@ -31,7 +32,7 @@ export default function SubscriptionCheck({ children }: SubscriptionCheckProps) 
     checkAuth();
   }, [user, router, authLoading]);
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !initialized) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="flex flex-col items-center gap-2">
