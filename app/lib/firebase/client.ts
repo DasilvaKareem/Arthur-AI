@@ -1,7 +1,9 @@
 "use client";
 
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, Auth, connectAuthEmulator, browserSessionPersistence, setPersistence } from "firebase/auth";
+import { getAuth, Auth, connectAuthEmulator, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getStorage, Storage } from "firebase/storage";
 
 // Firebase configuration
 const firebaseConfig = {
@@ -23,16 +25,20 @@ Object.entries(firebaseConfig).forEach(([key, value]) => {
 // Initialize Firebase client
 let firebaseApp: FirebaseApp;
 let firebaseAuth: Auth;
+let firebaseDb: Firestore;
+let firebaseStorage: Storage;
 
 try {
   if (!getApps().length) {
     console.log('Initializing Firebase app...');
     firebaseApp = initializeApp(firebaseConfig);
     firebaseAuth = getAuth(firebaseApp);
+    firebaseDb = getFirestore(firebaseApp);
+    firebaseStorage = getStorage(firebaseApp);
     
     // Set persistence - options: LOCAL, SESSION, NONE
-    setPersistence(firebaseAuth, browserSessionPersistence)
-      .then(() => console.log('Firebase persistence set to browser session'))
+    setPersistence(firebaseAuth, browserLocalPersistence)
+      .then(() => console.log('Firebase persistence set to local'))
       .catch(error => console.error('Error setting persistence:', error));
     
     // Connect to Auth Emulator in development
@@ -45,10 +51,12 @@ try {
     console.log('Using existing Firebase app');
     firebaseApp = getApps()[0];
     firebaseAuth = getAuth(firebaseApp);
+    firebaseDb = getFirestore(firebaseApp);
+    firebaseStorage = getStorage(firebaseApp);
   }
 } catch (error) {
   console.error('Error initializing Firebase:', error);
   throw error;
 }
 
-export { firebaseApp, firebaseAuth }; 
+export { firebaseApp, firebaseAuth, firebaseDb, firebaseStorage }; 

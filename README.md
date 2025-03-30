@@ -27,6 +27,7 @@ Create a `.env.local` file in the root directory with the following variables:
 
 ```
 GROQ_API_KEY=your_groq_api_key
+GOOGLE_GEMINI_API_KEY=your_gemini_api_key
 BAWS_ACCESS_KEY_ID=your_aws_access_key
 BAWS_SECRET_ACCESS_KEY=your_aws_secret_key
 LUMAAI_API_KEY=your_lumaai_api_key
@@ -43,6 +44,13 @@ Note: We are adding a 'B' in front of the AWS environment variables for a reason
 3. Navigate to API Keys section
 4. Create a new API key
 5. Copy the key and paste it into your `.env.local` file
+
+### Google Gemini API Key
+
+1. Visit [makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
+2. Sign up or log in to your Google account
+3. Create a new API key
+4. Copy the key and paste it into your `.env.local` file
 
 ### Luma API Key
 

@@ -10,7 +10,9 @@ const luma = new LumaAI({
 // Helper function to check generation status
 async function checkGenerationStatus(generationId: string) {
   try {
+    console.log("Checking generation status for ID:", generationId);
     const generation = await luma.generations.get(generationId);
+    console.log("Generation status:", generation.state);
     return generation;
   } catch (error) {
     console.error("Error checking generation status:", error);
@@ -23,14 +25,21 @@ export async function POST(req: Request) {
     // Parse the request body
     const { prompt, aspectRatio, model, imageRef, styleRef, characterRef, modifyImageRef } = await req.json();
     
+    if (!prompt) {
+      return NextResponse.json(
+        { error: "Prompt is required" },
+        { status: 400 }
+      );
+    }
+
     // Configure generation options
     const generationOptions: any = {
       prompt,
+      aspect_ratio: aspectRatio || "16:9",
+      model: model || "photon-1",
     };
 
     // Add optional parameters if they exist
-    if (aspectRatio) generationOptions.aspect_ratio = aspectRatio;
-    if (model) generationOptions.model = model;
     if (imageRef) generationOptions.image_ref = imageRef;
     if (styleRef) generationOptions.style_ref = styleRef;
     if (characterRef) generationOptions.character_ref = characterRef;
@@ -39,6 +48,7 @@ export async function POST(req: Request) {
     // Start the image generation
     console.log("Starting image generation with options:", generationOptions);
     const generation = await luma.generations.image.create(generationOptions);
+    console.log("Generation started with ID:", generation.id);
     
     // Return the generation ID for client-side polling
     return NextResponse.json({ 
@@ -73,9 +83,13 @@ export async function GET(req: Request) {
     
     const generation = await checkGenerationStatus(id);
     
+    // Map the generation state to our response format
+    const state = generation.state === "completed" ? "completed" :
+                 generation.state === "failed" ? "failed" : "processing";
+
     return NextResponse.json({
       id: generation.id,
-      state: generation.state,
+      state,
       assets: generation.assets,
       failure_reason: generation.failure_reason
     });

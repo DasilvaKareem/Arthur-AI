@@ -365,6 +365,7 @@ function ChatArea() {
   ];
 
   const models: Model[] = [
+    { id: "gemini-pro", name: "Gemini Pro" },
     { id: "llama3-70b-8192", name: "Llama-3 70B" },
     { id: "llama3-8b-8192", name: "Llama-3 8B" },
     { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
