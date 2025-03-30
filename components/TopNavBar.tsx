@@ -56,10 +56,7 @@ const TopNavBar = () => {
     const savedColorTheme = (localStorage.getItem("color-theme") ||
       "neutral") as ThemeName;
     setColorTheme(savedColorTheme);
-    const currentMode = theme === 'system'
-      ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-      : theme;
-    applyTheme(savedColorTheme, currentMode === "dark");
+    applyTheme(savedColorTheme, true);
   }, [theme]);
 
   const applyTheme = (newColorTheme: ThemeName, isDark: boolean) => {
