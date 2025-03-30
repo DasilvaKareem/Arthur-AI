@@ -720,8 +720,7 @@ function ProjectContent() {
     }
   };
 
-<<<<<<< Updated upstream
-=======
+
   // Generate video for a single shot
   const generateShotVideo = async (shotIndex: number) => {
     if (!currentScene?.shots[shotIndex]) return;
@@ -962,7 +961,6 @@ function ProjectContent() {
     }
   };
 
->>>>>>> Stashed changes
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
       <div className="bg-white border-b p-3 flex justify-between items-center">
