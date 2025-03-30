@@ -282,12 +282,12 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
         <>
           <Avatar className="w-10 h-10 border">
             <AvatarImage
-              src="/ant-logo.svg"
-              alt="AI Assistant Avatar"
+              src="/arthur-logo.svg"
+              alt="Arthur AI Assistant Avatar"
               width={40}
               height={40}
             />
-            <AvatarFallback>AI</AvatarFallback>
+            <AvatarFallback>Arthur</AvatarFallback>
           </Avatar>
           <div>
             <h3 className="text-sm font-medium leading-none">AI Agent</h3>
@@ -639,36 +639,28 @@ function ChatArea() {
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in-up">
               <Avatar className="w-10 h-10 mb-4 border">
-                <AvatarImage
-                  src="/ant-logo.svg"
-                  alt="AI Assistant Avatar"
-                  width={40}
-                  height={40}
-                />
+                <AvatarFallback>Arthur</AvatarFallback>
               </Avatar>
               <h2 className="text-2xl font-semibold mb-8">
-                Here&apos;s how I can help
+                Create Amazing Content
               </h2>
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-3">
-                  <HandHelping className="text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Need guidance? I&apos;ll help navigate tasks using internal
-                    resources.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
                   <WandSparkles className="text-muted-foreground" />
                   <p className="text-muted-foreground">
-                    I&apos;m a whiz at finding information! I can dig through
-                    your knowledge base.
+                    Create short films, commercials, and storyboards with AI-powered creativity.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <BookOpenText className="text-muted-foreground" />
                   <p className="text-muted-foreground">
-                    I&apos;m always learning! The more you share, the better I
-                    can assist you.
+                    Generate professional business memos and presentations in seconds.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <HandHelping className="text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Transform your ideas into stunning visual content with our AI tools.
                   </p>
                 </div>
               </div>
@@ -690,11 +682,7 @@ function ChatArea() {
                   >
                     {message.role === "assistant" && (
                       <Avatar className="w-8 h-8 mr-2 border">
-                        <AvatarImage
-                          src="/ant-logo.svg"
-                          alt="AI Assistant Avatar"
-                        />
-                        <AvatarFallback>AI</AvatarFallback>
+                        <AvatarFallback>Arthur</AvatarFallback>
                       </Avatar>
                     )}
                     <div
@@ -743,13 +731,7 @@ function ChatArea() {
           />
           <div className="flex justify-between items-center p-3">
             <div className="flex items-center gap-2">
-              <Image
-                src="/claude-icon.svg"
-                alt="Claude Icon"
-                width={0}
-                height={14}
-                className="w-auto h-[14px] mt-1"
-              />
+              <span className="text-sm text-muted-foreground">Arthur</span>
               
               <Dialog>
                 <DialogTrigger asChild>

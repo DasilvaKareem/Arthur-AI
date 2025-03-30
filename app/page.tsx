@@ -31,7 +31,7 @@ export default function RootPage() {
       <section className="container flex flex-col items-center justify-center gap-6 py-24 md:py-32 text-center">
         <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
           Conversational AI<br />
-          <span className="text-primary">Powered by State-of-the-Art Models</span>
+          <span className="text-primary">Powered by Arthur</span>
         </h1>
         <p className="max-w-[640px] text-muted-foreground sm:text-xl">
           Experience the future of AI conversation with Arthur. Our platform provides intelligent responses

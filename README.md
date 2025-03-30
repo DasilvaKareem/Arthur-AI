@@ -1,6 +1,6 @@
-# Claude Customer Support Agent
+# Arthur AI Chat Assistant
 
-An advanced, fully customizable customer support chat interface powered by Claude and leveraging Amazon Bedrock Knowledge Bases for knowledge retrieval.
+An advanced, fully customizable chat interface powered by Arthur AI and leveraging Amazon Bedrock Knowledge Bases for knowledge retrieval.
 ![preview](tutorial/preview.png)
 
 ## Key Features
@@ -128,14 +128,14 @@ To create your own knowledge base:
 
 ##  Switching Models
 
-This project supports multiple Claude models. To switch between models:
+This project supports multiple AI models. To switch between models:
 
 1. In `ChatArea.tsx`, the `models` array defines available models:
 
 ```typescript
 const models: Model[] = [
-  { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
-  { id: "claude-3-5-sonnet-20240620", name: "Claude 3.5 Sonnet" },
+  { id: "arthur-1", name: "Arthur 1" },
+  { id: "arthur-2", name: "Arthur 2" },
   // Add more models as needed
 ];
 ```
@@ -143,7 +143,7 @@ const models: Model[] = [
 2. The `selectedModel` state variable controls the currently selected model:
 
 ```typescript
-const [selectedModel, setSelectedModel] = useState("claude-3-haiku-20240307");
+const [selectedModel, setSelectedModel] = useState("arthur-1");
 ```
 
 3. To implement model switching in the UI, a dropdown component is used that updates the `selectedModel`.

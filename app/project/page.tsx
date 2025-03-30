@@ -270,7 +270,15 @@ function ProjectContent() {
             hasNarration: false,
             hasDialogue: false,
             hasSoundEffects: false,
-            prompt: shotSection.split('\n')[0].trim() // Use first line as prompt
+            prompt: shotSection.split('\n')[0].trim(), // Use first line as prompt
+            narration: null,
+            dialogue: null,
+            soundEffects: null,
+            location: null,
+            lighting: null,
+            weather: null,
+            generatedImage: null,
+            generatedVideo: null
           };
 
           // Extract shot type
@@ -319,7 +327,15 @@ function ProjectContent() {
             hasNarration: false,
             hasDialogue: false,
             hasSoundEffects: false,
-            prompt: scene.description
+            prompt: scene.description,
+            narration: null,
+            dialogue: null,
+            soundEffects: null,
+            location: null,
+            lighting: null,
+            weather: null,
+            generatedImage: null,
+            generatedVideo: null
           };
           scene.shots.push(defaultShot);
         }
@@ -345,7 +361,15 @@ function ProjectContent() {
               hasNarration: false,
               hasDialogue: false,
               hasSoundEffects: false,
-              prompt: scriptText.split('\n')[0].trim() || "Default shot description"
+              prompt: scriptText.split('\n')[0].trim() || "Default shot description",
+              narration: null,
+              dialogue: null,
+              soundEffects: null,
+              location: null,
+              lighting: null,
+              weather: null,
+              generatedImage: null,
+              generatedVideo: null
             }
           ]
         };
@@ -374,7 +398,15 @@ function ProjectContent() {
             hasNarration: false,
             hasDialogue: false,
             hasSoundEffects: false,
-            prompt: scriptText.split('\n')[0].trim() || "Default shot description"
+            prompt: scriptText.split('\n')[0].trim() || "Default shot description",
+            narration: null,
+            dialogue: null,
+            soundEffects: null,
+            location: null,
+            lighting: null,
+            weather: null,
+            generatedImage: null,
+            generatedVideo: null
           }
         ]
       };
@@ -444,7 +476,15 @@ function ProjectContent() {
       hasNarration: false,
       hasDialogue: false,
       hasSoundEffects: false,
-      prompt: "Describe your shot..."
+      prompt: null,
+      narration: null,
+      dialogue: null,
+      soundEffects: null,
+      location: null,
+      lighting: null,
+      weather: null,
+      generatedImage: null,
+      generatedVideo: null
     };
     
     try {
@@ -457,11 +497,13 @@ function ProjectContent() {
         shots: updatedShots
       });
       
-      // Update local state
-      setCurrentScene(updatedScene);
-      setScenes(scenes.map(scene => 
-        scene.id === currentScene.id ? updatedScene : scene
-      ));
+      // Update local state with proper type casting
+      setCurrentScene(updatedScene as Scene);
+      setScenes(prevScenes => 
+        prevScenes.map(scene => 
+          scene.id === currentScene.id ? updatedScene as Scene : scene
+        )
+      );
 
       toast.success("Shot added successfully");
     } catch (error) {
@@ -490,7 +532,15 @@ function ProjectContent() {
           hasNarration: false,
           hasDialogue: false,
           hasSoundEffects: false,
-          prompt: "Describe your shot..."
+          prompt: "Describe your shot...",
+          narration: null,
+          dialogue: null,
+          soundEffects: null,
+          location: null,
+          lighting: null,
+          weather: null,
+          generatedImage: null,
+          generatedVideo: null
         }
       ]
     };
@@ -618,7 +668,8 @@ function ProjectContent() {
     }
     
     try {
-      console.log("Starting image generation for shot:", shotIndex);
+      console.log(`Starting image generation for shot ${shotIndex + 1}/${currentScene.shots.length}:`, prompt);
+      
       // Start image generation
       const response = await fetch("/api/image", {
         method: "POST",
@@ -632,30 +683,30 @@ function ProjectContent() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || data.details || "Failed to start image generation");
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.details || "Failed to start image generation");
       }
 
-      console.log("Image generation started with ID:", data.id);
+      const data = await response.json();
+      console.log(`Image generation started for shot ${shotIndex + 1} with ID:`, data.id);
 
       // Poll for image generation status
       const pollStatus = async () => {
         try {
           const statusResponse = await fetch(`/api/image?id=${data.id}`);
-          const statusData = await statusResponse.json();
-
           if (!statusResponse.ok) {
-            throw new Error(statusData.error || statusData.details || "Failed to check generation status");
+            const errorData = await statusResponse.json();
+            throw new Error(errorData.error || errorData.details || "Failed to check generation status");
           }
           
-          console.log("Generation status:", statusData.state);
+          const statusData = await statusResponse.json();
+          console.log(`Shot ${shotIndex + 1} generation status:`, statusData.state);
 
           if (statusData.state === "completed") {
             try {
               // Upload the generated image to Firebase Storage
-              console.log("Uploading generated image to Firebase");
+              console.log(`Uploading generated image for shot ${shotIndex + 1} to Firebase`);
               const downloadUrl = await uploadShotImage(
                 storyId,
                 currentScene.id,
@@ -686,16 +737,19 @@ function ProjectContent() {
               });
 
               if (updatedScene) {
+                // Update both currentScene and scenes state
                 setCurrentScene(updatedScene);
-                setScenes(scenes.map(scene => 
-                  scene.id === currentScene.id ? updatedScene : scene
-                ));
-                console.log("Successfully updated shot with generated image");
-                toast.success("Image generated successfully!");
+                setScenes(prevScenes => 
+                  prevScenes.map(scene => 
+                    scene.id === currentScene.id ? updatedScene : scene
+                  )
+                );
+                console.log(`Successfully updated shot ${shotIndex + 1} with generated image`);
+                toast.success(`Image generated for shot ${shotIndex + 1}!`);
               }
             } catch (uploadError) {
-              console.error("Error uploading image to Firebase:", uploadError);
-              toast.error("Failed to save generated image. Please try again.");
+              console.error(`Error uploading image for shot ${shotIndex + 1} to Firebase:`, uploadError);
+              toast.error(`Failed to save generated image for shot ${shotIndex + 1}. Please try again.`);
             }
           } else if (statusData.state === "failed") {
             throw new Error(statusData.failure_reason || "Image generation failed");
@@ -704,15 +758,15 @@ function ProjectContent() {
             setTimeout(pollStatus, 3000);
           }
         } catch (error) {
-          console.error("Error during status polling:", error);
-          toast.error(error instanceof Error ? error.message : "Failed to check generation status. Please try again.");
+          console.error(`Error during status polling for shot ${shotIndex + 1}:`, error);
+          toast.error(error instanceof Error ? error.message : `Failed to check generation status for shot ${shotIndex + 1}. Please try again.`);
         }
       };
 
       pollStatus();
     } catch (error) {
-      console.error("Error generating image:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate image. Please try again.");
+      console.error(`Error generating image for shot ${shotIndex + 1}:`, error);
+      toast.error(error instanceof Error ? error.message : `Failed to generate image for shot ${shotIndex + 1}. Please try again.`);
     } finally {
       if (shotElement) {
         shotElement.classList.remove('opacity-50');
@@ -720,6 +774,28 @@ function ProjectContent() {
     }
   };
 
+  // Add a new function to generate images for all shots
+  const generateAllShotImages = async () => {
+    if (!currentScene || !currentScene.shots) {
+      toast.error('No shots to generate images for');
+      return;
+    }
+
+    console.log(`Starting image generation for ${currentScene.shots.length} shots`);
+    
+    // Process shots sequentially
+    for (let i = 0; i < currentScene.shots.length; i++) {
+      const shot = currentScene.shots[i];
+      const promptElement = document.getElementById(`shot-${i}-prompt`) as HTMLTextAreaElement;
+      
+      if (promptElement && promptElement.value.trim()) {
+        console.log(`Generating image for shot ${i + 1}/${currentScene.shots.length}`);
+        await generateShotFromPrompt(i, promptElement.value);
+        // Wait a bit between shots to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  };
 
   // Generate video for a single shot
   const generateShotVideo = async (shotIndex: number) => {
@@ -783,7 +859,7 @@ function ProjectContent() {
                 updatedShots[shotIndex] = {
                   ...updatedShots[shotIndex],
                   generatedVideo: statusData.assets.video,
-                };
+                } as Shot;
                 
                 const updatedScene = { ...currentScene, shots: updatedShots };
                 setCurrentScene(updatedScene);
@@ -844,105 +920,108 @@ function ProjectContent() {
         duration: 5
       }));
       
-      console.log("Sending shots data:", shots);
+      console.log("Starting sequential video generation for shots:", shots);
 
-      // Create a meaningful scene prompt
-      const scenePrompt = [
-        currentScene.description,
-        currentScene.location && currentScene.location !== 'Default Location' ? currentScene.location : null,
-        currentScene.lighting && currentScene.lighting !== 'Natural lighting' ? currentScene.lighting : null,
-        currentScene.weather && currentScene.weather !== 'Clear' ? currentScene.weather : null,
-        currentScene.style
-      ].filter(Boolean).join(" ");
+      // Process shots sequentially
+      for (let i = 0; i < shots.length; i++) {
+        const shot = shots[i];
+        console.log(`Processing shot ${i + 1}/${shots.length}`);
 
-      // Start scene video generation
-      const response = await fetch("/api/video", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          shots,
-          style: currentScene.style || "cinematic",
-          prompt: scenePrompt || "Create a cinematic video from these shots",
-          duration: shots.length * 5 // 5 seconds per shot
-        }),
-      });
+        // Start video generation for current shot
+        const response = await fetch("/api/video", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            shots: [shot], // Send only one shot at a time
+            style: currentScene.style || "cinematic",
+            prompt: shot.prompt || "Create a cinematic video",
+            duration: 5
+          }),
+        });
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || data.details || "Failed to start scene video generation");
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || data.details || "Failed to start video generation");
+        }
+
+        console.log(`Video generation started for shot ${i + 1} with ID:`, data.id);
+
+        // Show loading toast for current shot
+        toast.loading(`Generating video for shot ${i + 1}/${shots.length}...`, {
+          id: "video-generation",
+        });
+
+        // Poll for video generation status
+        await new Promise<void>((resolve, reject) => {
+          const pollStatus = async () => {
+            try {
+              const statusResponse = await fetch(`/api/video?id=${data.id}`);
+              if (!statusResponse.ok) {
+                throw new Error("Failed to check video generation status");
+              }
+              
+              const statusData = await statusResponse.json();
+              console.log(`Shot ${i + 1} video generation status:`, statusData.state);
+
+              if (statusData.state === "completed") {
+                try {
+                  if (!statusData.assets?.video) {
+                    throw new Error("No video URL in completed generation");
+                  }
+
+                  // Update the shot with the generated video URL
+                  const updatedShots = [...currentScene.shots];
+                  if (updatedShots[i]) {
+                    const updatedShot = {
+                      ...updatedShots[i],
+                      generatedVideo: statusData.assets.video || undefined,
+                    } as Shot;
+                    updatedShots[i] = updatedShot;
+                    
+                    const updatedScene = {
+                      ...currentScene,
+                      shots: updatedShots,
+                    } as Scene;
+                    
+                    // Update state with proper type casting
+                    setCurrentScene(updatedScene as Scene);
+                    setScenes(prevScenes => 
+                      prevScenes.map(s => s.id === sceneId ? updatedScene as Scene : s)
+                    );
+                    console.log(`Successfully updated shot ${i + 1} with generated video`);
+                    resolve();
+                  }
+                } catch (error) {
+                  console.error(`Error updating shot ${i + 1} with video:`, error);
+                  reject(error);
+                }
+              } else if (statusData.state === "failed") {
+                reject(new Error(statusData.failure_reason || "Video generation failed"));
+              } else {
+                // Continue polling
+                setTimeout(pollStatus, 3000);
+              }
+            } catch (error) {
+              reject(error);
+            }
+          };
+
+          pollStatus();
+        });
+
+        // Wait a bit before processing the next shot
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
-      console.log("Scene video generation started with ID:", data.id);
-
-      // Show loading toast
-      toast.loading("Generating scene video...", {
+      toast.success("All shot videos generated successfully!", {
         id: "video-generation",
       });
-
-      // Poll for video generation status
-      const pollStatus = async () => {
-        try {
-          const statusResponse = await fetch(`/api/video?id=${data.id}`);
-          if (!statusResponse.ok) {
-            const errorData = await statusResponse.json();
-            throw new Error(errorData.error || "Failed to check video generation status");
-          }
-          
-          const statusData = await statusResponse.json();
-          console.log("Scene video generation status:", statusData.state);
-
-          if (statusData.state === "completed") {
-            try {
-              if (!statusData.assets?.video) {
-                throw new Error("No video URL in completed generation");
-              }
-
-              // Update the scene with the generated video URL
-              const updatedScene = {
-                ...currentScene,
-                generatedVideo: statusData.assets.video,
-              };
-              
-              // Update Firestore
-              await updateScene(storyId!, currentScene.id, {
-                generatedVideo: statusData.assets.video
-              });
-              
-              setCurrentScene(updatedScene);
-              setScenes(scenes.map(s => 
-                s.id === sceneId ? updatedScene : s
-              ));
-              console.log("Successfully updated scene with generated video");
-              toast.success("Scene video generated successfully!", {
-                id: "video-generation",
-              });
-            } catch (error) {
-              console.error("Error updating scene with video:", error);
-              toast.error("Failed to save generated scene video. Please try again.", {
-                id: "video-generation",
-              });
-            }
-          } else if (statusData.state === "failed") {
-            throw new Error(statusData.failure_reason || "Scene video generation failed");
-          } else {
-            // Continue polling
-            setTimeout(pollStatus, 3000);
-          }
-        } catch (error) {
-          console.error("Error during scene video status polling:", error);
-          toast.error(error instanceof Error ? error.message : "Failed to check scene video generation status. Please try again.", {
-            id: "video-generation",
-          });
-        }
-      };
-
-      pollStatus();
     } catch (error) {
-      console.error("Error generating scene video:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate scene video. Please try again.");
+      console.error("Error generating scene videos:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate scene videos. Please try again.");
     }
   };
 
@@ -1069,16 +1148,7 @@ function ProjectContent() {
             <div className="flex flex-col space-y-2 mt-3">
               <Button 
                 className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
-                onClick={() => {
-                  if (currentScene?.shots) {
-                    currentScene.shots.forEach((shot, index) => {
-                      const promptElement = document.getElementById(`shot-${index}-prompt`) as HTMLTextAreaElement;
-                      if (promptElement && promptElement.value.trim()) {
-                        generateShotFromPrompt(index, promptElement.value);
-                      }
-                    });
-                  }
-                }}
+                onClick={generateAllShotImages}
               >
                 <Camera className="mr-2 h-5 w-5" />
                 Generate All Images
@@ -1283,8 +1353,8 @@ function ProjectContent() {
                       className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
                       rows={2}
                       placeholder="Add character dialogue..."
-                      defaultValue={shot.dialogue}
-                    ></textarea>
+                      defaultValue={shot.dialogue || ""}
+                    />
                   </div>
                   
                   <div>
@@ -1293,8 +1363,8 @@ function ProjectContent() {
                       className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
                       rows={2}
                       placeholder="Add sound effects..."
-                      defaultValue={shot.soundEffects}
-                    ></textarea>
+                      defaultValue={shot.soundEffects || ""}
+                    />
                   </div>
                 </div>
               </div>

@@ -56,7 +56,7 @@ export async function POST(req: Request) {
       throw new Error("No shots provided");
     }
 
-    // Validate each shot
+    // Validate each shot has a valid image URL
     for (const shot of shots) {
       if (!shot.imageUrl) {
         throw new Error("Missing image URL in shot");
@@ -64,14 +64,26 @@ export async function POST(req: Request) {
       if (!shot.prompt) {
         throw new Error("Missing prompt in shot");
       }
+      // Validate image URL is accessible
+      const isValid = await validateImageUrl(shot.imageUrl);
+      if (!isValid) {
+        throw new Error(`Invalid or inaccessible image URL: ${shot.imageUrl}`);
+      }
     }
 
-    // Configure generation options
+    // Process one shot at a time
+    const shot = shots[0]; // Get the first shot
+    console.log("Processing shot:", {
+      imageUrl: shot.imageUrl,
+      prompt: shot.prompt
+    });
+
+    // Configure generation options for single shot
     const generationOptions = {
       model: "ray-2" as const,
       mode: "video" as const,
-      image: shots[0].imageUrl, // Primary image
-      prompt: prompt || "Create a cinematic video",
+      image: shot.imageUrl,
+      prompt: shot.prompt || prompt || "Create a cinematic video",
       negative_prompt: "blurry, low quality, distorted, deformed, ugly, bad anatomy, bad proportions",
       steps: 50,
       seed: Math.floor(Math.random() * 1000000),
@@ -103,7 +115,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ 
           id: generation.id,
           status: "processing",
-          message: "Video generation started successfully"
+          message: "Video generation started successfully",
+          remainingShots: shots.length - 1 // Return number of remaining shots
         });
       } catch (error) {
         lastError = error;

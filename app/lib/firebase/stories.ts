@@ -31,15 +31,15 @@ export interface Shot {
   hasNarration: boolean;
   hasDialogue: boolean;
   hasSoundEffects: boolean;
-  prompt?: string;
-  narration?: string;
-  dialogue?: string;
-  soundEffects?: string;
-  generatedImage?: string;
-  generatedVideo?: string;
-  location?: string;
-  lighting?: string;
-  weather?: string;
+  prompt: string | null;
+  narration: string | null;
+  dialogue: string | null;
+  soundEffects: string | null;
+  generatedImage: string | null;
+  generatedVideo: string | null;
+  location: string | null;
+  lighting: string | null;
+  weather: string | null;
 }
 
 // Create a new story
