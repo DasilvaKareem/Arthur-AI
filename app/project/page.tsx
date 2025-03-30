@@ -15,6 +15,19 @@ import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+// Add this interface to define the Gemini shot structure
+interface GeminiShot {
+  scene_number: number;
+  shot_number: number;
+  camera_view: string;
+  camera_motion: string;
+  characters: string[];
+  dialogue: string | null;
+  action: string;
+  setting: string;
+  starting_image_description: string;
+}
+
 function ProjectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -797,6 +810,137 @@ function ProjectContent() {
     }
   };
 
+  // Add new function to generate scenes from Gemini AI
+  const generateScenesFromGemini = async () => {
+    if (!script) {
+      toast.error('No script to generate scenes from');
+      return;
+    }
+
+    // Show loading toast
+    toast.loading("Generating scenes and shots using Gemini AI. This may take a minute...", {
+      id: "gemini-generation",
+    });
+
+    try {
+      console.log("Generating scenes from script using Gemini AI");
+      
+      // Call the API to generate scenes and shots
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          script: script,
+          style: "hyperrealistic",
+          duration: 1.0 // Default to 1 minute video
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.details || "Failed to generate scenes");
+      }
+
+      const data = await response.json();
+      console.log("Generated scenes and shots:", data);
+
+      // Check if we have valid shots data
+      if (!data.shots || !Array.isArray(data.shots) || data.shots.length === 0) {
+        throw new Error("No valid scenes or shots generated");
+      }
+
+      // Convert Gemini shot format to our scene/shot format
+      const convertedScenes = convertGeminiShotsToScenes(data.shots as GeminiShot[]);
+      
+      // Update the scenes state with the new scenes
+      setScenes(convertedScenes);
+      
+      // Set the current scene to the first scene
+      if (convertedScenes.length > 0) {
+        setCurrentScene(convertedScenes[0]);
+      }
+
+      // If we have a storyId, save the updated scenes
+      if (storyId && user) {
+        await updateStory(storyId, {
+          scenes: convertedScenes,
+          updatedAt: Date.now()
+        });
+      }
+
+      toast.success("Scenes and shots generated successfully!", {
+        id: "gemini-generation",
+      });
+    } catch (error) {
+      console.error("Error generating scenes:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate scenes. Please try again.", {
+        id: "gemini-generation",
+      });
+    }
+  };
+
+  // Function to convert Gemini shots to our scene/shot format
+  const convertGeminiShotsToScenes = (geminiShots: GeminiShot[]): Scene[] => {
+    // Group shots by scene number
+    const shotsByScene: Record<number, GeminiShot[]> = {};
+    
+    geminiShots.forEach(shot => {
+      const sceneNumber = shot.scene_number || 1;
+      if (!shotsByScene[sceneNumber]) {
+        shotsByScene[sceneNumber] = [];
+      }
+      shotsByScene[sceneNumber].push(shot);
+    });
+    
+    // Convert each group to a scene
+    const scenes = Object.entries(shotsByScene).map(([sceneNumber, shots]) => {
+      // Find a good scene title based on the setting of the first shot
+      const firstShot = shots[0];
+      const setting = firstShot.setting || "";
+      const sceneTitle = `SCENE ${sceneNumber}: ${setting.split('.')[0]}`;
+      
+      // Convert each Gemini shot to our shot format
+      const convertedShots = shots.map((shot, index) => {
+        return {
+          id: `shot-${index + 1}`,
+          type: shot.camera_view || "MEDIUM SHOT",
+          description: shot.starting_image_description || "",
+          hasNarration: false,
+          hasDialogue: !!shot.dialogue,
+          hasSoundEffects: false,
+          prompt: shot.starting_image_description || "",
+          narration: null,
+          dialogue: shot.dialogue || null,
+          soundEffects: null,
+          location: null,
+          lighting: null,
+          weather: null,
+          generatedImage: null,
+          generatedVideo: null,
+          // Additional Gemini-specific fields
+          cameraMotion: shot.camera_motion || "Static",
+          action: shot.action || "",
+          characters: shot.characters || []
+        } as Shot;
+      });
+      
+      return {
+        id: `scene-${sceneNumber}`,
+        title: sceneTitle,
+        location: firstShot.setting || "",
+        description: firstShot.action || "",
+        lighting: "Natural lighting",
+        weather: "Clear",
+        style: "hyperrealistic",
+        shots: convertedShots
+      } as Scene;
+    });
+    
+    return scenes;
+  };
+
   // Generate video for a single shot
   const generateShotVideo = async (shotIndex: number) => {
     if (!currentScene?.shots[shotIndex]) return;
@@ -1148,10 +1292,10 @@ function ProjectContent() {
             <div className="flex flex-col space-y-2 mt-3">
               <Button 
                 className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
-                onClick={generateAllShotImages}
+                onClick={generateScenesFromGemini}
               >
                 <Camera className="mr-2 h-5 w-5" />
-                Generate All Images
+                Generate Scenes with Gemini
               </Button>
               {currentScene && (
                 <button
