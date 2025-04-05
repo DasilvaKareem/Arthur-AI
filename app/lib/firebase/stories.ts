@@ -1,129 +1,44 @@
-import { firebaseDb, firebaseStorage } from './client';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
-
-export interface Story {
-  id: string;
-  userId: string;
-  title: string;
-  script: string;
-  createdAt: number;
-  updatedAt: number;
-  scenes: Scene[];
-}
-
-export interface Scene {
-  id: string;
-  title: string;
-  location: string;
-  description: string;
-  lighting: string;
-  weather: string;
-  style: string;
-  shots: Shot[];
-  generatedVideo?: string;
-}
-
-export interface Shot {
-  id: string;
-  type: string;
-  description: string;
-  hasNarration: boolean;
-  hasDialogue: boolean;
-  hasSoundEffects: boolean;
-  prompt: string | null;
-  narration: string | null;
-  dialogue: string | null;
-  soundEffects: string | null;
-  generatedImage: string | null;
-  generatedVideo: string | null;
-  location: string | null;
-  lighting: string | null;
-  weather: string | null;
-}
+import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, addDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
+import type { Shot, Scene, Story } from '../../../types/shared';
+import { db, storage } from './client';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Create a new story
-export async function createStory(userId: string, title: string, script: string, scenes: (Scene & { shots: Shot[] })[]): Promise<string> {
+export async function createStory(
+  title: string,
+  description: string,
+  userId: string,
+  scenes: Scene[] = [] // Use Scene type from shared types
+): Promise<string> {
   try {
     console.log("Starting story creation...", {
-      userId,
       title,
+      description,
+      userId,
       scenesCount: scenes.length
     });
 
     // Validate required fields
-    if (!userId) throw new Error('User ID is required');
-    if (!title) throw new Error('Title is required');
-    if (!script) throw new Error('Script is required');
-    if (!scenes || scenes.length === 0) throw new Error('At least one scene is required');
-
-    const storiesRef = collection(firebaseDb, 'stories');
-    const newStoryRef = doc(storiesRef);
-    
-    // Create the main story document
-    const story: Story = {
-      id: newStoryRef.id,
-      userId,
-      title,
-      script,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      scenes: []
-    };
-
-    console.log("Creating main story document...");
-    await setDoc(newStoryRef, story);
-    console.log('Story document created successfully:', newStoryRef.id);
-
-    // Create scenes as subcollection
-    const scenesRef = collection(newStoryRef, 'scenes');
-    console.log("Creating scenes subcollection...");
-    for (const scene of scenes) {
-      // Validate required scene fields
-      if (!scene.title) throw new Error('Scene title is required');
-      if (!scene.location) throw new Error('Scene location is required');
-      if (!scene.description) throw new Error('Scene description is required');
-      if (!scene.lighting) throw new Error('Scene lighting is required');
-      if (!scene.weather) throw new Error('Scene weather is required');
-      if (!scene.style) throw new Error('Scene style is required');
-      if (!scene.shots || scene.shots.length === 0) throw new Error('Scene must have at least one shot');
-
-      const sceneRef = doc(scenesRef);
-      await setDoc(sceneRef, {
-        id: sceneRef.id,
-        title: scene.title,
-        location: scene.location,
-        description: scene.description,
-        lighting: scene.lighting,
-        weather: scene.weather,
-        style: scene.style
-      });
-      console.log("Scene created:", sceneRef.id);
-
-      // Create shots as subcollection of each scene
-      const shotsRef = collection(sceneRef, 'shots');
-      console.log("Creating shots for scene:", sceneRef.id);
-      for (const shot of scene.shots) {
-        // Validate required shot fields
-        if (!shot.type) throw new Error('Shot type is required');
-        if (!shot.description) throw new Error('Shot description is required');
-
-        const shotRef = doc(shotsRef);
-        await setDoc(shotRef, {
-          ...shot,
-          id: shotRef.id,
-          hasNarration: !!shot.narration,
-          hasDialogue: !!shot.dialogue,
-          hasSoundEffects: !!shot.soundEffects
-        });
-        console.log("Shot created:", shotRef.id);
-      }
+    if (!title || !description || !userId) {
+      throw new Error("Title, description, and userId are required");
     }
 
-    console.log("Story creation completed successfully");
-    return newStoryRef.id;
+    const storiesRef = collection(db, 'stories');
+    const storyData = {
+      userId,
+      title,
+      description,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      scenes: scenes || [] // Ensure scenes is an array
+    };
+
+    console.log("Creating story with data:", storyData);
+    const storyRef = await addDoc(storiesRef, storyData);
+    console.log("Story created successfully with ID:", storyRef.id);
+    return storyRef.id;
   } catch (error) {
-    console.error('Error creating story:', error);
+    console.error("Error creating story:", error);
     throw error;
   }
 }
@@ -131,7 +46,7 @@ export async function createStory(userId: string, title: string, script: string,
 // Get a story by ID
 export async function getStory(storyId: string): Promise<(Story & { scenes: (Scene & { shots: Shot[] })[] }) | null> {
   try {
-    const storyRef = doc(firebaseDb, 'stories', storyId);
+    const storyRef = doc(db, 'stories', storyId);
     const storyDoc = await getDoc(storyRef);
     
     if (storyDoc.exists()) {
@@ -159,7 +74,7 @@ export async function getStory(storyId: string): Promise<(Story & { scenes: (Sce
       // Update the story document with the scenes array
       await updateDoc(storyRef, {
         scenes,
-        updatedAt: Date.now()
+        updatedAt: new Date()
       });
 
       return { ...story, scenes };
@@ -174,22 +89,86 @@ export async function getStory(storyId: string): Promise<(Story & { scenes: (Sce
 // Get all stories for a user
 export async function getUserStories(userId: string): Promise<Story[]> {
   try {
-    const storiesRef = collection(firebaseDb, 'stories');
-    const q = query(storiesRef, where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
+    console.log("📚 Starting getUserStories for userId:", userId);
     
+    if (!userId) {
+      console.error("❌ No userId provided to getUserStories");
+      return [];
+    }
+
+    const storiesRef = collection(db, 'stories');
+    console.log("🔍 Created stories collection reference");
+    
+    const q = query(storiesRef, where('userId', '==', userId));
+    console.log("🔍 Created query for user's stories");
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`📝 Found ${querySnapshot.size} stories in initial query`);
+    
+    if (querySnapshot.empty) {
+      console.log("ℹ️ No stories found for user");
+      return [];
+    }
+
     const stories: Story[] = [];
     for (const doc of querySnapshot.docs) {
-      const story = await getStory(doc.id);
-      if (story) {
+      try {
+        console.log(`🎬 Processing story with ID: ${doc.id}`);
+        const storyData = doc.data();
+        
+        // Parse scenes from the script if they exist
+        let scenes: Scene[] = [];
+        if (storyData.script) {
+          // Split the script into scenes based on "SCENE" markers
+          const sceneTexts: string[] = storyData.script.split(/SCENE \d+:/);
+          scenes = sceneTexts
+            .filter((text: string) => text.trim()) // Remove empty scenes
+            .map((sceneText: string, index: number) => {
+              // Extract scene details using regex
+              const locationMatch = sceneText.match(/INT\.|EXT\.\s+(.*?)\s+-/);
+              const descriptionMatch = sceneText.match(/Description:\s*(.*?)(?=\n|$)/);
+              const lightingMatch = sceneText.match(/Lighting:\s*(.*?)(?=\n|$)/);
+              const weatherMatch = sceneText.match(/Weather:\s*(.*?)(?=\n|$)/);
+              
+              return {
+                id: `scene-${index + 1}`,
+                title: `Scene ${index + 1}`,
+                location: locationMatch ? locationMatch[1].trim() : "",
+                description: descriptionMatch ? descriptionMatch[1].trim() : "",
+                lighting: lightingMatch ? lightingMatch[1].trim() : "",
+                weather: weatherMatch ? weatherMatch[1].trim() : "",
+                style: "hyperrealistic",
+                shots: [] // We'll handle shots in a separate function if needed
+              };
+            });
+        }
+        
+        // Convert Firestore Timestamps to Dates and ensure all required fields
+        const story: Story = {
+          id: doc.id,
+          title: storyData.title || "Untitled Story",
+          description: storyData.script?.split('\n')[0] || "", // Use first line of script as description if no description
+          userId: storyData.userId,
+          scenes: scenes,
+          createdAt: storyData.createdAt?.toDate() || new Date(),
+          updatedAt: storyData.updatedAt?.toDate() || new Date()
+        };
+        
         stories.push(story);
+        console.log(`✅ Successfully processed story: ${story.title}`);
+      } catch (storyError) {
+        console.error(`❌ Error processing story ${doc.id}:`, storyError);
+        // Continue with other stories even if one fails
+        continue;
       }
     }
     
+    console.log(`📚 Returning ${stories.length} stories`);
     return stories;
   } catch (error) {
-    console.error('Error getting user stories:', error);
-    throw error;
+    console.error('❌ Error in getUserStories:', error);
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 }
 
@@ -198,22 +177,89 @@ export async function updateStory(storyId: string, updates: Partial<Story>): Pro
   try {
     console.log("Starting story update...", {
       storyId,
-      updates: {
-        hasTitle: !!updates.title,
-        hasScript: !!updates.script,
-        hasScenes: !!updates.scenes
-      }
+      updates
     });
 
-    const storyRef = doc(firebaseDb, 'stories', storyId);
-    await updateDoc(storyRef, {
-      ...updates,
-      updatedAt: Date.now()
-    });
+    const storyRef = doc(db, 'stories', storyId);
+    
+    // Get the current story first
+    const storyDoc = await getDoc(storyRef);
+    if (!storyDoc.exists()) {
+      throw new Error("Story not found");
+    }
+
+    const currentStory = storyDoc.data() as Story;
+    
+    // Clean the scenes array to ensure no undefined values
+    const cleanScenes = updates.scenes?.map(scene => ({
+      id: scene.id || `scene-${Date.now()}`,
+      title: scene.title || "Untitled Scene",
+      location: scene.location || "INT. LOCATION - DAY",
+      description: scene.description || "No description",
+      lighting: scene.lighting || "Natural daylight",
+      weather: scene.weather || "Clear",
+      style: scene.style || "hyperrealistic",
+      generatedVideo: scene.generatedVideo || null,
+      shots: scene.shots.map(shot => ({
+        id: shot.id || `shot-${Date.now()}`,
+        type: shot.type || "MEDIUM SHOT",
+        description: shot.description || "No description",
+        prompt: shot.prompt || shot.description || "No description",
+        hasNarration: !!shot.narration,
+        hasDialogue: !!shot.dialogue,
+        hasSoundEffects: !!shot.soundEffects,
+        narration: shot.narration || null,
+        dialogue: shot.dialogue || null,
+        soundEffects: shot.soundEffects || null,
+        location: shot.location || null,
+        lighting: shot.lighting || null,
+        weather: shot.weather || null,
+        generatedImage: shot.generatedImage || null,
+        generatedVideo: shot.generatedVideo || null,
+        lipSyncVideo: shot.lipSyncVideo || null,
+        lipSyncAudio: shot.lipSyncAudio || null,
+        voiceId: shot.voiceId || null
+      }))
+    })) || currentStory.scenes;
+
+    // Create a clean updates object with only the fields we want to update
+    const cleanUpdates: Record<string, any> = {
+      title: updates.title || currentStory.title,
+      description: updates.description || currentStory.description,
+      scenes: cleanScenes,
+      updatedAt: new Date()
+    };
+
+    console.log("Updating story with:", cleanUpdates);
+    await updateDoc(storyRef, cleanUpdates);
     console.log('Story updated successfully:', storyId);
   } catch (error) {
     console.error('Error updating story:', error);
     throw error;
+  }
+}
+
+// Validate scene data
+export function validateSceneData(scene: Scene): void {
+  const requiredFields: (keyof Scene)[] = ['id', 'title', 'location', 'description', 'lighting', 'weather', 'style'];
+  const missingFields = requiredFields.filter(field => !scene[field]);
+  
+  if (missingFields.length > 0) {
+    throw new Error(`Scene is missing required fields: ${missingFields.join(', ')}`);
+  }
+
+  if (!Array.isArray(scene.shots)) {
+    throw new Error('Scene shots must be an array');
+  }
+}
+
+// Validate shot data
+export function validateShotData(shot: Shot): void {
+  const requiredFields: (keyof Shot)[] = ['id', 'type', 'description', 'prompt'];
+  const missingFields = requiredFields.filter(field => !shot[field]);
+  
+  if (missingFields.length > 0) {
+    throw new Error(`Shot is missing required fields: ${missingFields.length > 1 ? missingFields.join(', ') : missingFields[0]}`);
   }
 }
 
@@ -222,81 +268,93 @@ export async function updateScene(storyId: string, sceneId: string, updates: Par
   try {
     console.log("Updating scene with ID:", sceneId, "Updates:", updates);
     
-    const storyRef = doc(firebaseDb, "stories", storyId);
+    const storyRef = doc(db, 'stories', storyId);
     const storyDoc = await getDoc(storyRef);
     
     if (!storyDoc.exists()) {
       throw new Error("Story not found");
     }
 
-    const story = storyDoc.data() as Story;
-    const scenes = story.scenes.map(scene => {
-      if (scene.id === sceneId) {
-        // If we're updating shots, we need to merge them carefully
-        if (updates.shots) {
-          // Create a map of existing shots by ID for quick lookup
-          const existingShotsMap = new Map(
-            scene.shots?.map(shot => [shot.id, shot]) || []
-          );
+    const story = storyDoc.data();
+    const existingScene = story.scenes.find((scene: Scene) => scene.id === sceneId);
+    
+    if (!existingScene) {
+      throw new Error("Scene not found");
+    }
 
-          // Merge the updates with existing shots
-          const mergedShots = updates.shots.map(updatedShot => {
+    // Create a map of existing shots for efficient lookup
+    const existingShotsMap = new Map(
+      existingScene.shots.map((shot: Shot) => [shot.id, shot])
+    );
+
+    // Process the updates
+    const scenes = story.scenes.map((scene: Scene) => {
+      if (scene.id === sceneId) {
+        // If updating shots
+        if (updates.shots) {
+          // Validate each shot before merging
+          updates.shots.forEach(validateShotData);
+
+          // Merge existing shots with updated shots
+          const mergedShots = updates.shots.map((updatedShot: Shot) => {
             const existingShot = existingShotsMap.get(updatedShot.id);
-            
-            // If the shot exists, merge it with updates
+
+            // If it's an existing shot, merge with updates
             if (existingShot) {
-              return {
+              const mergedShot = {
                 ...existingShot,
                 ...updatedShot,
-                // Explicitly preserve these fields if they exist
-                generatedImage: updatedShot.generatedImage || existingShot.generatedImage,
-                generatedVideo: updatedShot.generatedVideo || existingShot.generatedVideo,
-                description: updatedShot.description || existingShot.description,
-                type: updatedShot.type || existingShot.type,
-                dialogue: updatedShot.dialogue || existingShot.dialogue,
-                soundEffects: updatedShot.soundEffects || existingShot.soundEffects,
-                narration: updatedShot.narration || existingShot.narration,
-                location: updatedShot.location || existingShot.location,
-                lighting: updatedShot.lighting || existingShot.lighting,
-                weather: updatedShot.weather || existingShot.weather,
-                hasNarration: updatedShot.hasNarration ?? existingShot.hasNarration,
-                hasDialogue: updatedShot.hasDialogue ?? existingShot.hasDialogue,
-                hasSoundEffects: updatedShot.hasSoundEffects ?? existingShot.hasSoundEffects,
+                narration: updatedShot.narration || null,
+                dialogue: updatedShot.dialogue || null,
+                soundEffects: updatedShot.soundEffects || null,
+                location: updatedShot.location || null,
+                lighting: updatedShot.lighting || null,
+                weather: updatedShot.weather || null,
+                generatedImage: updatedShot.generatedImage || null,
+                generatedVideo: updatedShot.generatedVideo || null
               };
+              validateShotData(mergedShot);
+              return mergedShot;
             }
-            
+
             // If it's a new shot, ensure all required fields
-            return {
+            const newShot = {
               id: updatedShot.id,
               type: updatedShot.type || "MEDIUM SHOT",
               description: updatedShot.description || "",
-              hasNarration: updatedShot.hasNarration || false,
-              hasDialogue: updatedShot.hasDialogue || false,
-              hasSoundEffects: updatedShot.hasSoundEffects || false,
+              hasNarration: !!updatedShot.narration,
+              hasDialogue: !!updatedShot.dialogue,
+              hasSoundEffects: !!updatedShot.soundEffects,
               prompt: updatedShot.prompt || "",
-              narration: updatedShot.narration || "",
-              dialogue: updatedShot.dialogue || "",
-              soundEffects: updatedShot.soundEffects || "",
+              narration: updatedShot.narration || null,
+              dialogue: updatedShot.dialogue || null,
+              soundEffects: updatedShot.soundEffects || null,
+              location: updatedShot.location || null,
+              lighting: updatedShot.lighting || null,
+              weather: updatedShot.weather || null,
               generatedImage: updatedShot.generatedImage || null,
-              generatedVideo: updatedShot.generatedVideo || null,
-              location: updatedShot.location || "",
-              lighting: updatedShot.lighting || "",
-              weather: updatedShot.weather || ""
+              generatedVideo: updatedShot.generatedVideo || null
             };
+            validateShotData(newShot);
+            return newShot;
           });
 
-          return {
+          const updatedScene = {
             ...scene,
             ...updates,
             shots: mergedShots
           };
+          validateSceneData(updatedScene);
+          return updatedScene;
         }
 
         // If no shots update, just merge other updates
-        return {
+        const updatedScene = {
           ...scene,
           ...updates
         };
+        validateSceneData(updatedScene);
+        return updatedScene;
       }
       return scene;
     });
@@ -304,11 +362,11 @@ export async function updateScene(storyId: string, sceneId: string, updates: Par
     // Update the story document
     await updateDoc(storyRef, {
       scenes,
-      updatedAt: Date.now()
+      updatedAt: new Date()
     });
 
     console.log("Successfully updated scene in Firestore");
-    return scenes.find(scene => scene.id === sceneId);
+    return scenes.find((scene: Scene) => scene.id === sceneId);
   } catch (error) {
     console.error("Error updating scene:", error);
     throw error;
@@ -318,7 +376,7 @@ export async function updateScene(storyId: string, sceneId: string, updates: Par
 // Update a shot
 export async function updateShot(storyId: string, sceneId: string, shotId: string, updates: Partial<Shot>): Promise<void> {
   try {
-    const shotRef = doc(firebaseDb, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
+    const shotRef = doc(db, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
     await updateDoc(shotRef, {
       ...updates,
       hasNarration: !!updates.narration,
@@ -335,7 +393,7 @@ export async function updateShot(storyId: string, sceneId: string, shotId: strin
 // Delete a story
 export async function deleteStory(storyId: string): Promise<void> {
   try {
-    const storyRef = doc(firebaseDb, 'stories', storyId);
+    const storyRef = doc(db, 'stories', storyId);
     await deleteDoc(storyRef);
     console.log('Story deleted successfully:', storyId);
   } catch (error) {
@@ -347,7 +405,7 @@ export async function deleteStory(storyId: string): Promise<void> {
 // Delete a scene
 export async function deleteScene(storyId: string, sceneId: string): Promise<void> {
   try {
-    const sceneRef = doc(firebaseDb, 'stories', storyId, 'scenes', sceneId);
+    const sceneRef = doc(db, 'stories', storyId, 'scenes', sceneId);
     await deleteDoc(sceneRef);
     console.log('Scene deleted successfully:', sceneId);
   } catch (error) {
@@ -359,7 +417,7 @@ export async function deleteScene(storyId: string, sceneId: string): Promise<voi
 // Delete a shot
 export async function deleteShot(storyId: string, sceneId: string, shotId: string): Promise<void> {
   try {
-    const shotRef = doc(firebaseDb, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
+    const shotRef = doc(db, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
     await deleteDoc(shotRef);
     console.log('Shot deleted successfully:', shotId);
   } catch (error) {
@@ -382,25 +440,12 @@ export async function uploadShotImage(storyId: string, sceneId: string, shotId: 
     // Get the image data as a blob
     const blob = await response.blob();
     
-    // Convert blob to base64
-    const reader = new FileReader();
-    const base64Promise = new Promise<string>((resolve, reject) => {
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        resolve(base64String);
-      };
-      reader.onerror = reject;
-    });
-    
-    reader.readAsDataURL(blob);
-    const base64String = await base64Promise;
-    
     // Create a reference to the image in Firebase Storage
-    const imageRef = ref(firebaseStorage, `stories/${storyId}/scenes/${sceneId}/shots/${shotId}/image.jpg`);
+    const imageRef = ref(storage, `stories/${storyId}/scenes/${sceneId}/shots/${shotId}/image.jpg`);
     
-    // Upload the image
+    // Upload the image directly as a blob
     console.log("Uploading image to Firebase Storage...");
-    await uploadString(imageRef, base64String, 'data_url');
+    await uploadBytes(imageRef, blob);
     
     // Get the download URL
     const downloadUrl = await getDownloadURL(imageRef);
@@ -417,7 +462,7 @@ export async function uploadShotImage(storyId: string, sceneId: string, shotId: 
 export async function deleteShotImage(storyId: string, sceneId: string, shotId: string): Promise<void> {
   try {
     const imagePath = `stories/${storyId}/scenes/${sceneId}/shots/${shotId}/image.jpg`;
-    const imageRef = ref(firebaseStorage, imagePath);
+    const imageRef = ref(storage, imagePath);
     await deleteObject(imageRef);
   } catch (error) {
     console.error('Error deleting shot image:', error);

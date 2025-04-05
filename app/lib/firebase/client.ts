@@ -1,9 +1,29 @@
 "use client";
 
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, Auth, connectAuthEmulator, browserLocalPersistence, setPersistence } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
-import { getStorage, Storage } from "firebase/storage";
+import { getAuth, Auth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+// Debug logging for environment variables
+const debugEnvVars = () => {
+  if (isBrowser) {
+    console.log('Firebase Environment Variables:', {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    });
+  }
+};
+
+// Call debug function
+debugEnvVars();
 
 // Firebase configuration
 const firebaseConfig = {
@@ -13,50 +33,60 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate config
-Object.entries(firebaseConfig).forEach(([key, value]) => {
-  if (!value) {
-    console.error(`Missing Firebase config: ${key}`);
-  }
-});
+// Initialize Firebase app
+let firebaseApp: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: any = null;
+let storage: any = null;
 
-// Initialize Firebase client
-let firebaseApp: FirebaseApp;
-let firebaseAuth: Auth;
-let firebaseDb: Firestore;
-let firebaseStorage: Storage;
-
-try {
-  if (!getApps().length) {
-    console.log('Initializing Firebase app...');
-    firebaseApp = initializeApp(firebaseConfig);
-    firebaseAuth = getAuth(firebaseApp);
-    firebaseDb = getFirestore(firebaseApp);
-    firebaseStorage = getStorage(firebaseApp);
-    
-    // Set persistence - options: LOCAL, SESSION, NONE
-    setPersistence(firebaseAuth, browserLocalPersistence)
-      .then(() => console.log('Firebase persistence set to local'))
-      .catch(error => console.error('Error setting persistence:', error));
-    
-    // Connect to Auth Emulator in development
-    if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
-      connectAuthEmulator(firebaseAuth, 'http://localhost:9099');
-      console.log('🔥 Using Firebase Auth Emulator');
+// Only initialize Firebase in browser environment
+if (isBrowser) {
+  try {
+    console.log("🔥 Initializing Firebase...");
+    // Check if Firebase is already initialized
+    if (!getApps().length) {
+      // Initialize Firebase app
+      firebaseApp = initializeApp(firebaseConfig);
+      console.log("✅ Firebase app initialized successfully");
+    } else {
+      firebaseApp = getApps()[0];
+      console.log("ℹ️ Using existing Firebase app");
     }
-    console.log('Firebase app initialized successfully');
-  } else {
-    console.log('Using existing Firebase app');
-    firebaseApp = getApps()[0];
-    firebaseAuth = getAuth(firebaseApp);
-    firebaseDb = getFirestore(firebaseApp);
-    firebaseStorage = getStorage(firebaseApp);
+
+    // Initialize Firebase services only if we have a valid app
+    if (firebaseApp) {
+      try {
+        auth = getAuth(firebaseApp);
+        // Set persistence to LOCAL (this persists even when the window is closed)
+        if (auth) {
+          setPersistence(auth, browserLocalPersistence)
+            .then(() => {
+              console.log("✅ Firebase auth persistence set to LOCAL");
+            })
+            .catch((error) => {
+              console.error("❌ Error setting auth persistence:", error);
+            });
+        }
+        
+        db = getFirestore(firebaseApp);
+        storage = getStorage(firebaseApp);
+        console.log("✅ Firebase services initialized successfully", {
+          hasAuth: !!auth,
+          hasDb: !!db,
+          hasStorage: !!storage
+        });
+      } catch (serviceError) {
+        console.error("❌ Error initializing Firebase services:", serviceError);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error initializing Firebase app:", error);
   }
-} catch (error) {
-  console.error('Error initializing Firebase:', error);
-  throw error;
 }
 
-export { firebaseApp, firebaseAuth, firebaseDb, firebaseStorage }; 
+// Export services with both new and legacy names for compatibility
+export { auth as firebaseAuth, auth, db, storage };
+export default firebaseApp; 

@@ -7,12 +7,14 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onIdTokenChanged,
+  onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
   EmailAuthProvider,
   reauthenticateWithCredential,
   updatePassword,
-  deleteUser
+  deleteUser,
+  Auth
 } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { firebaseAuth } from "../lib/firebase/client";
@@ -55,33 +57,67 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(firebaseAuth, async (user) => {
-      setLoading(true);
-      if (user) {
-        setUser(user);
-        
-        // Refresh token every 55 minutes to prevent expiration
-        // Firebase tokens expire in 60 minutes by default
-        const tokenRefreshInterval = setInterval(async () => {
-          const token = await user.getIdToken(true);
-          console.log("Token refreshed:", new Date().toISOString());
-        }, 55 * 60 * 1000);
-        
-        return () => clearInterval(tokenRefreshInterval);
-      } else {
-        setUser(null);
-      }
+    console.log("🔐 Setting up auth listeners...");
+    
+    if (!firebaseAuth) {
+      console.error("❌ Firebase Auth not initialized");
       setLoading(false);
+      return;
+    }
+
+    // Listen for auth state changes
+    const unsubscribeAuthState = onAuthStateChanged(firebaseAuth, (user) => {
+      console.log("🔄 Auth state changed:", user?.email);
+      setUser(user);
+      setLoading(false);
+    });
+
+    // Listen for token changes
+    const unsubscribeToken = onIdTokenChanged(firebaseAuth, async (user) => {
+      console.log("🎫 Token changed:", user?.email);
+      if (user) {
+        try {
+          // Get fresh token
+          const token = await user.getIdToken();
+          console.log("✅ Fresh token obtained:", token.substring(0, 10) + "...");
+          
+          // Set up token refresh
+          const tokenRefreshInterval = setInterval(async () => {
+            try {
+              const newToken = await user.getIdToken(true);
+              console.log("🔄 Token refreshed:", new Date().toISOString());
+            } catch (error) {
+              console.error("❌ Token refresh failed:", error);
+            }
+          }, 10 * 60 * 1000); // Refresh every 10 minutes
+          
+          return () => clearInterval(tokenRefreshInterval);
+        } catch (error) {
+          console.error("❌ Error handling token:", error);
+        }
+      }
     });
 
     // Initial check (handles page refresh)
     const checkInitialAuth = async () => {
-      await new Promise(resolve => setTimeout(resolve, 50)); // Small delay to prevent flicker
-      setLoading(false);
+      if (!firebaseAuth) return;
+      const currentUser = firebaseAuth.currentUser;
+      console.log("🔍 Initial auth check:", currentUser?.email);
+      if (currentUser) {
+        try {
+          const token = await currentUser.getIdToken(true);
+          console.log("✅ Initial token refreshed");
+        } catch (error) {
+          console.error("❌ Error refreshing initial token:", error);
+        }
+      }
     };
     checkInitialAuth();
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuthState();
+      unsubscribeToken();
+    };
   }, []);
 
   // Auth redirection logic
@@ -90,19 +126,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Prevent authenticated users from accessing auth pages
     if (user && (pathname?.includes('/auth/signin') || pathname?.includes('/auth/signup'))) {
-      router.push('/');
+      console.log("🚀 Redirecting authenticated user from auth page to dashboard");
+      router.push('/dashboard');
     }
   }, [user, loading, pathname, router]);
 
   // Sign in with email/password
   const signIn = async (email: string, password: string) => {
+    if (!firebaseAuth) throw new Error("Firebase Auth not initialized");
+
     try {
       setLoading(true);
-      await signInWithEmailAndPassword(firebaseAuth, email, password);
+      console.log("🔑 Attempting sign in:", email);
+      const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      console.log("✅ Sign in successful:", result.user.email);
       toast.success('Signed in successfully');
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
-      console.error("Sign In Error:", error);
+      console.error("❌ Sign In Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);
       toast.error(errorMessage);
       throw error;
@@ -113,8 +154,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sign up with email/password
   const signUp = async (email: string, password: string, name?: string) => {
+    if (!firebaseAuth) throw new Error("Firebase Auth not initialized");
+
     try {
       setLoading(true);
+      console.log("📝 Attempting sign up:", email);
       const { user } = await createUserWithEmailAndPassword(firebaseAuth, email, password);
       
       // Set display name if provided
@@ -122,10 +166,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await updateProfile(user, { displayName: name });
       }
       
+      console.log("✅ Sign up successful:", user.email);
       toast.success('Account created successfully');
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
-      console.error("Sign Up Error:", error);
+      console.error("❌ Sign Up Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);
       toast.error(errorMessage);
       throw error;
@@ -136,18 +181,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Sign out
   const signOut = async () => {
+    if (!firebaseAuth) throw new Error("Firebase Auth not initialized");
+
     try {
+      console.log("🚪 Attempting sign out");
       await firebaseSignOut(firebaseAuth);
+      console.log("✅ Sign out successful");
       toast.success('Signed out successfully');
       router.push('/auth/signin');
     } catch (error) {
-      console.error("Sign Out Error:", error);
+      console.error("❌ Sign Out Error:", error);
       toast.error('Failed to sign out. Please try again.');
     }
   };
 
   // Password reset
   const resetPassword = async (email: string) => {
+    if (!firebaseAuth) throw new Error("Firebase Auth not initialized");
+
     try {
       await sendPasswordResetEmail(firebaseAuth, email);
       toast.success('Password reset email sent. Check your inbox.');
@@ -252,8 +303,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 // Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }; 

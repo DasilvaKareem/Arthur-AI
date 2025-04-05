@@ -10,10 +10,14 @@ import rehypeHighlight from "rehype-highlight";
 import { ArrowLeft, Download, Copy, Share, ChevronDown, Plus, Edit, Trash, Pencil, Camera, Film, Music, Volume2, Loader2, Save, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { createStory, updateStory, getStory, Story, Scene, Shot, updateScene, updateShot, deleteScene, deleteShot, uploadShotImage } from '../lib/firebase/stories';
+import { createStory, updateStory, getStory, updateScene, updateShot, deleteScene, deleteShot, uploadShotImage, validateSceneData, validateShotData } from '../lib/firebase/stories';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import SceneChat from "../../components/SceneChat";
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../lib/firebase/client';
+import type { Shot, Scene, Story } from '../../types/shared';
 
 function ProjectContent() {
   const searchParams = useSearchParams();
@@ -26,6 +30,9 @@ function ProjectContent() {
   const [currentScene, setCurrentScene] = useState<Scene | null>(null);
   const [storyId, setStoryId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentStory, setCurrentStory] = useState<Story | null>(null);
+  const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -39,28 +46,22 @@ function ProjectContent() {
       // If we have a script and user is authenticated, create a new story immediately
       const createNewStory = async () => {
         try {
-          const decodedScript = decodeURIComponent(scriptParam);
-          setScript(decodedScript);
-          
-          // Parse script into scenes and shots
-          parseScriptIntoScenes(decodedScript);
-          
-          // Create new story in Firebase
-          const newStoryId = await createStory(
-            user.uid,
-            titleParam ? decodeURIComponent(titleParam) : `Script Project - ${new Date().toLocaleString()}`,
-            decodedScript,
-            scenes
-          );
-          
-          setStoryId(newStoryId);
-          // Update URL with new story ID
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set('id', newStoryId);
-          router.push(newUrl.toString());
+          const story: Story = {
+            id: crypto.randomUUID(),
+            title: "New Story",
+            description: "",
+            userId: user?.uid || "",
+            scenes: [],
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+
+          const storyId = await createStory(story.userId, story.title, story.description, story.scenes);
+          setCurrentStory(story);
+          setCurrentStoryId(storyId);
         } catch (error) {
-          console.error("Error creating story:", error);
-          alert("Failed to create story. Please try again.");
+          console.error("Error creating new story:", error);
+          toast.error("Failed to create new story");
         }
       };
       
@@ -94,7 +95,7 @@ function ProjectContent() {
       const story = await getStory(id);
       if (story) {
         setTitle(story.title);
-        setScript(story.script);
+        setScript(story.description);
         setScenes(story.scenes);
         setCurrentScene(story.scenes[0] || null);
       }
@@ -182,9 +183,9 @@ function ProjectContent() {
         console.log('Updating existing story:', storyId);
         await updateStory(storyId, {
           title,
-          script,
+          description: script,
           scenes,
-          updatedAt: Date.now()
+          updatedAt: new Date()
         });
         toast.success('Story updated successfully');
       } else {
@@ -205,84 +206,79 @@ function ProjectContent() {
     try {
       console.log("Parsing script:", scriptText);
       
-      // Split the script into sections
-      const sections = scriptText.split(/\n\n+/);
+      // Split the script into scenes
+      const sceneSections = scriptText.split(/(?=SCENE \d+:)/);
       const scenes: Scene[] = [];
       
-      sections.forEach((section, sceneIndex) => {
-        console.log(`Processing section ${sceneIndex + 1}:`, section);
+      sceneSections.forEach((section, sceneIndex) => {
+        if (!section.trim()) return;
+        
+        console.log(`Processing scene ${sceneIndex + 1}:`, section);
+        
+        // Generate unique IDs
+        const sceneId = `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         // Extract scene heading and location
         const headingMatch = section.match(/^SCENE\s+(\d+):\s+(.+)$/m);
-        
-        // Enhanced location extraction
-        let location = "Default Location";
-        const locationMatches = section.match(/(?:INT\.|EXT\.)\s+([^\n-]+)/g);
-        if (locationMatches) {
-          location = locationMatches[0]
-            .replace(/^(INT\.|EXT\.)\s+/, '')
-            .replace(/\s*-\s*$/, '')
-            .trim();
-        }
+        const locationMatch = section.match(/(?:INT\.|EXT\.)\s+([^\n-]+)/);
         
         // Create scene object with default values
         const scene: Scene = {
-          id: `scene-${sceneIndex + 1}`,
-          title: headingMatch ? headingMatch[2] : `SCENE ${sceneIndex + 1}`,
-          location: location,
-          description: section.split('\n')[0].trim(), // Use first line as description
-          lighting: "Natural lighting",
-          weather: "Clear",
+          id: sceneId,
+          title: headingMatch ? headingMatch[2].trim() : `SCENE ${sceneIndex + 1}`,
+          location: locationMatch ? locationMatch[1].trim() : "Default Location",
+          description: "",
+          lighting: "",
+          weather: "",
           style: "hyperrealistic",
           shots: []
         };
 
-        // Extract scene description
+        // Extract scene details
         const descriptionMatch = section.match(/Description:\n(.*?)(?=\n\n|$)/s);
         if (descriptionMatch) {
           scene.description = descriptionMatch[1].trim();
         }
 
-        // Extract lighting
         const lightingMatch = section.match(/Lighting:\n(.*?)(?=\n\n|$)/s);
         if (lightingMatch) {
           scene.lighting = lightingMatch[1].trim();
         }
 
-        // Extract weather
         const weatherMatch = section.match(/Weather:\n(.*?)(?=\n\n|$)/s);
         if (weatherMatch) {
           scene.weather = weatherMatch[1].trim();
         }
 
         // Parse shots
-        const shotSections = section.split(/(?=SHOT:|CLOSE-UP:|TRACKING SHOT:|WIDE SHOT:)/);
+        const shotSections = section.split(/(?=SHOT:|CLOSE-UP:|MEDIUM SHOT:)/);
         
         shotSections.forEach((shotSection, shotIndex) => {
           if (!shotSection.trim()) return;
 
           console.log(`Processing shot ${shotIndex + 1}:`, shotSection);
 
+          const shotId = `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           const shot: Shot = {
-            id: `shot-${shotIndex + 1}`,
+            id: shotId,
             type: "ESTABLISHING SHOT",
-            description: shotSection.split('\n')[0].trim(), // Use first line as description
+            description: "",
             hasNarration: false,
             hasDialogue: false,
             hasSoundEffects: false,
-            prompt: shotSection.split('\n')[0].trim(), // Use first line as prompt
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null
+            prompt: "",
+            narration: undefined,
+            dialogue: undefined,
+            soundEffects: undefined,
+            location: undefined,
+            lighting: undefined,
+            weather: undefined,
+            generatedImage: undefined,
+            generatedVideo: undefined
           };
 
           // Extract shot type
-          const typeMatch = shotSection.match(/^(SHOT|CLOSE-UP|TRACKING SHOT|WIDE SHOT):/);
+          const typeMatch = shotSection.match(/^(SHOT|CLOSE-UP|MEDIUM SHOT):/);
           if (typeMatch) {
             shot.type = typeMatch[1];
           }
@@ -294,18 +290,18 @@ function ProjectContent() {
             shot.prompt = shot.description;
           }
 
-          // Extract narration
-          const narrationMatch = shotSection.match(/Narration:\n(.*?)(?=\n\n|$)/s);
-          if (narrationMatch) {
-            shot.hasNarration = true;
-            shot.narration = narrationMatch[1].trim();
-          }
-
           // Extract dialogue
           const dialogueMatch = shotSection.match(/Dialogue:\n(.*?)(?=\n\n|$)/s);
           if (dialogueMatch) {
             shot.hasDialogue = true;
             shot.dialogue = dialogueMatch[1].trim();
+          }
+
+          // Extract narration
+          const narrationMatch = shotSection.match(/Narration:\n(.*?)(?=\n\n|$)/s);
+          if (narrationMatch) {
+            shot.hasNarration = true;
+            shot.narration = narrationMatch[1].trim();
           }
 
           // Extract sound effects
@@ -318,100 +314,15 @@ function ProjectContent() {
           scene.shots.push(shot);
         });
 
-        // If no shots were created, create a default shot
-        if (scene.shots.length === 0) {
-          const defaultShot: Shot = {
-            id: "shot-1",
-            type: "ESTABLISHING SHOT",
-            description: scene.description,
-            hasNarration: false,
-            hasDialogue: false,
-            hasSoundEffects: false,
-            prompt: scene.description,
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null
-          };
-          scene.shots.push(defaultShot);
-        }
-
         scenes.push(scene);
       });
-
-      // If no scenes were created, create a default scene
-      if (scenes.length === 0) {
-        const defaultScene: Scene = {
-          id: "scene-1",
-          title: "SCENE 1",
-          location: "Default Location",
-          description: scriptText.split('\n')[0].trim() || "Default scene description",
-          lighting: "Natural lighting",
-          weather: "Clear",
-          style: "hyperrealistic",
-          shots: [
-            {
-              id: "shot-1",
-              type: "ESTABLISHING SHOT",
-              description: scriptText.split('\n')[0].trim() || "Default shot description",
-              hasNarration: false,
-              hasDialogue: false,
-              hasSoundEffects: false,
-              prompt: scriptText.split('\n')[0].trim() || "Default shot description",
-              narration: null,
-              dialogue: null,
-              soundEffects: null,
-              location: null,
-              lighting: null,
-              weather: null,
-              generatedImage: null,
-              generatedVideo: null
-            }
-          ]
-        };
-        scenes.push(defaultScene);
-      }
 
       console.log("Parsed scenes:", scenes);
       setScenes(scenes);
       setCurrentScene(scenes[0]);
     } catch (error) {
       console.error("Error parsing script into scenes:", error);
-      // Create a default scene if parsing fails
-      const defaultScene: Scene = {
-        id: "scene-1",
-        title: "SCENE 1",
-        location: "Default Location",
-        description: scriptText.split('\n')[0].trim() || "Default scene description",
-        lighting: "Natural lighting",
-        weather: "Clear",
-        style: "hyperrealistic",
-        shots: [
-          {
-            id: "shot-1",
-            type: "ESTABLISHING SHOT",
-            description: scriptText.split('\n')[0].trim() || "Default shot description",
-            hasNarration: false,
-            hasDialogue: false,
-            hasSoundEffects: false,
-            prompt: scriptText.split('\n')[0].trim() || "Default shot description",
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null
-          }
-        ]
-      };
-      setScenes([defaultScene]);
-      setCurrentScene(defaultScene);
+      toast.error("Failed to parse script. Please check the format and try again.");
     }
   };
 
@@ -465,43 +376,121 @@ function ProjectContent() {
     }
   };
 
-  // Add new shot
-  const addNewShot = async () => {
-    if (!currentScene || !storyId) return;
-    
-    const newShot: Shot = {
-      id: `shot-${currentScene.shots.length + 1}`,
-      type: "MEDIUM SHOT",
-      description: "Describe your shot...",
-      hasNarration: false,
-      hasDialogue: false,
-      hasSoundEffects: false,
-      prompt: null,
-      narration: null,
-      dialogue: null,
-      soundEffects: null,
-      location: null,
-      lighting: null,
-      weather: null,
-      generatedImage: null,
-      generatedVideo: null
-    };
+  // Add new scene
+  const addNewScene = async () => {
+    if (!storyId) {
+      toast.error("Please save your story first");
+      return;
+    }
     
     try {
-      // First update the scene with the new shot
+      // Get the current story first
+      const story = await getStory(storyId);
+      if (!story) {
+        throw new Error("Story not found");
+      }
+
+      // Create a new scene with a unique ID
+      const newScene: Scene = {
+        id: `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: `Scene ${scenes.length + 1}`,
+        location: "INT. LOCATION - DAY",
+        description: "Describe your scene...",
+        lighting: "Natural daylight",
+        weather: "Clear",
+        style: "hyperrealistic",
+        shots: [
+          {
+            id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: "ESTABLISHING SHOT",
+            description: "Describe your shot...",
+            hasNarration: false,
+            hasDialogue: false,
+            hasSoundEffects: false,
+            prompt: "Describe your shot...",
+            narration: null,
+            dialogue: null,
+            soundEffects: null,
+            location: null,
+            lighting: null,
+            weather: null,
+            generatedImage: null,
+            generatedVideo: null,
+            lipSyncVideo: null,
+            lipSyncAudio: null,
+            voiceId: null
+          }
+        ]
+      };
+
+      // Update the story with the new scene
+      const updatedScenes = [...story.scenes, newScene];
+      await updateStory(storyId, {
+        ...story,
+        scenes: updatedScenes
+      });
+      
+      // Update local state
+      setScenes(updatedScenes);
+      setCurrentScene(newScene);
+      toast.success("Scene added successfully");
+    } catch (error) {
+      console.error("Error adding scene:", error);
+      toast.error("Failed to add scene. Please try again.");
+    }
+  };
+
+  // Add new shot
+  const addNewShot = async () => {
+    if (!currentScene || !storyId) {
+      toast.error("Please select a scene first");
+      return;
+    }
+    
+    try {
+      // Create a new shot with a unique ID
+      const newShot: Shot = {
+        id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: "MEDIUM SHOT",
+        description: "Describe your shot...",
+        hasNarration: false,
+        hasDialogue: false,
+        hasSoundEffects: false,
+        prompt: "Describe your shot...",
+        narration: null,
+        dialogue: null,
+        soundEffects: null,
+        location: null,
+        lighting: null,
+        weather: null,
+        generatedImage: null,
+        generatedVideo: null
+      };
+      
+      // Update the scene with the new shot
       const updatedShots = [...currentScene.shots, newShot];
       const updatedScene = { ...currentScene, shots: updatedShots };
       
-      // Update the scene in Firestore
-      await updateScene(storyId, currentScene.id, {
-        shots: updatedShots
+      // Update the story with the new scene data
+      const story = await getStory(storyId);
+      if (!story) {
+        throw new Error("Story not found");
+      }
+
+      const updatedScenes = story.scenes.map(scene => 
+        scene.id === currentScene.id ? updatedScene : scene
+      );
+
+      await updateStory(storyId, {
+        ...story,
+        scenes: updatedScenes
       });
       
-      // Update local state with proper type casting
-      setCurrentScene(updatedScene as Scene);
+      // Update local state
+      setCurrentScene(updatedScene);
       setScenes(prevScenes => 
         prevScenes.map(scene => 
-          scene.id === currentScene.id ? updatedScene as Scene : scene
+          scene.id === currentScene.id ? updatedScene : scene
         )
       );
 
@@ -509,49 +498,6 @@ function ProjectContent() {
     } catch (error) {
       console.error("Error adding shot:", error);
       toast.error("Failed to add shot. Please try again.");
-    }
-  };
-
-  // Add new scene
-  const addNewScene = async () => {
-    if (!storyId) return;
-    
-    const newScene: Scene = {
-      id: `scene-${scenes.length + 1}`,
-      title: `SCENE ${scenes.length + 1}`,
-      location: "",
-      description: "",
-      lighting: "",
-      weather: "",
-      style: "hyperrealistic",
-      shots: [
-        {
-          id: "shot-1",
-          type: "ESTABLISHING SHOT",
-          description: "Describe your shot...",
-          hasNarration: false,
-          hasDialogue: false,
-          hasSoundEffects: false,
-          prompt: "Describe your shot...",
-          narration: null,
-          dialogue: null,
-          soundEffects: null,
-          location: null,
-          lighting: null,
-          weather: null,
-          generatedImage: null,
-          generatedVideo: null
-        }
-      ]
-    };
-    
-    try {
-      await updateScene(storyId, newScene.id, newScene);
-      setScenes([...scenes, newScene]);
-      setCurrentScene(newScene);
-    } catch (error) {
-      console.error("Error adding scene:", error);
-      alert("Failed to add scene. Please try again.");
     }
   };
 
@@ -705,48 +651,105 @@ function ProjectContent() {
 
           if (statusData.state === "completed") {
             try {
+              // Get the current story first
+              const story = await getStory(storyId);
+              if (!story) {
+                throw new Error("Story not found");
+              }
+
+              // Find the current scene in the story
+              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene.id);
+              if (sceneIndex === -1) {
+                throw new Error("Scene not found in story");
+              }
+
+              // Get the current shot to preserve its data
+              const currentShot = currentScene.shots[shotIndex];
+              if (!currentShot) {
+                throw new Error("Shot not found");
+              }
+
               // Upload the generated image to Firebase Storage
               console.log(`Uploading generated image for shot ${shotIndex + 1} to Firebase`);
               const downloadUrl = await uploadShotImage(
                 storyId,
                 currentScene.id,
-                currentScene.shots[shotIndex].id,
+                currentShot.id,
                 statusData.assets.image
               );
 
-              // Create updated shot with new image
-              const updatedShot = {
-                ...currentScene.shots[shotIndex],
+              if (!downloadUrl) {
+                throw new Error("Failed to get download URL for the image");
+              }
+
+              // Create updated shot with new image while preserving ALL existing data
+              const updatedShot: Shot = {
+                ...currentShot, // Keep ALL existing properties
                 description: prompt,
+                prompt: prompt, // Update prompt to match description
                 generatedImage: downloadUrl,
-                dialogue: prompt.includes("dialogue") 
-                  ? "CHARACTER\n(emotional)\nGenerated dialogue based on your prompt." 
-                  : currentScene.shots[shotIndex].dialogue,
-                soundEffects: prompt.includes("sound") 
-                  ? "SFX: Generated sound effect based on your prompt [3s]." 
-                  : currentScene.shots[shotIndex].soundEffects
+                // Explicitly preserve all media and properties
+                generatedVideo: currentShot.generatedVideo || null,
+                lipSyncVideo: currentShot.lipSyncVideo || null,
+                lipSyncAudio: currentShot.lipSyncAudio || null,
+                dialogue: currentShot.dialogue || null,
+                soundEffects: currentShot.soundEffects || null,
+                hasDialogue: currentShot.hasDialogue || false,
+                hasSoundEffects: currentShot.hasSoundEffects || false,
+                hasNarration: currentShot.hasNarration || false,
+                narration: currentShot.narration || null,
+                location: currentShot.location || null,
+                lighting: currentShot.lighting || null,
+                weather: currentShot.weather || null,
+                voiceId: currentShot.voiceId || null,
+                type: currentShot.type || "MEDIUM SHOT"
               };
 
               // Create updated shots array
               const updatedShots = [...currentScene.shots];
               updatedShots[shotIndex] = updatedShot;
 
-              // Update the scene with new shots array
-              const updatedScene = await updateScene(storyId, currentScene.id, {
-                shots: updatedShots
-              });
+              // Create updated scene with ALL existing properties
+              const updatedScene = {
+                ...currentScene,
+                shots: updatedShots,
+                title: currentScene.title || `Scene ${sceneIndex + 1}`,
+                location: currentScene.location || "INT. LOCATION - DAY",
+                description: currentScene.description || "Describe your scene...",
+                lighting: currentScene.lighting || "Natural daylight",
+                weather: currentScene.weather || "Clear",
+                style: currentScene.style || "hyperrealistic",
+                generatedVideo: currentScene.generatedVideo || undefined
+              };
 
-              if (updatedScene) {
-                // Update both currentScene and scenes state
-                setCurrentScene(updatedScene);
-                setScenes(prevScenes => 
-                  prevScenes.map(scene => 
-                    scene.id === currentScene.id ? updatedScene : scene
-                  )
-                );
-                console.log(`Successfully updated shot ${shotIndex + 1} with generated image`);
-                toast.success(`Image generated for shot ${shotIndex + 1}!`);
-              }
+              // Create updated scenes array for the story
+              const updatedScenes = [...story.scenes];
+              updatedScenes[sceneIndex] = updatedScene;
+
+              // Create clean story update with ALL required fields
+              const storyUpdate = {
+                scenes: updatedScenes,
+                title: story.title || "Untitled Story",
+                description: story.description || "No description",
+                userId: story.userId || "",
+                createdAt: story.createdAt || new Date(),
+                updatedAt: new Date()
+              };
+
+              // Remove any undefined values from the update
+              const cleanUpdate = Object.fromEntries(
+                Object.entries(storyUpdate).filter(([_, value]) => value !== undefined)
+              );
+
+              // Update the entire story
+              await updateStory(storyId, cleanUpdate);
+
+              // Update local state
+              setCurrentScene(updatedScene);
+              setScenes(updatedScenes);
+              
+              console.log(`Successfully updated shot ${shotIndex + 1} with generated image`);
+              toast.success(`Image generated for shot ${shotIndex + 1}!`);
             } catch (uploadError) {
               console.error(`Error uploading image for shot ${shotIndex + 1} to Firebase:`, uploadError);
               toast.error(`Failed to save generated image for shot ${shotIndex + 1}. Please try again.`);
@@ -975,10 +978,10 @@ function ProjectContent() {
                   // Update the shot with the generated video URL
                   const updatedShots = [...currentScene.shots];
                   if (updatedShots[i]) {
-                    const updatedShot = {
+                    const updatedShot: Shot = {
                       ...updatedShots[i],
                       generatedVideo: statusData.assets.video || undefined,
-                    } as Shot;
+                    };
                     updatedShots[i] = updatedShot;
                     
                     const updatedScene = {
@@ -1038,6 +1041,500 @@ function ProjectContent() {
     if (currentScene?.id === sceneId) {
       setCurrentScene({ ...currentScene, title: newTitle });
     }
+  };
+
+  // Add these handlers for the SceneChat component
+  const handleAddScene = async (newScene: Scene) => {
+    if (!storyId) {
+      toast.error("Please save your story first");
+      return;
+    }
+    
+    try {
+      console.log("Current scenes before update:", scenes);
+      console.log("New scene to add:", newScene);
+
+      // Get the current story first
+      const currentStory = await getStory(storyId);
+      if (!currentStory) {
+        throw new Error("Story not found");
+      }
+
+      // Generate a unique ID for the new scene using timestamp and random string
+      const uniqueId = `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create a properly formatted scene object with unique IDs for all shots
+      const formattedScene: Scene = {
+        ...newScene,
+        id: uniqueId,
+        title: newScene.title.split('\n')[0], // Take only the first line as title
+        location: newScene.location || "N/A",
+        description: newScene.description || "N/A",
+        lighting: newScene.lighting || "N/A",
+        weather: newScene.weather || "N/A",
+        style: newScene.style || "hyperrealistic",
+        shots: newScene.shots.map(shot => ({
+          ...shot,
+          id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          type: shot.type || "MEDIUM SHOT",
+          description: shot.description || "N/A",
+          hasNarration: !!shot.narration,
+          hasDialogue: !!shot.dialogue,
+          hasSoundEffects: !!shot.soundEffects,
+          prompt: shot.prompt || shot.description || "N/A",
+          narration: shot.narration || null,
+          dialogue: shot.dialogue || null,
+          soundEffects: shot.soundEffects || null,
+          location: shot.location || null,
+          lighting: shot.lighting || null,
+          weather: shot.weather || null,
+          generatedImage: shot.generatedImage || null,
+          generatedVideo: shot.generatedVideo || null
+        }))
+      };
+
+      // Validate the formatted scene
+      validateSceneData(formattedScene);
+
+      // Create updated scenes array
+      const updatedScenes = [...currentStory.scenes, formattedScene];
+      console.log("Updated scenes array:", updatedScenes);
+
+      // Update the story with new scenes
+      await updateStory(storyId, {
+        ...currentStory,
+        scenes: updatedScenes
+      });
+
+      // Update local state
+      setScenes(updatedScenes);
+      setCurrentScene(formattedScene);
+      
+      console.log("Final scenes state:", updatedScenes);
+      toast.success("Scene added successfully");
+    } catch (error) {
+      console.error("Error adding scene:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to add scene. Please try again.");
+    }
+  };
+
+  const handleAddShot = async (sceneId: string, newShot: Shot) => {
+    if (!storyId) {
+      toast.error("Please save your story first");
+      return;
+    }
+    
+    try {
+      console.log("Adding new shot:", newShot);
+      console.log("To scene:", sceneId);
+
+      // Get the current story first
+      const currentStory = await getStory(storyId);
+      if (!currentStory) {
+        throw new Error("Story not found");
+      }
+
+      // Find the scene to update
+      const sceneIndex = currentStory.scenes.findIndex((s: Scene) => s.id === sceneId);
+      if (sceneIndex === -1) {
+        throw new Error("Scene not found");
+      }
+
+      // Create a properly formatted shot with unique ID
+      const formattedShot: Shot = {
+        ...newShot,
+        id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: newShot.type || "MEDIUM SHOT",
+        description: newShot.description || "N/A",
+        hasNarration: !!newShot.narration,
+        hasDialogue: !!newShot.dialogue,
+        hasSoundEffects: !!newShot.soundEffects,
+        prompt: newShot.prompt || newShot.description || "N/A",
+        narration: newShot.narration || null,
+        dialogue: newShot.dialogue || null,
+        soundEffects: newShot.soundEffects || null,
+        location: newShot.location || null,
+        lighting: newShot.lighting || null,
+        weather: newShot.weather || null,
+        generatedImage: newShot.generatedImage || null,
+        generatedVideo: newShot.generatedVideo || null
+      };
+
+      // Validate the formatted shot
+      validateShotData(formattedShot);
+
+      // Update the scene with the new shot
+      const updatedScene = {
+        ...currentStory.scenes[sceneIndex],
+        shots: [...currentStory.scenes[sceneIndex].shots, formattedShot]
+      };
+
+      // Validate the updated scene
+      validateSceneData(updatedScene);
+
+      // Update the scene in Firestore
+      await updateScene(storyId, sceneId, updatedScene);
+
+      // Update local state
+      setScenes(prevScenes => 
+        prevScenes.map(scene => 
+          scene.id === sceneId ? updatedScene : scene
+        )
+      );
+
+      if (currentScene?.id === sceneId) {
+        setCurrentScene(updatedScene);
+      }
+
+      toast.success("Shot added successfully");
+    } catch (error) {
+      console.error("Error adding shot:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to add shot. Please try again.");
+    }
+  };
+
+  // Generate lip sync for a shot with dialogue
+  const generateLipSync = async (shotIndex: number) => {
+    if (!currentScene?.shots[shotIndex]) return;
+    
+    const shot = currentScene.shots[shotIndex];
+    if (!shot.dialogue) {
+      toast.error("No dialogue found for this shot");
+      return;
+    }
+
+    if (!shot.generatedVideo) {
+      toast.error("Please generate a video for this shot first");
+      return;
+    }
+
+    try {
+      // Show loading toast
+      toast.loading("Generating lip sync...", {
+        id: "lipsync-generation",
+      });
+
+      // First, generate speech from dialogue using ElevenLabs
+      const ttsResponse = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: shot.dialogue,
+          voiceId: shot.voiceId || "21m00Tcm4TlvDq8ikWAM", // Default voice ID
+          modelId: "eleven_multilingual_v2"
+        }),
+      });
+
+      if (!ttsResponse.ok) {
+        const errorData = await ttsResponse.json();
+        throw new Error(errorData.error || "Failed to generate speech");
+      }
+
+      const ttsData = await ttsResponse.json();
+      
+      // Upload the audio to a temporary URL (you'll need to implement this)
+      const audioUrl = await uploadTemporaryFile(ttsData.audio, "audio/wav");
+
+      // Start lip sync generation using Sync Labs
+      const lipsyncResponse = await fetch("/api/lipsync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          videoUrl: shot.generatedVideo,
+          audioUrl: audioUrl,
+          outputFormat: "mp4"
+        }),
+      });
+
+      if (!lipsyncResponse.ok) {
+        const errorData = await lipsyncResponse.json();
+        throw new Error(errorData.error || "Failed to start lip sync generation");
+      }
+
+      const lipsyncData = await lipsyncResponse.json();
+      console.log("Lip sync generation started with ID:", lipsyncData.id);
+
+      // Poll for lip sync generation status
+      const pollStatus = async () => {
+        try {
+          const statusResponse = await fetch(`/api/lipsync?id=${lipsyncData.id}`);
+          if (!statusResponse.ok) {
+            throw new Error("Failed to check lip sync generation status");
+          }
+          
+          const statusData = await statusResponse.json();
+          console.log("Lip sync generation status:", statusData.state);
+
+          if (statusData.state === "completed") {
+            try {
+              // Update the shot with the lip synced video URL
+              const updatedShots = [...currentScene.shots];
+              if (updatedShots[shotIndex]) {
+                updatedShots[shotIndex] = {
+                  ...updatedShots[shotIndex],
+                  lipSyncAudio: ttsData.audio,
+                  lipSyncVideo: statusData.assets.video,
+                } as Shot;
+                
+                const updatedScene = { ...currentScene, shots: updatedShots };
+                setCurrentScene(updatedScene);
+                setScenes(scenes.map(scene => 
+                  scene.id === currentScene.id ? updatedScene : scene
+                ));
+                console.log("Successfully updated shot with lip sync");
+                toast.success("Lip sync generated successfully!", {
+                  id: "lipsync-generation",
+                });
+              }
+            } catch (error) {
+              console.error("Error updating shot with lip sync:", error);
+              toast.error("Failed to save lip sync. Please try again.", {
+                id: "lipsync-generation",
+              });
+            }
+          } else if (statusData.state === "failed") {
+            throw new Error(statusData.failure_reason || "Lip sync generation failed");
+          } else {
+            // Continue polling
+            setTimeout(pollStatus, 3000);
+          }
+        } catch (error) {
+          console.error("Error during lip sync status polling:", error);
+          toast.error(error instanceof Error ? error.message : "Failed to check lip sync generation status. Please try again.", {
+            id: "lipsync-generation",
+          });
+        }
+      };
+
+      pollStatus();
+    } catch (error) {
+      console.error("Error generating lip sync:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate lip sync. Please try again.");
+    }
+  };
+
+  // Helper function to upload temporary files
+  const uploadTemporaryFile = async (base64Data: string, contentType: string): Promise<string> => {
+    try {
+      // Convert base64 to blob
+      const byteCharacters = atob(base64Data);
+      const byteArrays = [];
+      
+      for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
+        const slice = byteCharacters.slice(offset, offset + 1024);
+        const byteNumbers = new Array(slice.length);
+        
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+      
+      const blob = new Blob(byteArrays, { type: contentType });
+      
+      // Create FormData and append blob
+      const formData = new FormData();
+      formData.append('file', blob, `temp-${Date.now()}.${contentType.split('/')[1]}`);
+      
+      // Upload to your storage service (e.g., Firebase Storage)
+      const storageRef = ref(storage, `temp/${Date.now()}.${contentType.split('/')[1]}`);
+      await uploadBytes(storageRef, blob);
+      
+      // Get download URL
+      const downloadUrl = await getDownloadURL(storageRef);
+      return downloadUrl;
+    } catch (error) {
+      console.error("Error uploading temporary file:", error);
+      throw error;
+    }
+  };
+
+  // Update shot description handler
+  const handleShotDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene) return;
+    
+    const updatedShots = [...currentScene.shots];
+    const existingShot = updatedShots[index];
+    
+    updatedShots[index] = {
+      ...existingShot, // Keep all existing properties
+      description: e.target.value,
+      prompt: e.target.value,
+      // Preserve existing media
+      generatedImage: existingShot.generatedImage || null,
+      generatedVideo: existingShot.generatedVideo || null,
+      lipSyncVideo: existingShot.lipSyncVideo || null,
+      lipSyncAudio: existingShot.lipSyncAudio || null
+    };
+    
+    const updatedScene = { ...currentScene, shots: updatedShots };
+    setCurrentScene(updatedScene);
+    setScenes(scenes.map(scene => 
+      scene.id === currentScene.id ? updatedScene : scene
+    ));
+
+    // Save to Firebase
+    if (storyId && currentScene.id) {
+      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
+        console.error("Error saving shot description:", error);
+        toast.error("Failed to save shot description");
+      });
+    }
+  };
+
+  // Update shot type handler
+  const handleShotTypeChange = (e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
+    if (!currentScene) return;
+    
+    const updatedShots = [...currentScene.shots];
+    const existingShot = updatedShots[index];
+    
+    updatedShots[index] = {
+      ...existingShot, // Keep all existing properties
+      type: e.target.value,
+      // Preserve existing media
+      generatedImage: existingShot.generatedImage || null,
+      generatedVideo: existingShot.generatedVideo || null,
+      lipSyncVideo: existingShot.lipSyncVideo || null,
+      lipSyncAudio: existingShot.lipSyncAudio || null
+    };
+    
+    const updatedScene = { ...currentScene, shots: updatedShots };
+    setCurrentScene(updatedScene);
+    setScenes(scenes.map(scene => 
+      scene.id === currentScene.id ? updatedScene : scene
+    ));
+
+    // Save to Firebase
+    if (storyId && currentScene.id) {
+      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
+        console.error("Error saving shot type:", error);
+        toast.error("Failed to save shot type");
+      });
+    }
+  };
+
+  // Update dialogue handler
+  const handleDialogueChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene) return;
+    
+    const updatedShots = [...currentScene.shots];
+    const existingShot = updatedShots[index];
+    
+    updatedShots[index] = {
+      ...existingShot, // Keep all existing properties
+      dialogue: e.target.value,
+      hasDialogue: !!e.target.value,
+      // Preserve existing media
+      generatedImage: existingShot.generatedImage || null,
+      generatedVideo: existingShot.generatedVideo || null,
+      lipSyncVideo: existingShot.lipSyncVideo || null,
+      lipSyncAudio: existingShot.lipSyncAudio || null
+    };
+    
+    const updatedScene = { ...currentScene, shots: updatedShots };
+    setCurrentScene(updatedScene);
+    setScenes(scenes.map(scene => 
+      scene.id === currentScene.id ? updatedScene : scene
+    ));
+
+    // Save to Firebase
+    if (storyId && currentScene.id) {
+      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
+        console.error("Error saving dialogue:", error);
+        toast.error("Failed to save dialogue");
+      });
+    }
+  };
+
+  // Update sound effects handler
+  const handleSoundEffectsChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene) return;
+    
+    const updatedShots = [...currentScene.shots];
+    const existingShot = updatedShots[index];
+    
+    updatedShots[index] = {
+      ...existingShot, // Keep all existing properties
+      soundEffects: e.target.value,
+      hasSoundEffects: !!e.target.value,
+      // Preserve existing media
+      generatedImage: existingShot.generatedImage || null,
+      generatedVideo: existingShot.generatedVideo || null,
+      lipSyncVideo: existingShot.lipSyncVideo || null,
+      lipSyncAudio: existingShot.lipSyncAudio || null
+    };
+    
+    const updatedScene = { ...currentScene, shots: updatedShots };
+    setCurrentScene(updatedScene);
+    setScenes(scenes.map(scene => 
+      scene.id === currentScene.id ? updatedScene : scene
+    ));
+
+    // Save to Firebase
+    if (storyId && currentScene.id) {
+      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
+        console.error("Error saving sound effects:", error);
+        toast.error("Failed to save sound effects");
+      });
+    }
+  };
+
+  // Add voice selection handler
+  const handleVoiceSelect = (e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
+    if (!currentScene) return;
+    
+    const updatedShots = [...currentScene.shots];
+    const existingShot = updatedShots[index];
+    
+    updatedShots[index] = {
+      ...existingShot, // Keep all existing properties
+      voiceId: e.target.value,
+      // Preserve existing media
+      generatedImage: existingShot.generatedImage || null,
+      generatedVideo: existingShot.generatedVideo || null,
+      lipSyncVideo: existingShot.lipSyncVideo || null,
+      lipSyncAudio: existingShot.lipSyncAudio || null
+    };
+    
+    const updatedScene = { ...currentScene, shots: updatedShots };
+    setCurrentScene(updatedScene);
+    setScenes(scenes.map(scene => 
+      scene.id === currentScene.id ? updatedScene : scene
+    ));
+
+    // Save to Firebase
+    if (storyId && currentScene.id) {
+      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
+        console.error("Error saving voice selection:", error);
+        toast.error("Failed to save voice selection");
+      });
+    }
+  };
+
+  // Add the missing handler functions
+  const handleSceneDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene || !storyId) return;
+    const updatedScene = { ...currentScene, description: e.target.value };
+    updateScene(storyId, currentScene.id, updatedScene);
+  };
+
+  const handleSceneLightingChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene || !storyId) return;
+    const updatedScene = { ...currentScene, lighting: e.target.value };
+    updateScene(storyId, currentScene.id, updatedScene);
+  };
+
+  const handleSceneWeatherChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene || !storyId) return;
+    const updatedScene = { ...currentScene, weather: e.target.value };
+    updateScene(storyId, currentScene.id, updatedScene);
   };
 
   return (
@@ -1120,6 +1617,65 @@ function ProjectContent() {
       <div className="flex flex-col md:flex-row">
         {/* Left sidebar with scene info */}
         <div className="w-full md:w-64 bg-gray-50 p-4 flex flex-col border-r">
+          {/* Scene List */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Scenes</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={addNewScene}
+                className="h-8 px-2"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {scenes.map((scene) => (
+                <div
+                  key={scene.id}
+                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                    currentScene?.id === scene.id
+                      ? "bg-purple-100 border border-purple-200"
+                      : "hover:bg-gray-100 border border-transparent"
+                  }`}
+                  onClick={() => handleSceneSelect(scene)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Film className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-700 truncate">
+                      {scene.title || "Untitled Scene"}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSceneRename(scene.id, prompt("Enter new scene title:", scene.title) || scene.title);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSceneDelete(scene.id);
+                      }}
+                    >
+                      <Trash className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="mb-4">
             <h2 className="text-xl font-bold text-amber-600">{currentScene?.title || "SCENE 1"}</h2>
             <p className="text-sm text-gray-600 mt-1">
@@ -1183,33 +1739,36 @@ function ProjectContent() {
           </div>
           
           <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Description</h3>
+            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Description</h3>
             <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               rows={3}
               placeholder="Describe the location"
-              defaultValue="Describe the location"
-            ></textarea>
+              value={currentScene?.description || ''}
+              onChange={(e) => handleSceneDescriptionChange(e)}
+            />
           </div>
           
           <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Lighting</h3>
+            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Lighting</h3>
             <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               rows={2}
               placeholder="Describe the lighting"
-              defaultValue="Describe the lighting"
-            ></textarea>
+              value={currentScene?.lighting || ''}
+              onChange={(e) => handleSceneLightingChange(e)}
+            />
           </div>
           
           <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Weather</h3>
+            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Weather</h3>
             <textarea
-              className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               rows={2}
               placeholder="Describe the weather"
-              defaultValue="Describe the weather"
-            ></textarea>
+              value={currentScene?.weather || ''}
+              onChange={(e) => handleSceneWeatherChange(e)}
+            />
           </div>
           
           <div className="mt-4">
@@ -1333,17 +1892,22 @@ function ProjectContent() {
                     rows={3}
                     placeholder="Describe this shot..."
                     defaultValue={shot.description}
+                    onChange={(e) => handleShotDescriptionChange(e, index)}
                   />
                   <div>
                     <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Shot Type</h3>
-                    <select className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700">
+                    <select 
+                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                      value={shot.type}
+                      onChange={(e) => handleShotTypeChange(e, index)}
+                    >
                       <option value="">Select shot type</option>
-                      <option value="establishing">Establishing Shot</option>
-                      <option value="closeup">Close-Up</option>
-                      <option value="medium">Medium Shot</option>
-                      <option value="wide">Wide Shot</option>
-                      <option value="pov">POV</option>
-                      <option value="tracking">Tracking Shot</option>
+                      <option value="ESTABLISHING SHOT">Establishing Shot</option>
+                      <option value="CLOSE-UP">Close-Up</option>
+                      <option value="MEDIUM SHOT">Medium Shot</option>
+                      <option value="WIDE SHOT">Wide Shot</option>
+                      <option value="POV">POV</option>
+                      <option value="TRACKING SHOT">Tracking Shot</option>
                     </select>
                   </div>
                   
@@ -1354,6 +1918,7 @@ function ProjectContent() {
                       rows={2}
                       placeholder="Add character dialogue..."
                       defaultValue={shot.dialogue || ""}
+                      onChange={(e) => handleDialogueChange(e, index)}
                     />
                   </div>
                   
@@ -1364,9 +1929,43 @@ function ProjectContent() {
                       rows={2}
                       placeholder="Add sound effects..."
                       defaultValue={shot.soundEffects || ""}
+                      onChange={(e) => handleSoundEffectsChange(e, index)}
                     />
                   </div>
                 </div>
+
+                {/* Add voice selection dropdown */}
+                {shot.hasDialogue && (
+                  <div className="mt-2">
+                    <select
+                      value={shot.voiceId || ""}
+                      onChange={(e) => handleVoiceSelect(e, index)}
+                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+                    >
+                      <option value="">Select voice</option>
+                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel</option>
+                      <option value="AZnzlk1XvdvUeBnXmlld">Domi</option>
+                      <option value="EXAVITQu4vr4xnSDxMaL">Bella</option>
+                      <option value="ErXwobaYiN019PkySvjV">Antoni</option>
+                      <option value="MF3mGyEYCl7XYWbV9V6O">Elli</option>
+                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh</option>
+                      <option value="VR6AewLTigWG4xSOukaG">Arnold</option>
+                      <option value="pNInz6obpgDQGcFmaJgB">Adam</option>
+                      <option value="yoZ06aMxZJJ28xfdgOL">Sam</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Add lip sync button */}
+                {shot.hasDialogue && shot.voiceId && (
+                  <Button
+                    onClick={() => generateLipSync(index)}
+                    className="mt-2"
+                    disabled={!shot.generatedVideo}
+                  >
+                    Generate Lip Sync
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -1412,6 +2011,13 @@ function ProjectContent() {
           </div>
         )}
       </div>
+
+      {/* Add the SceneChat component at the end of the return statement */}
+      <SceneChat 
+        onAddScene={handleAddScene}
+        onAddShot={handleAddShot}
+        currentSceneId={currentScene?.id || null}
+      />
     </div>
   );
 }

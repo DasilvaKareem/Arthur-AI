@@ -9,6 +9,7 @@ import {
   onIdTokenChanged,
   sendPasswordResetEmail,
   updateProfile,
+  Auth,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { firebaseAuth } from "../lib/firebase/client";
@@ -40,7 +41,14 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
 
   // Listen for auth state changes
   useEffect(() => {
-    const unsubscribe = onIdTokenChanged(firebaseAuth, async (user) => {
+    if (!firebaseAuth) {
+      console.error("Firebase Auth not initialized");
+      setLoading(false);
+      return;
+    }
+
+    const auth = firebaseAuth as Auth;
+    const unsubscribe = onIdTokenChanged(auth, async (user) => {
       setLoading(true);
       if (user) {
         setUser(user);
@@ -62,6 +70,10 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
 
   // Sign in with email/password
   const signIn = async (email: string, password: string) => {
+    if (!firebaseAuth) {
+      throw new Error("Firebase Auth not initialized");
+    }
+
     try {
       setLoading(true);
       
@@ -81,7 +93,8 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
       }
 
       try {
-        await signInWithEmailAndPassword(firebaseAuth, email, password);
+        const auth = firebaseAuth as Auth;
+        await signInWithEmailAndPassword(auth, email, password);
         // Reset attempts on successful login
         localStorage.setItem('signInAttempts', JSON.stringify({ count: 0, timestamp: now }));
         toast.success('Signed in successfully');
@@ -98,7 +111,6 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
       console.error("Sign In Error:", error);
       const errorMessage = getAuthErrorMessage(error.code || error.message);
       toast.error(errorMessage);
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -106,9 +118,14 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
 
   // Sign up with email/password
   const signUp = async (email: string, password: string, name?: string) => {
+    if (!firebaseAuth) {
+      throw new Error("Firebase Auth not initialized");
+    }
+
     try {
       setLoading(true);
-      const { user } = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+      const auth = firebaseAuth as Auth;
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
       
       // Set display name if provided
       if (name) {
@@ -129,8 +146,13 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
 
   // Password reset
   const resetPassword = async (email: string) => {
+    if (!firebaseAuth) {
+      throw new Error("Firebase Auth not initialized");
+    }
+
     try {
-      await sendPasswordResetEmail(firebaseAuth, email);
+      const auth = firebaseAuth as Auth;
+      await sendPasswordResetEmail(auth, email);
       toast.success('Password reset email sent. Check your inbox.');
     } catch (error: any) {
       console.error("Reset Password Error:", error);

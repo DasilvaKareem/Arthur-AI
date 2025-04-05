@@ -35,6 +35,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ImageGenerator from "./ImageGenerator";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/app/hooks/useAuth";
+import { createStory } from "@/app/lib/firebase/stories";
+import { usePreferences } from "@/app/context/preferences-context";
+import { ArthurAvatar } from "./ArthurAvatar";
 
 const TypedText = ({ text = "", delay = 5 }) => {
   const [displayedText, setDisplayedText] = useState("");
@@ -145,6 +151,8 @@ const MessageContent = ({
     };
   }>({});
   const [error, setError] = useState(false);
+  const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!content || role !== "assistant") return;
@@ -177,15 +185,39 @@ const MessageContent = ({
     return () => clearTimeout(timer);
   }, [content, role]);
 
-  const handleGenerateProject = () => {
-    if (parsed.response) {
+  const handleGenerateProject = async () => {
+    if (!parsed.response || !user) {
+      toast.error("Please sign in to create a project");
+      return;
+    }
+
+    try {
       console.log("🎬 Generating project from script!");
-      alert("Preparing your script project...");
-      const encodedScript = encodeURIComponent(parsed.response);
-      const title = encodeURIComponent("Script Project");
-      setTimeout(() => {
-        window.location.href = `/project?script=${encodedScript}&title=${title}`;
-      }, 500);
+      toast.loading("Preparing your script project...");
+
+      // Create a new story in Firebase
+      const story = {
+        id: crypto.randomUUID(),
+        title: "New Story",
+        description: parsed.response,
+        userId: user.uid,
+        scenes: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const storyId = await createStory(story.title, story.description, story.userId, story.scenes);
+      
+      if (!storyId) {
+        throw new Error("Failed to create story");
+      }
+
+      // Use Next.js router for client-side navigation
+      router.push(`/project?id=${storyId}`);
+      toast.success("Project created successfully!");
+    } catch (error) {
+      console.error("Error creating project:", error);
+      toast.error("Failed to create project. Please try again.");
     }
   };
 
@@ -275,84 +307,97 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   selectedKnowledgeBase,
   setSelectedKnowledgeBase,
   knowledgeBases,
-}) => (
-  <div className="p-0 flex flex-col sm:flex-row items-start sm:items-center justify-between pb-2 animate-fade-in">
-    <div className="flex items-center space-x-4 mb-2 sm:mb-0">
-      {showAvatar && (
-        <>
-          <Avatar className="w-10 h-10 border">
-            <AvatarImage
-              src="/arthur-logo.svg"
-              alt="Arthur AI Assistant Avatar"
-              width={40}
-              height={40}
-            />
-            <AvatarFallback>Arthur</AvatarFallback>
-          </Avatar>
-          <div>
-            <h3 className="text-sm font-medium leading-none">AI Agent</h3>
-            <p className="text-sm text-muted-foreground">Customer support</p>
-          </div>
-        </>
-      )}
-    </div>
-    <div className="flex space-x-2 w-full sm:w-auto">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-grow text-muted-foreground sm:flex-grow-0"
-          >
-            {models.find((m) => m.id === selectedModel)?.name}
-            <ChevronDown className="ml-2 h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {models.map((model) => (
-            <DropdownMenuItem
-              key={model.id}
-              onSelect={() => setSelectedModel(model.id)}
+}) => {
+  const { preferences } = usePreferences();
+
+  // Helper function to get avatar background color
+  const getAvatarStyle = () => {
+    if (preferences.chatColor) {
+      return {
+        backgroundColor: preferences.chatColor,
+        color: '#e6e6e6',
+        border: `1px solid ${preferences.chatColor}`
+      };
+    }
+    return {
+      backgroundColor: '#333',
+      color: '#e6e6e6',
+      border: '1px solid #333'
+    };
+  };
+
+  return (
+    <div className="p-0 flex flex-col sm:flex-row items-start sm:items-center justify-between pb-2 animate-fade-in">
+      <div className="flex items-center space-x-4 mb-2 sm:mb-0">
+        {showAvatar && (
+          <>
+            <ArthurAvatar size="md" />
+            <div>
+              <h3 className="text-sm font-medium leading-none">AI Agent</h3>
+              <p className="text-sm text-muted-foreground">Customer support</p>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex space-x-2 w-full sm:w-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-grow text-muted-foreground sm:flex-grow-0"
             >
-              {model.name}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-grow text-muted-foreground  sm:flex-grow-0"
-          >
-            {knowledgeBases.find((kb) => kb.id === selectedKnowledgeBase)
-              ?.name || "Select KB"}
-            <ChevronDown className="ml-2 h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {knowledgeBases.map((kb) => (
-            <DropdownMenuItem
-              key={kb.id}
-              onSelect={() => setSelectedKnowledgeBase(kb.id)}
+              {models.find((m) => m.id === selectedModel)?.name}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {models.map((model) => (
+              <DropdownMenuItem
+                key={model.id}
+                onSelect={() => setSelectedModel(model.id)}
+              >
+                {model.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-grow text-muted-foreground  sm:flex-grow-0"
             >
-              {kb.name}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+              {knowledgeBases.find((kb) => kb.id === selectedKnowledgeBase)
+                ?.name || "Select KB"}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {knowledgeBases.map((kb) => (
+              <DropdownMenuItem
+                key={kb.id}
+                onSelect={() => setSelectedKnowledgeBase(kb.id)}
+              >
+                {kb.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 function ChatArea() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showHeader, setShowHeader] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("llama3-70b-8192");
+  const [selectedModel, setSelectedModel] = useState("gemini-pro");
   const [showAvatar, setShowAvatar] = useState(false);
+  const { preferences } = usePreferences();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState(
@@ -365,11 +410,17 @@ function ChatArea() {
   ];
 
   const models: Model[] = [
-    { id: "gemini-pro", name: "Gemini Pro" },
+    { id: "gemini-pro-vision", name: "Gemini Pro Vision (128K)" },
+    { id: "gemini-pro", name: "Gemini Pro (32K)" },
     { id: "llama3-70b-8192", name: "Llama-3 70B" },
     { id: "llama3-8b-8192", name: "Llama-3 8B" },
     { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B" },
     { id: "gemma-7b-it", name: "Gemma 7B" },
+    { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B Versatile" },
+    { id: "claude-3-haiku-20240307", name: "Claude 3 Haiku" },
+    { id: "claude-3-5-sonnet-20240620", name: "Claude 3.5 Sonnet" },
+    { id: "deepseek-r1-distill-qwen-32b", name: "DeepSeek Qwen 32B" },
+    { id: "deepseek-r1-distill-llama-70b", name: "DeepSeek Llama 70B" },
   ];
 
   const scrollToBottom = () => {
@@ -624,7 +675,7 @@ function ChatArea() {
   }, []);
 
   return (
-    <Card className="flex-1 flex flex-col mb-4 mr-4 ml-4">
+    <Card className="flex-1 flex flex-col mb-4 mr-4 ml-4 bg-[#1a1a1a] text-[#e6e6e6] border-none">
       <CardContent className="flex-1 flex flex-col overflow-hidden pt-4 px-4 pb-0">
         <ConversationHeader
           selectedModel={selectedModel}
@@ -638,28 +689,26 @@ function ChatArea() {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in-up">
-              <Avatar className="w-10 h-10 mb-4 border">
-                <AvatarFallback>Arthur</AvatarFallback>
-              </Avatar>
-              <h2 className="text-2xl font-semibold mb-8">
+              <ArthurAvatar size="md" className="mb-4" />
+              <h2 className="text-2xl font-mono mb-8 text-[#e6e6e6]">
                 Create Amazing Content
               </h2>
-              <div className="space-y-4 text-sm">
+              <div className="space-y-4 text-sm font-mono">
                 <div className="flex items-center gap-3">
-                  <WandSparkles className="text-muted-foreground" />
-                  <p className="text-muted-foreground">
+                  <WandSparkles className="text-[#666]" />
+                  <p className="text-[#666]">
                     Create short films, commercials, and storyboards with AI-powered creativity.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <BookOpenText className="text-muted-foreground" />
-                  <p className="text-muted-foreground">
+                  <BookOpenText className="text-[#666]" />
+                  <p className="text-[#666]">
                     Generate professional business memos and presentations in seconds.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <HandHelping className="text-muted-foreground" />
-                  <p className="text-muted-foreground">
+                  <HandHelping className="text-[#666]" />
+                  <p className="text-[#666]">
                     Transform your ideas into stunning visual content with our AI tools.
                   </p>
                 </div>
@@ -681,16 +730,18 @@ function ChatArea() {
                     }}
                   >
                     {message.role === "assistant" && (
-                      <Avatar className="w-8 h-8 mr-2 border">
-                        <AvatarFallback>Arthur</AvatarFallback>
-                      </Avatar>
+                      <ArthurAvatar size="sm" className="mr-2" />
                     )}
                     <div
-                      className={`p-3 rounded-md text-sm max-w-[65%] ${
+                      className={`p-3 rounded-md text-sm max-w-[65%] font-mono ${
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted border"
+                          ? "bg-[#333] text-[#e6e6e6]"
+                          : `${preferences.chatColor ? `bg-${preferences.chatColor}` : 'bg-[#2a2a2a]'} border border-[#333]`
                       }`}
+                      style={message.role === "assistant" && preferences.chatColor ? {
+                        backgroundColor: preferences.chatColor,
+                        color: '#e6e6e6'
+                      } : undefined}
                     >
                       <MessageContent
                         content={message.content}
@@ -718,7 +769,7 @@ function ChatArea() {
       <CardFooter className="p-4 pt-0">
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col w-full relative bg-background border rounded-xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+          className="flex flex-col w-full relative bg-[#2a2a2a] border border-[#333] rounded-xl focus-within:ring-2 focus-within:ring-[#666] focus-within:ring-offset-2"
         >
           <Textarea
             value={input}
@@ -726,29 +777,28 @@ function ChatArea() {
             onKeyDown={handleKeyDown}
             placeholder="Type your message here..."
             disabled={isLoading}
-            className="resize-none min-h-[44px] bg-background  border-0 p-3 rounded-xl shadow-none focus-visible:ring-0"
+            className="resize-none min-h-[44px] bg-[#2a2a2a] text-[#e6e6e6] border-0 p-3 rounded-xl shadow-none focus-visible:ring-0 font-mono"
             rows={1}
           />
           <div className="flex justify-between items-center p-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Arthur</span>
+              <span className="text-sm" style={{ color: preferences.chatColor || '#666' }}>Arthur</span>
               
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 px-2">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-[#666] hover:text-[#e6e6e6]">
                     <ImageIcon className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-auto">
+                <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-auto bg-[#1a1a1a] text-[#e6e6e6] border-[#333]">
                   <DialogHeader>
-                    <DialogTitle>Generate Image with Luma</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="font-mono">Generate Image with Luma</DialogTitle>
+                    <DialogDescription className="text-[#666] font-mono">
                       Create AI-generated images using Luma Labs
                     </DialogDescription>
                   </DialogHeader>
                   <ImageGenerator 
                     onImageGenerated={(imageUrl) => {
-                      // When image is generated, insert it into the chat input
                       setInput((prev) => 
                         prev + `\n\nGenerated image: ${imageUrl}\n`
                       );
@@ -760,11 +810,11 @@ function ChatArea() {
             <Button
               type="submit"
               disabled={isLoading || input.trim() === ""}
-              className="gap-2"
+              className="gap-2 bg-[#333] hover:bg-[#444] text-[#e6e6e6] font-mono"
               size="sm"
             >
               {isLoading ? (
-                <div className="animate-spin h-5 w-5 border-t-2 border-white rounded-full" />
+                <div className="animate-spin h-5 w-5 border-t-2 border-[#e6e6e6] rounded-full" />
               ) : (
                 <>
                   Send Message

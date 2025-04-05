@@ -4,6 +4,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "sonner";
+import { AuthProvider } from "./context/auth-context";
+import { PreferencesProvider } from "./context/preferences-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,15 +22,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} flex flex-col h-full`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster position="top-right" closeButton />
-        </ThemeProvider>
+        <AuthProvider>
+          <PreferencesProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster position="top-right" closeButton />
+            </ThemeProvider>
+          </PreferencesProvider>
+        </AuthProvider>
       </body>
     </html>
   );

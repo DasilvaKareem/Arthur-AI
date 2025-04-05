@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { FileIcon, MessageCircleIcon } from "lucide-react";
+import { FileIcon, MessageCircleIcon, ChevronRight, ChevronLeft } from "lucide-react";
 import FullSourceModal from "./FullSourceModal";
 
 interface RAGSource {
@@ -47,6 +47,7 @@ const RightSidebar: React.FC = () => {
   const [shouldShowSources, setShouldShowSources] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSource, setSelectedSource] = useState<RAGSource | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     const updateRAGSources = (
@@ -133,70 +134,85 @@ const RightSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-[380px] pr-4 overflow-hidden pb-4">
+    <aside className={`${isCollapsed ? 'w-[40px]' : 'w-[380px]'} pr-4 overflow-hidden pb-4 transition-all duration-300 ease-in-out`}>
       <Card
-        className={`${fadeInUpClass} h-full overflow-hidden`}
+        className={`h-full overflow-hidden relative`}
         style={fadeStyle}
       >
-        <CardHeader>
-          <CardTitle className="text-sm font-medium leading-none">
-            Knowledge Base History
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-y-auto h-[calc(100%-45px)]">
-          {ragHistory.length === 0 && (
-            <div className="text-sm text-muted-foreground">
-              The assistant will display sources here once finding them
-            </div>
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute right-2 top-2 p-1 rounded-full hover:bg-[#2a2a2a] transition-colors"
+          title={isCollapsed ? "Show Knowledge Base History" : "Hide Knowledge Base History"}
+        >
+          {isCollapsed ? (
+            <ChevronLeft className="w-4 h-4 text-[#666]" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-[#666]" />
           )}
-          {ragHistory.map((historyItem, index) => (
-            <div
-              key={historyItem.timestamp}
-              className={`mb-6 ${fadeInUpClass}`}
-              style={{ ...fadeStyle, animationDelay: `${index * 50}ms` }}
-            >
-              <div className="flex items-center text-xs text-muted-foreground mb-2 gap-1">
-                <MessageCircleIcon
-                  size={14}
-                  className="text-muted-foreground"
-                />
-                <span>{historyItem.query}</span>
-              </div>
-              {historyItem.sources.map((source, sourceIndex) => (
-                <Card
-                  key={source.id}
-                  className={`mb-2 ${fadeInUpClass}`}
-                  style={{
-                    ...fadeStyle,
-                    animationDelay: `${index * 100 + sourceIndex * 75}ms`,
-                  }}
+        </button>
+        {!isCollapsed && (
+          <>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium leading-none">
+                Knowledge Base History
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-y-auto h-[calc(100%-45px)]">
+              {ragHistory.length === 0 && (
+                <div className="text-sm text-muted-foreground">
+                  The assistant will display sources here once finding them
+                </div>
+              )}
+              {ragHistory.map((historyItem, index) => (
+                <div
+                  key={historyItem.timestamp}
+                  className={`mb-6 ${fadeInUpClass}`}
+                  style={{ ...fadeStyle, animationDelay: `${index * 50}ms` }}
                 >
-                  <CardContent className="py-4">
-                    <p className="text-sm text-muted-foreground">
-                      {truncateSnippet(source.snippet)}
-                    </p>
-                    <div className="flex flex-col gap-2">
-                      <div
-                        className={`${getScoreColor(source.score)} px-2 py-1 mt-4 rounded-full text-xs inline-block w-fit`}
-                      >
-                        {(source.score * 100).toFixed(0)}% match
-                      </div>
-                      <div
-                        className="inline-flex items-center mr-2 mt-2 text-muted-foreground text-xs py-0 cursor-pointer hover:text-gray-600"
-                        onClick={() => handleViewFullSource(source)}
-                      >
-                        <FileIcon className="w-4 h-4 min-w-[12px] min-h-[12px] mr-2" />
-                        <span className="text-xs underline">
-                          {truncateSnippet(source.fileName || "Unnamed")}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  <div className="flex items-center text-xs text-muted-foreground mb-2 gap-1">
+                    <MessageCircleIcon
+                      size={14}
+                      className="text-muted-foreground"
+                    />
+                    <span>{historyItem.query}</span>
+                  </div>
+                  {historyItem.sources.map((source, sourceIndex) => (
+                    <Card
+                      key={source.id}
+                      className={`mb-2 ${fadeInUpClass}`}
+                      style={{
+                        ...fadeStyle,
+                        animationDelay: `${index * 100 + sourceIndex * 75}ms`,
+                      }}
+                    >
+                      <CardContent className="py-4">
+                        <p className="text-sm text-muted-foreground">
+                          {truncateSnippet(source.snippet)}
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <div
+                            className={`${getScoreColor(source.score)} px-2 py-1 mt-4 rounded-full text-xs inline-block w-fit`}
+                          >
+                            {(source.score * 100).toFixed(0)}% match
+                          </div>
+                          <div
+                            className="inline-flex items-center mr-2 mt-2 text-muted-foreground text-xs py-0 cursor-pointer hover:text-gray-600"
+                            onClick={() => handleViewFullSource(source)}
+                          >
+                            <FileIcon className="w-4 h-4 min-w-[12px] min-h-[12px] mr-2" />
+                            <span className="text-xs underline">
+                              {truncateSnippet(source.fileName || "Unnamed")}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               ))}
-            </div>
-          ))}
-        </CardContent>
+            </CardContent>
+          </>
+        )}
       </Card>
       <FullSourceModal
         isOpen={isModalOpen}

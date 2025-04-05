@@ -1,26 +1,44 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
-if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-  throw new Error('FIREBASE_SERVICE_ACCOUNT is not defined');
-}
+// Validate environment variables
+const requiredEnvVars = [
+  'FIREBASE_PROJECT_ID',
+  'FIREBASE_CLIENT_EMAIL',
+  'FIREBASE_PRIVATE_KEY',
+] as const;
 
-// Initialize Firebase Admin if it hasn't been initialized yet
-if (!admin.apps.length) {
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert(
-        JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-      ),
-    });
-    console.log('Firebase Admin initialized successfully');
-  } catch (error: any) {
-    console.error('Error initializing Firebase Admin:', error.message);
-    throw error;
+// Check if all required environment variables are present
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
   }
 }
 
-export const adminDb = getFirestore();
+// Initialize Firebase Admin
+let adminApp;
+try {
+  adminApp = !getApps().length
+    ? initializeApp({
+        credential: cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        }),
+      })
+    : getApps()[0];
+} catch (error) {
+  console.error('Error initializing Firebase Admin:', error);
+  throw error;
+}
+
+// Initialize Firebase Admin services
+export const adminDb = getFirestore(adminApp);
+export const adminStorage = getStorage(adminApp);
+
+// Export the admin app instance for debugging
+export { adminApp };
 
 export async function getAdminDb() {
   return adminDb;

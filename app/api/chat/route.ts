@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import crypto from "crypto";
 import { getAdminDb } from "../../lib/firebase-admin";
 import { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
+import type { Shot, Scene, Story } from '../../types/shared';
 
 // Initialize Groq client
 const groq = new Groq({
@@ -29,41 +30,6 @@ interface Chunk {
   fileName: string;
   snippet: string;
   score: number;
-}
-
-interface Story {
-  id: string;
-  title: string;
-  script: string;
-  scenes: Scene[];
-  userId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface Scene {
-  id: string;
-  title: string;
-  location: string;
-  description: string;
-  lighting: string;
-  weather: string;
-  style: string;
-  shots: Shot[];
-}
-
-interface Shot {
-  id: string;
-  type: string;
-  description: string;
-  hasNarration: boolean;
-  hasDialogue: boolean;
-  hasSoundEffects: boolean;
-  prompt: string;
-  narration?: string;
-  dialogue?: string;
-  soundEffects?: string;
-  generatedImage?: string;
 }
 
 // Simple keyword extractor
@@ -280,13 +246,13 @@ Always maintain this exact format for proper parsing.`;
 
     // If we don't have a story in Firebase or the query failed, proceed with model generation
     let response;
-    if (model?.startsWith('gemini') && genAI) {
+    if ((model === "gemini-pro" || model === "gemini-pro-vision") && genAI) {
       try {
-        console.log("🤖 Using Gemini model");
+        console.log(`🤖 Using ${model} model`);
         console.log("🔑 Gemini API Key length:", geminiApiKey?.length || 0);
         
         // Use Gemini model only if API key is available
-        const geminiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const geminiModel = genAI.getGenerativeModel({ model: model });
         console.log("✅ Gemini model initialized");
         
         const chat = geminiModel.startChat({
@@ -334,8 +300,8 @@ Always maintain this exact format for proper parsing.`;
         });
       }
     } else {
-      // Use Groq model
-      console.log("🤖 Using Groq model");
+      // Use Groq model for all other models
+      console.log("🤖 Using Groq model:", model);
       response = await groq.chat.completions.create({
         model: model || "llama3-8b-8192",
         messages: formattedMessages,
@@ -402,7 +368,7 @@ Always maintain this exact format for proper parsing.`;
             formattedResponse += `🌤️ Weather: ${scene.weather}\n\n`;
             
             // Add shots
-            scene.shots.forEach((shot, shotIndex) => {
+            scene.shots.forEach((shot: Shot, shotIndex: number) => {
               try {
                 console.log(`🎥 Processing shot ${shotIndex + 1}:`, {
                   type: shot.type,
@@ -510,15 +476,10 @@ Always maintain this exact format for proper parsing.`;
     return NextResponse.json(responseData);
     
   } catch (error) {
-    console.error("💥 Error in message generation:", error);
-    
-    const errorResponse = {
-      response: "Sorry, there was an issue processing your request. Please try again later.",
-      thinking: "Error occurred during message generation.",
-      user_mood: "neutral",
-      debug: { context_used: false },
-    };
-    
-    return NextResponse.json(errorResponse, { status: 500 });
+    console.error("Error processing input:", error instanceof Error ? error.message : "Unknown error");
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Failed to process input",
+      details: error instanceof Error ? error.stack : undefined
+    }, { status: 500 });
   }
 }
