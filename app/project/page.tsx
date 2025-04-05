@@ -50,13 +50,14 @@ function ProjectContent() {
             id: crypto.randomUUID(),
             title: "New Story",
             description: "",
+            script: "", // Add the required script property
             userId: user?.uid || "",
             scenes: [],
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           };
 
-          const storyId = await createStory(story.userId, story.title, story.description, story.scenes);
+          const storyId = await createStory(story.title, story.description, story.userId, story.scenes);
           setCurrentStory(story);
           setCurrentStoryId(storyId);
         } catch (error) {

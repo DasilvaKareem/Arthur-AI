@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { firebaseAuth, db } from '../app/lib/firebase/client';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -10,11 +9,7 @@ interface AuthContextType {
   subscriptionStatus: 'active' | 'trialing' | 'canceled' | 'none';
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  subscriptionStatus: 'none',
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -22,18 +17,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'trialing' | 'canceled' | 'none'>('none');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!firebaseAuth) {
+      console.warn('Firebase Auth is not initialized');
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
       setUser(user);
       
       if (user) {
-        // Fetch user's subscription status
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.data();
-        
-        if (userData?.subscriptionStatus) {
-          setSubscriptionStatus(userData.subscriptionStatus);
-        } else {
-          setSubscriptionStatus('none');
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setSubscriptionStatus(userData.subscriptionStatus || 'none');
         }
       } else {
         setSubscriptionStatus('none');
@@ -53,5 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 } 

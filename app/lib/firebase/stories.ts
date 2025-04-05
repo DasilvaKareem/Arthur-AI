@@ -148,6 +148,7 @@ export async function getUserStories(userId: string): Promise<Story[]> {
           id: doc.id,
           title: storyData.title || "Untitled Story",
           description: storyData.script?.split('\n')[0] || "", // Use first line of script as description if no description
+          script: storyData.script || "", // Add the script property
           userId: storyData.userId,
           scenes: scenes,
           createdAt: storyData.createdAt?.toDate() || new Date(),
@@ -226,6 +227,7 @@ export async function updateStory(storyId: string, updates: Partial<Story>): Pro
     const cleanUpdates: Record<string, any> = {
       title: updates.title || currentStory.title,
       description: updates.description || currentStory.description,
+      script: updates.script || currentStory.script,
       scenes: cleanScenes,
       updatedAt: new Date()
     };

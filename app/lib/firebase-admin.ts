@@ -5,113 +5,109 @@
  * and should not be imported from client-side code.
  */
 
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps, cert, ServiceAccount } from 'firebase-admin/app';
+import { getFirestore, Firestore, DocumentReference, CollectionReference, Query, Transaction } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin SDK for server-side operations
-let adminApp;
-let adminDb;
+let adminApp: ReturnType<typeof initializeApp> | undefined;
+let adminDb: Firestore | undefined;
 
 // Determine if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Initialize the Firebase Admin app if it hasn't been initialized yet
-function getAdminApp() {
-  if (!adminApp) {
-    try {
-      // Check if any Firebase Admin apps have been initialized
-      if (getApps().length === 0) {
-        // Use environment variables for service account credentials
-        const serviceAccount = {
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          // Replace escaped newlines with actual newlines in the private key
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        };
+// Mock Firestore implementation for development
+function createMockFirestore(): Firestore {
+  const mockDb = {
+    collection: (name: string) => ({
+      doc: (id: string) => ({
+        get: async () => ({
+          exists: false,
+          data: () => null,
+        }),
+        set: async (data: any) => {
+          console.log("📝 Mock Firestore set:", { name, id, data });
+          return { id };
+        },
+        update: async (data: any) => {
+          console.log("📝 Mock Firestore update:", { name, id, data });
+          return { id };
+        },
+        collection: (subcollection: string) => ({
+          add: async (data: any) => {
+            const newId = Math.random().toString(36).substring(7);
+            console.log("📝 Mock Firestore add:", { name, id, subcollection, data });
+            return { id: newId };
+          },
+        }),
+      }),
+    }),
+    runTransaction: async (fn: (transaction: Transaction) => Promise<void>) => {
+      console.log("📝 Mock Firestore transaction");
+      await fn({} as Transaction);
+    },
+    settings: () => {},
+    databaseId: "mock-db",
+    doc: () => ({} as DocumentReference),
+    collectionGroup: () => ({} as Query),
+    getAll: async () => [],
+    listCollections: () => [],
+    terminate: async () => {},
+    batch: () => ({} as any),
+    recursiveDelete: async () => {},
+  } as unknown as Firestore;
 
-        // Check if required Firebase credentials are provided
-        if (!serviceAccount.projectId || !serviceAccount.clientEmail || !serviceAccount.privateKey) {
-          if (isDevelopment) {
-            console.warn("⚠️ Firebase credentials incomplete - using mock implementation in development");
-            return null;
-          } else {
-            throw new Error("Missing required Firebase credentials");
-          }
-        }
+  return mockDb;
+}
 
-        console.log("🔥 Initializing Firebase Admin SDK...");
+// Initialize Firebase Admin SDK
+export async function getAdminDb() {
+  if (adminDb) {
+    return adminDb;
+  }
+
+  try {
+    // Check if we're in development mode
+    if (isDevelopment) {
+      // In development, use the service account key file
+      const serviceAccount = {
+        type: process.env.FIREBASE_ADMIN_TYPE,
+        project_id: process.env.FIREBASE_ADMIN_PROJECT_ID,
+        private_key_id: process.env.FIREBASE_ADMIN_PRIVATE_KEY_ID,
+        private_key: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        client_email: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        client_id: process.env.FIREBASE_ADMIN_CLIENT_ID,
+        auth_uri: process.env.FIREBASE_ADMIN_AUTH_URI,
+        token_uri: process.env.FIREBASE_ADMIN_TOKEN_URI,
+        auth_provider_x509_cert_url: process.env.FIREBASE_ADMIN_AUTH_PROVIDER_X509_CERT_URL,
+        client_x509_cert_url: process.env.FIREBASE_ADMIN_CLIENT_X509_CERT_URL,
+        universe_domain: process.env.FIREBASE_ADMIN_UNIVERSE_DOMAIN,
+      } as ServiceAccount;
+
+      if (!getApps().length) {
         adminApp = initializeApp({
           credential: cert(serviceAccount),
         });
-        console.log("🔥 Firebase initialized: true");
       } else {
         adminApp = getApps()[0];
       }
-    } catch (error) {
-      console.error("❌ Firebase Admin initialization error:", error);
-      if (isDevelopment) {
-        console.warn("⚠️ Using mock implementation in development mode");
-        return null;
+    } else {
+      // In production, use the default credentials
+      if (!getApps().length) {
+        adminApp = initializeApp();
       } else {
-        throw error; // In production, we should fail if Firebase can't initialize
+        adminApp = getApps()[0];
       }
     }
-  }
-  return adminApp;
-}
 
-// Get the Firestore database instance
-export function getAdminDb() {
-  if (!adminDb) {
-    try {
-      const app = getAdminApp();
-      if (app) {
-        adminDb = getFirestore(app);
-      } else {
-        // Always use mock in development if app initialization failed
-        console.warn("⚠️ Using mock Firestore for development");
-        adminDb = createMockFirestore();
-      }
-    } catch (error) {
-      console.error("❌ Firestore initialization error:", error);
-      if (isDevelopment) {
-        // Fallback to mock implementation only in development
-        console.warn("⚠️ Falling back to mock Firestore");
-        adminDb = createMockFirestore();
-      } else {
-        throw error; // In production, we should fail if Firestore can't initialize
-      }
+    adminDb = getFirestore(adminApp);
+    return adminDb;
+  } catch (error) {
+    console.error("❌ Firebase Admin initialization error:", error);
+    if (isDevelopment) {
+      console.warn("⚠️ Using mock Firestore for development");
+      adminDb = createMockFirestore();
+      return adminDb;
     }
+    return undefined;
   }
-  return adminDb;
-}
-
-// Create a mock Firestore implementation for development
-function createMockFirestore() {
-  return {
-    collection: (name) => ({
-      doc: (id) => ({
-        collection: (subcollection) => ({
-          where: () => ({
-            limit: () => ({
-              get: async () => ({
-                forEach: (fn) => {
-                  // Return sample data for development
-                  fn({
-                    id: 'sample-chunk',
-                    data: () => ({
-                      content: 'Sample content for screenwriting',
-                      fileName: 'sample.txt',
-                      relevance: 0.95,
-                      keywords: ['sample', 'content', 'screenwriting']
-                    })
-                  });
-                }
-              })
-            })
-          })
-        })
-      })
-    })
-  };
 } 

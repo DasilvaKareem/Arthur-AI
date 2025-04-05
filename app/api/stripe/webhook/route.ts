@@ -1,83 +1,114 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe/config";
-import { getAdminDb } from "@/lib/firebase-admin";
+import Stripe from "stripe";
+import { getAdminDb } from "../../../lib/firebase-admin";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2023-08-16",
+});
 
 export async function POST(req: Request) {
-  const body = await req.text();
-  const signature = headers().get("Stripe-Signature") as string;
-
-  let event;
-
   try {
-    event = stripe.webhooks.constructEvent(
+    const body = await req.text();
+    const signature = headers().get("Stripe-Signature") as string;
+
+    if (!signature) {
+      return NextResponse.json(
+        { error: "Missing stripe-signature header" },
+        { status: 400 }
+      );
+    }
+
+    const event = stripe.webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Webhook signature verification failed" },
-      { status: 400 }
-    );
-  }
 
-  const firestore = await getAdminDb();
+    const firestore = await getAdminDb();
+    if (!firestore) {
+      return NextResponse.json(
+        { error: "Failed to initialize Firestore" },
+        { status: 500 }
+      );
+    }
 
-  try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const session = event.data.object;
-        const userId = session.metadata.firebaseUID;
+        const session = event.data.object as Stripe.Checkout.Session & {
+          metadata: { firebaseUID: string };
+          subscription: string;
+        };
+        const userId = session.metadata?.firebaseUID;
+        
+        if (!userId) {
+          return NextResponse.json(
+            { error: "Missing user ID in session metadata" },
+            { status: 400 }
+          );
+        }
+
         const userDoc = firestore.collection("users").doc(userId);
 
         await userDoc.update({
           stripeCustomerId: session.customer,
-          stripeSubscriptionId: session.subscription,
-          isSubscribed: true,
-          isCanceled: false,
+          subscriptionStatus: "active",
+          subscriptionId: session.subscription,
+          updatedAt: new Date(),
         });
+
         break;
       }
-
-      case "invoice.payment_succeeded": {
-        const invoice = event.data.object;
-        const subscriptionId = invoice.subscription;
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
-        const userId = subscription.metadata.firebaseUID;
-
-        if (userId) {
-          const userDoc = firestore.collection("users").doc(userId);
-          await userDoc.update({
-            stripePriceId: subscription.items.data[0].price.id,
-            stripeCurrentPeriodEnd: subscription.current_period_end * 1000,
-            isSubscribed: true,
-            isCanceled: false,
-          });
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription & {
+          metadata: { firebaseUID: string };
+        };
+        const userId = subscription.metadata?.firebaseUID;
+        
+        if (!userId) {
+          return NextResponse.json(
+            { error: "Missing user ID in subscription metadata" },
+            { status: 400 }
+          );
         }
+
+        const userDoc = firestore.collection("users").doc(userId);
+        const status = subscription.status;
+
+        await userDoc.update({
+          subscriptionStatus: status,
+          updatedAt: new Date(),
+        });
+
         break;
       }
-
       case "customer.subscription.deleted": {
-        const subscription = event.data.object;
-        const userId = subscription.metadata.firebaseUID;
-
-        if (userId) {
-          const userDoc = firestore.collection("users").doc(userId);
-          await userDoc.update({
-            isSubscribed: false,
-            isCanceled: true,
-            stripePriceId: null,
-            stripeSubscriptionId: null,
-          });
+        const subscription = event.data.object as Stripe.Subscription & {
+          metadata: { firebaseUID: string };
+        };
+        const userId = subscription.metadata?.firebaseUID;
+        
+        if (!userId) {
+          return NextResponse.json(
+            { error: "Missing user ID in subscription metadata" },
+            { status: 400 }
+          );
         }
+
+        const userDoc = firestore.collection("users").doc(userId);
+
+        await userDoc.update({
+          subscriptionStatus: "canceled",
+          updatedAt: new Date(),
+        });
+
         break;
       }
     }
 
     return NextResponse.json({ received: true });
-  } catch (error) {
-    console.error("Webhook error:", error);
+  } catch (error: unknown) {
+    console.error("❌ Webhook error:", error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
       { error: "Webhook handler failed" },
       { status: 500 }

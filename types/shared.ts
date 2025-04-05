@@ -35,6 +35,7 @@ export interface Story {
   id: string;
   title: string;
   description: string;
+  script: string;
   userId: string;
   scenes: Scene[];
   createdAt: Date;

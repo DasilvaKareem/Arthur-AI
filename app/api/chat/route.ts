@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import crypto from "crypto";
 import { getAdminDb } from "../../lib/firebase-admin";
 import { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
-import type { Shot, Scene, Story } from '../../types/shared';
+import type { Shot, Scene, Story } from '../../../types/shared';
 
 // Initialize Groq client
 const groq = new Groq({
@@ -30,6 +30,11 @@ interface Chunk {
   fileName: string;
   snippet: string;
   score: number;
+}
+
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
 }
 
 // Simple keyword extractor
@@ -125,6 +130,7 @@ function formatStoryToJson(script: string, userId: string): Story {
   return {
     id: crypto.randomUUID(),
     title: script.split('\n')[0].trim() || "Untitled Story",
+    description: script.split('\n')[0].trim() || "Untitled Story",
     script: script,
     scenes: scenes,
     userId: userId,
@@ -138,7 +144,14 @@ export async function POST(req: Request) {
   try {
     // Extract data from the request body
     const { messages, model, knowledgeBaseId, userId } = await req.json();
-    const latestMessage = messages[messages.length - 1].content;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({ error: "Invalid messages format" }, { status: 400 });
+    }
+    
+    const latestMessage = messages[messages.length - 1]?.content;
+    if (!latestMessage) {
+      return NextResponse.json({ error: "No message content found" }, { status: 400 });
+    }
 
     console.log("📝 Request details:", {
       model,
@@ -190,13 +203,13 @@ Narration: "The perfect cup of coffee, crafted with care."
 Always maintain this exact format for proper parsing.`;
 
     // Format messages for API
-    const formattedMessages = [
+    const formattedMessages: ChatMessage[] = [
       {
         role: "system",
         content: systemPrompt
       },
       ...messages.map((msg: Message) => ({
-        role: msg.role,
+        role: msg.role as 'system' | 'user' | 'assistant',
         content: msg.content
       }))
     ];
@@ -212,35 +225,37 @@ Always maintain this exact format for proper parsing.`;
           
           if (storyDoc.exists) {
             console.log("✅ Found story in Firebase");
-            const storyData = storyDoc.data();
+            const storyData = storyDoc.data() as Story | undefined;
             
-            // Format the response to match our expected structure
-            const responseData = {
-              id: storyDoc.id,
-              response: `🎬 Story Breakdown:\n\n📝 Title: ${storyData?.title || 'Untitled'}\n\n${storyData?.script || ''}`,
-              thinking: "Retrieved story from database",
-              user_mood: "positive",
-              suggested_questions: [
-                "How does this scene continue?",
-                "Can you add more dialogue?",
-                "What happens in the next scene?"
-              ],
-              debug: {
-                context_used: true,
-                hasScriptFormat: true,
-                hasStoryJson: true
-              },
-              can_generate_project: true,
-              story_json: storyData
-            };
-            
-            return NextResponse.json(responseData);
+            if (storyData) {
+              // Format the response to match our expected structure
+              const responseData = {
+                id: storyDoc.id,
+                response: `🎬 Story Breakdown:\n\n📝 Title: ${storyData.title || 'Untitled'}\n\n${storyData.script || ''}`,
+                thinking: "Retrieved story from database",
+                user_mood: "positive",
+                suggested_questions: [
+                  "How does this scene continue?",
+                  "Can you add more dialogue?",
+                  "What happens in the next scene?"
+                ],
+                debug: {
+                  context_used: true,
+                  hasScriptFormat: true,
+                  hasStoryJson: true
+                },
+                can_generate_project: true,
+                story_json: storyData
+              };
+              
+              return NextResponse.json(responseData);
+            }
           } else {
             console.log("⚠️ Story not found in Firebase");
           }
         }
-      } catch (error) {
-        console.error("❌ Firebase query error:", error);
+      } catch (error: unknown) {
+        console.error("❌ Firebase query error:", error instanceof Error ? error.message : 'Unknown error');
       }
     }
 
@@ -248,31 +263,17 @@ Always maintain this exact format for proper parsing.`;
     let response;
     if ((model === "gemini-pro" || model === "gemini-pro-vision") && genAI) {
       try {
-        console.log(`🤖 Using ${model} model`);
-        console.log("🔑 Gemini API Key length:", geminiApiKey?.length || 0);
-        
-        // Use Gemini model only if API key is available
-        const geminiModel = genAI.getGenerativeModel({ model: model });
-        console.log("✅ Gemini model initialized");
-        
-        const chat = geminiModel.startChat({
-          history: formattedMessages.map(msg => ({
+        const modelInstance = genAI.getGenerativeModel({ model: model });
+        const result = await modelInstance.generateContent({
+          contents: formattedMessages.map(msg => ({
             role: msg.role,
-            parts: msg.content,
-          })),
+            parts: [{ text: msg.content }]
+          }))
         });
-        console.log("✅ Chat session started");
-        
-        console.log("📤 Sending message to Gemini:", latestMessage.substring(0, 100) + "...");
-        const result = await chat.sendMessage(latestMessage);
-        console.log("✅ Received response from Gemini");
         
         const responseText = result.response.text();
-        console.log("📥 Response text length:", responseText.length);
-        
-        // Validate the response format
-        if (!responseText.includes("SCENE 1:") || !responseText.includes("INT.") && !responseText.includes("EXT.")) {
-          throw new Error("Response does not match required script format");
+        if (!responseText) {
+          throw new Error("No response from Gemini");
         }
         
         response = {
@@ -282,162 +283,41 @@ Always maintain this exact format for proper parsing.`;
             }
           }]
         };
-      } catch (error) {
-        console.error("❌ Detailed Gemini Error:", {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-          cause: error.cause
-        });
-        
-        // Fall back to Groq if Gemini fails
-        console.log("🔄 Falling back to Groq model");
+      } catch (error: unknown) {
+        console.error("❌ Gemini API error:", error instanceof Error ? error.message : 'Unknown error');
+        throw error;
+      }
+    } else {
+      try {
         response = await groq.chat.completions.create({
           model: "llama3-8b-8192",
-          messages: formattedMessages,
+          messages: formattedMessages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
           max_tokens: 1000,
           temperature: 0.3,
         });
+      } catch (error: unknown) {
+        console.error("❌ Groq API error:", error instanceof Error ? error.message : 'Unknown error');
+        throw error;
       }
-    } else {
-      // Use Groq model for all other models
-      console.log("🤖 Using Groq model:", model);
-      response = await groq.chat.completions.create({
-        model: model || "llama3-8b-8192",
-        messages: formattedMessages,
-        max_tokens: 1000,
-        temperature: 0.3,
-      });
     }
 
-    const endTime = new Date();
-    const duration = (endTime.getTime() - startTime.getTime()) / 1000;
-    console.log(`⏱️ [${endTime.toISOString()}] Generation Complete: ${duration.toFixed(2)}s`);
-    console.log("✅ Message generation completed");
-
-    // Check if the response contains a script format
-    const hasScriptFormat = response.choices[0].message.content.includes("INT.") || 
-                            response.choices[0].message.content.includes("EXT.");
-    
-    console.log("📝 Script format check:", {
-      hasScriptFormat,
-      contentPreview: response.choices[0].message.content.substring(0, 100) + "...",
-      fullContent: response.choices[0].message.content,
-      userId: userId
-    });
-    
-    let storyJson = null;
-    let formattedResponse = response.choices[0].message.content;
-    
-    if (hasScriptFormat && userId) {
-      try {
-        console.log("🔄 Starting story JSON formatting");
-        console.log("📝 Input script:", response.choices[0].message.content);
-        console.log("👤 User ID:", userId);
-        
-        storyJson = formatStoryToJson(response.choices[0].message.content, userId);
-        console.log("✅ Story JSON created successfully", {
-          scenesCount: storyJson.scenes.length,
-          title: storyJson.title,
-          firstScene: storyJson.scenes[0],
-          firstShot: storyJson.scenes[0]?.shots[0],
-          userId: storyJson.userId
-        });
-        
-        // Format the response to be more readable in chat
-        formattedResponse = `🎬 Story Breakdown:\n\n`;
-        
-        // Add title
-        const title = storyJson.title;
-        formattedResponse += `📝 Title: ${title}\n\n`;
-        
-        // Add scenes
-        storyJson.scenes.forEach((scene, sceneIndex) => {
-          try {
-            console.log(`🎯 Processing scene ${sceneIndex + 1}:`, {
-              title: scene.title,
-              location: scene.location,
-              shotsCount: scene.shots.length,
-              description: scene.description.substring(0, 50) + "..."
-            });
-            
-            formattedResponse += `🎯 Scene ${sceneIndex + 1}: ${scene.title}\n`;
-            formattedResponse += `📍 Location: ${scene.location}\n`;
-            formattedResponse += `📋 Description: ${scene.description}\n`;
-            formattedResponse += `💡 Lighting: ${scene.lighting}\n`;
-            formattedResponse += `🌤️ Weather: ${scene.weather}\n\n`;
-            
-            // Add shots
-            scene.shots.forEach((shot: Shot, shotIndex: number) => {
-              try {
-                console.log(`🎥 Processing shot ${shotIndex + 1}:`, {
-                  type: shot.type,
-                  hasDescription: !!shot.description,
-                  hasDialogue: shot.hasDialogue,
-                  hasNarration: shot.hasNarration,
-                  description: shot.description.substring(0, 50) + "..."
-                });
-                
-                formattedResponse += `🎥 Shot ${shotIndex + 1}: ${shot.type}\n`;
-                formattedResponse += `📝 Description: ${shot.description}\n`;
-                
-                if (shot.hasDialogue) {
-                  formattedResponse += `💬 Dialogue: ${shot.dialogue}\n`;
-                }
-                
-                if (shot.hasNarration) {
-                  formattedResponse += `🗣️ Narration: ${shot.narration}\n`;
-                }
-                
-                if (shot.hasSoundEffects) {
-                  formattedResponse += `🔊 Sound Effects: ${shot.soundEffects}\n`;
-                }
-                
-                formattedResponse += `\n`;
-              } catch (shotError) {
-                console.error(`❌ Error formatting shot ${shotIndex + 1}:`, {
-                  error: shotError,
-                  shot: shot
-                });
-                formattedResponse += `⚠️ Error formatting shot ${shotIndex + 1}\n\n`;
-              }
-            });
-            
-            formattedResponse += `\n`;
-          } catch (sceneError) {
-            console.error(`❌ Error formatting scene ${sceneIndex + 1}:`, {
-              error: sceneError,
-              scene: scene
-            });
-            formattedResponse += `⚠️ Error formatting scene ${sceneIndex + 1}\n\n`;
-          }
-        });
-        
-        formattedResponse += `\n✨ Ready to create your storyboard! Click "Create Project" to get started.`;
-        console.log("✅ Story breakdown formatted successfully");
-      } catch (formatError) {
-        console.error("❌ Error in story formatting:", {
-          error: formatError,
-          input: response.choices[0].message.content,
-          userId: userId
-        });
-        formattedResponse = "⚠️ There was an error formatting the story. Please try again.";
-        storyJson = null;
-      }
-    } else {
-      console.log("⚠️ No script format detected or missing userId", {
-        hasScriptFormat,
-        hasUserId: !!userId,
-        content: response.choices[0].message.content,
-        userId: userId
-      });
+    if (!response?.choices?.[0]?.message?.content) {
+      return NextResponse.json({ error: "No response from AI model" }, { status: 500 });
     }
 
-    // Prepare response
+    const story = formatStoryToJson(response.choices[0].message.content, userId);
+    if (!story) {
+      return NextResponse.json({ error: "Failed to format story" }, { status: 500 });
+    }
+
+    // Format the response
     const responseData = {
-      id: crypto.randomUUID(),
-      response: formattedResponse,
-      thinking: "This is a script about " + latestMessage,
+      id: story.id,
+      response: `🎬 Story Breakdown:\n\n📝 Title: ${story.title}\n\n${story.script}`,
+      thinking: "Generated story using AI",
       user_mood: "positive",
       suggested_questions: [
         "How does this scene continue?",
@@ -445,41 +325,20 @@ Always maintain this exact format for proper parsing.`;
         "What happens in the next scene?"
       ],
       debug: {
-        context_used: isRagWorking,
-        hasScriptFormat,
-        hasStoryJson: !!storyJson,
-        model: model,
-        userId: userId,
-        storyJsonPreview: storyJson ? {
-          title: storyJson.title,
-          scenesCount: storyJson.scenes.length,
-          firstSceneTitle: storyJson.scenes[0]?.title,
-          userId: storyJson.userId
-        } : null
+        context_used: false,
+        hasScriptFormat: true,
+        hasStoryJson: true
       },
-      can_generate_project: hasScriptFormat,
-      story_json: storyJson
+      can_generate_project: true,
+      story_json: story
     };
 
-    console.log("📤 Sending response:", {
-      hasStoryJson: !!storyJson,
-      responseLength: formattedResponse.length,
-      canGenerateProject: hasScriptFormat,
-      storyJsonPreview: storyJson ? {
-        title: storyJson.title,
-        scenesCount: storyJson.scenes.length,
-        firstSceneTitle: storyJson.scenes[0]?.title,
-        userId: storyJson.userId
-      } : null
-    });
-
     return NextResponse.json(responseData);
-    
-  } catch (error) {
-    console.error("Error processing input:", error instanceof Error ? error.message : "Unknown error");
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Failed to process input",
-      details: error instanceof Error ? error.stack : undefined
-    }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("❌ General error:", error instanceof Error ? error.message : 'Unknown error');
+    return NextResponse.json(
+      { error: "An error occurred while processing your request" },
+      { status: 500 }
+    );
   }
 }

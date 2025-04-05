@@ -1,15 +1,50 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Button } from "../components/ui/button";
+import { Button } from "@/components/ui/button";
+import Particles from "@/components/Particle";
+import ConfirmationModal from "@/components/ConfirmationModal";
 
 export default function RootPage() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Submit using native form behavior to Brevo's endpoint
+    if (formRef.current) {
+      const form = formRef.current;
+
+      // Create a hidden iframe to prevent page navigation
+      const iframe = document.createElement('iframe');
+      iframe.name = 'hidden_iframe';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+
+      form.target = 'hidden_iframe';
+      form.submit();
+
+      // Show confirmation after a short delay
+      setTimeout(() => {
+        setIsModalOpen(true);
+        form.reset();
+      }, 800);
+    }
+  };
+  
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="relative flex-col min-h-screen">
+      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none" style={{
+        background: 'linear-gradient(170deg, #5f7fc5 0%, #1a245f 10%, #0a0e2a 20%, #0a0e2a 100%)'
+      }} />
+      <ConfirmationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+
+      <Particles />
       {/* Navigation */}
-      <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+      <header>
+        <div className="relative container flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-bold text-2xl">Arthur AI</span>
           </div>
@@ -28,10 +63,10 @@ export default function RootPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="container flex flex-col items-center justify-center gap-6 py-24 md:py-32 text-center">
+      <section className="relative container flex flex-col items-center justify-center gap-6 py-12 text-center">
         <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
           Conversational AI<br />
-          <span className="text-primary">Powered by Arthur</span>
+          <span className="text-primary">Powered by State-of-the-Art Models</span>
         </h1>
         <p className="max-w-[640px] text-muted-foreground sm:text-xl">
           Experience the future of AI conversation with Arthur. Our platform provides intelligent responses
@@ -48,6 +83,47 @@ export default function RootPage() {
               Learn More
             </Button>
           </Link>
+        </div>
+      </section>
+
+      {/* Waitlist Section */}
+      <section className="relative z-10 container py-12 text-center">
+        <div className="mx-auto max-w-4xl rounded-lg border border-gray-700 bg-gray-800/50 p-8 backdrop-blur-sm">
+          <h2 className="text-3xl font-bold mb-4 text-white">Join the Waitlist</h2>
+          <p className="text-gray-300 mb-6">
+            Be the first to access the future of AI Storytelling. Early beta members get priority support, feedback access, and launch perks.
+          </p>
+          <form
+            ref={formRef}
+            className="flex flex-col gap-4 items-center"
+            method="POST"
+            action="https://sibforms.com/serve/MUIFAENYE8GnabaYfEgPei8I6O4jdoA6wH2b7D5qCgLtPP3hbI8JxV0izEiBM1vK7df0YreYY9L2DYm6IvmqYlJe3UV02nNlwURWrm74fIfmZzdQlLtknNXZD0_L693_ksz7xVgztocBMS6M4b8UPe3wS-5pi1A1JjdTxcvMsHImyivQ3zkyF8VTmj3q6YuNibqlCyidW6Z6ztiP"
+            data-type="subscription"
+            onSubmit={handleSubmit}
+          >
+            <div className="w-full max-w-md">
+              <label htmlFor="EMAIL" className="text-left font-medium text-gray-300">
+                Join waitlist for exclusive early access
+              </label>
+              <input
+                type="email"
+                name="EMAIL"
+                id="EMAIL"
+                placeholder="you@example.com"
+                required
+                className="w-full rounded border border-gray-700 bg-gray-900/50 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="text-left text-xs text-gray-400 mt-1">
+                Provide your email address to subscribe. For example: abc@xyz.com
+              </p>
+            </div>
+            <button
+              type="submit"
+              className="mt-4 rounded w-[200px] bg-blue-600 px-6 py-2 text-white font-semibold hover:bg-blue-700"
+            >
+              Subscribe
+            </button>
+          </form>
         </div>
       </section>
 
@@ -127,7 +203,7 @@ export default function RootPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border/40 bg-muted/20 py-6">
+      <footer className="relative border-t border-border/40 bg-muted/20 py-6">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-bold">Arthur AI</span>

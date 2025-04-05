@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useAuthPages } from "../../context/auth-pages-context";
 import { toast } from "sonner";
+import { Button } from "../../components/ui/button";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -33,18 +34,41 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="w-full max-w-md space-y-8">
+    <div className="w-full max-w-md space-y-8 bg-card p-8 rounded-lg shadow-sm border border-border">
       <div className="text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Welcome back</h1>
         <p className="text-sm text-muted-foreground mt-2">
           Enter your email to sign in to your account
         </p>
       </div>
 
+      <div className="text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <svg
+            className="w-4 h-4 mr-1"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
+          </svg>
+          Back to Home
+        </Link>
+      </div>
+
       <form onSubmit={handleSubmit} className="mt-8 space-y-6">
         <div className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium">
+            <label htmlFor="email" className="block text-sm font-medium text-foreground">
               Email
             </label>
             <input
@@ -56,13 +80,13 @@ export default function SignInPage() {
                 setError(""); // Clear error on input change
               }}
               required
-              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium">
+            <label htmlFor="password" className="block text-sm font-medium text-foreground">
               Password
             </label>
             <input
@@ -74,33 +98,33 @@ export default function SignInPage() {
                 setError(""); // Clear error on input change
               }}
               required
-              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="••••••••"
             />
           </div>
         </div>
 
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200">
+          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md border border-destructive/20">
             {error}
           </div>
         )}
 
         <div>
-          <button
+          <Button
             type="submit"
             disabled={isSubmitting || !email.trim() || !password.trim()}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full"
           >
             {isSubmitting ? "Signing in..." : "Sign in"}
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center justify-between">
           <div className="text-sm">
             <Link
               href="/auth/reset-password"
-              className="font-medium text-blue-500 hover:text-blue-600"
+              className="font-medium text-primary hover:text-primary/90"
             >
               Forgot password?
             </Link>
@@ -108,7 +132,7 @@ export default function SignInPage() {
           <div className="text-sm">
             <Link
               href="/auth/signup"
-              className="font-medium text-blue-500 hover:text-blue-600"
+              className="font-medium text-primary hover:text-primary/90"
             >
               Create an account
             </Link>
