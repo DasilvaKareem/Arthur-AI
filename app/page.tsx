@@ -108,7 +108,7 @@ export default function RootPage() {
               </span>
             </h1>
             <p className="mt-6 text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
-              Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated stories using Studio Ghibli-inspired visuals and cutting-edge AI.
+              Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated videos using Studio Ghibli-inspired visuals and cutting-edge AI.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
               <Button size="lg" className="text-base">

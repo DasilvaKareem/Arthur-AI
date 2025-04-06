@@ -11,8 +11,11 @@ import { Analytics } from "@vercel/analytics/react";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Arthur AI - Conversational AI Assistant",
-  description: "Chat with a powerful AI assistant powered by state-of-the-art models",
+  title: "Arthur AI - AI Storytelling",
+  description: "Generate Scripts, Storyboards, and Videos with Arthur AI",
+  icons: {
+    icon: '/icon.svg'
+  }
 };
 
 export default function RootLayout({
