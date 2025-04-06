@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "../../components/ui/button";
 import { Edit, RefreshCw, Film, Camera } from "lucide-react";
 import type { Shot } from '../../types/shared';
@@ -20,7 +20,7 @@ interface ShotCardProps {
   onVoiceSelect: (e: React.ChangeEvent<HTMLSelectElement>, index: number) => void;
 }
 
-const ShotCard: React.FC<ShotCardProps> = ({
+const ShotCard: React.FC<ShotCardProps> = React.memo(({
   shot,
   index,
   isImageLoading,
@@ -34,6 +34,19 @@ const ShotCard: React.FC<ShotCardProps> = ({
   onSoundEffectsChange,
   onVoiceSelect
 }) => {
+  
+  // --- DEBUG LOGGING START ---
+  console.log(`ShotCard #${index + 1} (ID: ${shot.id}) rendering. Video URL: ${shot.generatedVideo}, Loading: ${isVideoLoading}`);
+
+  useEffect(() => {
+    console.log(`ShotCard #${index + 1} (ID: ${shot.id}) received VIDEO PROP update: ${shot.generatedVideo}`);
+  }, [shot.generatedVideo, index, shot.id]); // Depend on video URL, index and ID for clarity
+  
+  useEffect(() => {
+      console.log(`ShotCard #${index + 1} (ID: ${shot.id}) received IS_VIDEO_LOADING update: ${isVideoLoading}`);
+  }, [isVideoLoading, index, shot.id]);
+  // --- DEBUG LOGGING END ---
+
   return (
     <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm flex flex-col">
       <div className="flex justify-between items-center mb-3">
@@ -203,6 +216,9 @@ const ShotCard: React.FC<ShotCardProps> = ({
       )}
     </div>
   );
-};
+});
+
+// Add a display name for better debugging
+ShotCard.displayName = 'ShotCard';
 
 export default ShotCard; 

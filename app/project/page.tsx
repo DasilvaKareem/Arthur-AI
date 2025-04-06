@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import TopNavBar from "../../components/TopNavBar";
 import { Button } from "../../components/ui/button";
@@ -97,7 +97,7 @@ function ProjectContent() {
     console.log("📜 Script Project Page Loaded!");
   }, [searchParams, user]);
 
-  const loadStory = async (id: string) => {
+  const loadStory = useCallback(async (id: string) => {
     try {
       const story = await getStory(id);
       if (story) {
@@ -109,9 +109,9 @@ function ProjectContent() {
     } catch (error) {
       console.error("Error loading story:", error);
     }
-  };
+  }, []);
 
-  const saveStory = async () => {
+  const saveStory = useCallback(async () => {
     try {
       if (!user) {
         console.error('No user found, redirecting to sign in...');
@@ -207,10 +207,10 @@ function ProjectContent() {
       const errorMessage = error.message || 'Failed to save story. Please try again.';
       toast.error(errorMessage);
     }
-  };
+  }, [user, storyId, title, script, scenes, router]);
 
   // Parse the script into scenes and shots
-  const parseScriptIntoScenes = (scriptText: string) => {
+  const parseScriptIntoScenes = useCallback((scriptText: string) => {
     try {
       console.log("Parsing script:", scriptText);
       
@@ -332,10 +332,10 @@ function ProjectContent() {
       console.error("Error parsing script into scenes:", error);
       toast.error("Failed to parse script. Please check the format and try again.");
     }
-  };
+  }, [setScenes, setCurrentScene]);
 
   // Update scene details
-  const updateSceneDetails = async (sceneId: string, updates: Partial<Omit<Scene, 'shots'>>) => {
+  const updateSceneDetails = useCallback(async (sceneId: string, updates: Partial<Omit<Scene, 'shots'>>) => {
     if (!storyId) return;
     
     try {
@@ -370,10 +370,10 @@ function ProjectContent() {
       console.error("Error updating scene:", error);
       alert("Failed to update scene. Please try again.");
     }
-  };
+  }, [storyId, user, currentScene, setScenes, setCurrentScene]);
 
   // Update shot details
-  const updateShotDetails = async (sceneId: string, shotId: string, updates: Partial<Shot>) => {
+  const updateShotDetails = useCallback(async (sceneId: string, shotId: string, updates: Partial<Shot>) => {
     if (!storyId) return;
     
     try {
@@ -421,10 +421,10 @@ function ProjectContent() {
       console.error("Error updating shot:", error);
       alert("Failed to update shot. Please try again.");
     }
-  };
+  }, [storyId, user, currentScene, setScenes, setCurrentScene]);
 
   // Add new scene
-  const addNewScene = async () => {
+  const addNewScene = useCallback(async () => {
     if (!storyId) {
       toast.error("Please save your story first");
       return;
@@ -489,10 +489,10 @@ function ProjectContent() {
       console.error("Error adding scene:", error);
       toast.error("Failed to add scene. Please try again.");
     }
-  };
+  }, [storyId, scenes, setScenes, setCurrentScene]);
 
   // Add new shot
-  const addNewShot = async () => {
+  const addNewShot = useCallback(async () => {
     if (!currentScene || !storyId) {
       toast.error("Please select a scene first");
       return;
@@ -554,10 +554,10 @@ function ProjectContent() {
       console.error("Error adding shot:", error);
       toast.error("Failed to add shot. Please try again.");
     }
-  };
+  }, [currentScene, storyId, setScenes, setCurrentScene]);
 
   // Delete scene
-  const handleSceneDelete = async (sceneId: string) => {
+  const handleSceneDelete = useCallback(async (sceneId: string) => {
     if (!storyId || scenes.length <= 1) {
       alert("Cannot delete the last scene");
       return;
@@ -575,10 +575,10 @@ function ProjectContent() {
       console.error("Error deleting scene:", error);
       alert("Failed to delete scene. Please try again.");
     }
-  };
+  }, [storyId, scenes, currentScene, setScenes, setCurrentScene]);
 
   // Delete shot
-  const handleShotDelete = async (sceneId: string, shotId: string) => {
+  const handleShotDelete = useCallback(async (sceneId: string, shotId: string) => {
     if (!storyId || !currentScene || currentScene.shots.length <= 1) {
       alert("Cannot delete the last shot");
       return;
@@ -597,9 +597,9 @@ function ProjectContent() {
       console.error("Error deleting shot:", error);
       alert("Failed to delete shot. Please try again.");
     }
-  };
+  }, [storyId, currentScene, setScenes, setCurrentScene]);
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     const element = document.createElement("a");
     const file = new Blob([script], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
@@ -607,9 +607,9 @@ function ProjectContent() {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-  };
+  }, [script, title]);
 
-  const handleExportScene = () => {
+  const handleExportScene = useCallback(() => {
     if (!currentScene) return;
     
     // Create a formatted scene export with all shots
@@ -638,22 +638,17 @@ function ProjectContent() {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-  };
+  }, [currentScene]);
 
-  const handleCopyToClipboard = () => {
+  const handleCopyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(script)
       .then(() => alert("Script copied to clipboard!"))
       .catch(err => console.error("Failed to copy script:", err));
-  };
+  }, [script]);
 
-  const generateShotFromPrompt = async (shotIndex: number, prompt: string) => {
-    if (!currentScene) {
-      toast.error('Please select a scene first');
-      return;
-    }
-
-    if (!storyId) {
-      toast.error('Please save your story first');
+  const generateShotFromPrompt = useCallback(async (shotIndex: number, prompt: string) => {
+    if (!currentScene || !storyId) {
+      toast.error('Please select a scene and save your story first');
       return;
     }
 
@@ -825,10 +820,10 @@ function ProjectContent() {
         [shotId]: false
       }));
     }
-  };
+  }, [currentScene, storyId, setImageLoadingStates, setScenes, setCurrentScene]);
 
   // Add a new function to generate images for all shots
-  const generateAllShotImages = async () => {
+  const generateAllShotImages = useCallback(async () => {
     if (!currentScene || !currentScene.shots) {
       toast.error('No shots to generate images for');
       return;
@@ -848,10 +843,10 @@ function ProjectContent() {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
     }
-  };
+  }, [currentScene, generateShotFromPrompt]);
 
   // Generate video for a single shot
-  const generateShotVideo = async (shotIndex: number) => {
+  const generateShotVideo = useCallback(async (shotIndex: number) => {
     if (!currentScene?.shots[shotIndex]) return;
     
     const shot = currentScene.shots[shotIndex];
@@ -909,29 +904,86 @@ function ProjectContent() {
             try {
               // Check if we have a valid video URL
               if (!statusData.assets?.video) {
+                console.error("❌ generateShotVideo Error: No video URL in completed statusData", statusData);
                 throw new Error("No video URL in response");
               }
+              
+              const videoUrl = statusData.assets.video;
+              console.log("✅ generateShotVideo: Received video URL:", videoUrl);
 
-              // Update the shot with the generated video URL
-              const updatedShots = [...currentScene.shots];
-              if (updatedShots[shotIndex]) {
-                updatedShots[shotIndex] = {
-                  ...updatedShots[shotIndex],
-                  generatedVideo: statusData.assets.video,
-                } as Shot;
-                
-                const updatedScene = { ...currentScene, shots: updatedShots };
-                setCurrentScene(updatedScene);
-                setScenes(scenes.map(scene => 
-                  scene.id === currentScene.id ? updatedScene : scene
-                ));
-                console.log("Successfully updated shot with generated video");
-                toast.success("Video generated successfully!", {
-                  id: "video-generation",
-                });
+              // --- Get the latest story data and update correctly --- 
+              const story = await getStory(storyId!);
+              if (!story) {
+                console.error("❌ generateShotVideo Error: Failed to fetch story before update.");
+                throw new Error("Story not found");
               }
+              console.log("✅ generateShotVideo: Fetched story before update.");
+
+              // Find the scene index in the fetched story data
+              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene?.id);
+              if (sceneIndex === -1) {
+                console.error("❌ generateShotVideo Error: Scene not found in fetched story.");
+                throw new Error("Scene not found in fetched story data");
+              }
+
+              // Ensure the shotIndex is valid for the fetched scene
+              if (shotIndex < 0 || shotIndex >= story.scenes[sceneIndex].shots.length) {
+                console.error(`❌ generateShotVideo Error: Shot index ${shotIndex} out of bounds.`);
+                throw new Error("Shot index out of bounds for fetched scene data");
+              }
+
+              // Create the updated scenes array based purely on fetched data
+              const finalUpdatedScenes = story.scenes.map((scene, sIndex) => {
+                if (sIndex !== sceneIndex) {
+                  return scene; // Return other scenes unmodified
+                }
+                // Modify the target scene
+                return {
+                  ...scene, // Keep existing scene properties
+                  shots: scene.shots.map((shot, shIndex) => {
+                    if (shIndex !== shotIndex) {
+                      return shot; // Return other shots unmodified
+                    }
+                    // Update the target shot
+                    console.log(`✅ generateShotVideo: Updating shot ${shot.id} with video URL: ${videoUrl}`);
+                    return {
+                      ...shot, // Keep ALL existing properties of the shot
+                      generatedVideo: videoUrl, // Add the new video URL
+                    };
+                  })
+                };
+              });
+              // --- End of state update logic --- 
+
+              // Create clean story update object
+              const storyUpdate = {
+                scenes: finalUpdatedScenes, // Use the correctly derived scenes
+                title: story.title || "Untitled Story",
+                description: story.description || "No description",
+                script: story.script || "",
+                userId: story.userId || "",
+                createdAt: story.createdAt || new Date(),
+                updatedAt: new Date()
+              };
+              
+              console.log("✅ generateShotVideo: Preparing to update Firestore with:", storyUpdate);
+
+              // Update the entire story in Firestore
+              await updateStory(storyId!, storyUpdate);
+              console.log("✅ generateShotVideo: Firestore update successful.");
+
+              // Update local state with the final, correct scenes array
+              setScenes(finalUpdatedScenes);
+              // Update current scene from the updated array
+              setCurrentScene(finalUpdatedScenes[sceneIndex]);
+              console.log("✅ generateShotVideo: Local state updated.");
+
+              console.log("Successfully updated shot with generated video");
+              toast.success("Video generated successfully!", {
+                id: "video-generation",
+              });
             } catch (error) {
-              console.error("Error updating shot with video:", error);
+              console.error("❌ generateShotVideo Error during completion processing:", error);
               toast.error("Failed to save generated video. Please try again.", {
                 id: "video-generation",
               });
@@ -976,10 +1028,10 @@ function ProjectContent() {
         [shot.id]: false
       }));
     }
-  };
+  }, [currentScene, storyId, setVideoLoadingStates, setScenes, setCurrentScene]);
 
   // Generate video for all shots in a scene
-  const generateSceneVideo = async (sceneId: string) => {
+  const generateSceneVideo = useCallback(async (sceneId: string) => {
     if (!currentScene) {
       toast.error("No scene selected");
       return;
@@ -1103,27 +1155,32 @@ function ProjectContent() {
       console.error("Error generating scene videos:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate scene videos. Please try again.");
     }
-  };
+  }, [currentScene, setScenes, setCurrentScene]);
 
-  const handleSceneSelect = (scene: Scene) => {
+  const handleSceneSelect = useCallback((scene: Scene) => {
     setCurrentScene(scene);
-  };
+  }, [setCurrentScene]);
 
-  const handleSceneRename = (sceneId: string, newTitle: string) => {
+  const handleSceneRename = useCallback((sceneId: string, newTitle: string) => {
+    // Update local state immediately for responsiveness
     const updatedScenes = scenes.map(scene => 
       scene.id === sceneId ? { ...scene, title: newTitle } : scene
     );
     setScenes(updatedScenes);
-    
     if (currentScene?.id === sceneId) {
-      setCurrentScene({ ...currentScene, title: newTitle });
+      setCurrentScene(prev => prev ? { ...prev, title: newTitle } : null);
     }
-  };
+    
+    // Debounce or directly call updateSceneDetails
+    if (storyId) {
+      updateSceneDetails(sceneId, { title: newTitle }); // Assuming updateSceneDetails handles saving
+    }
+  }, [scenes, currentScene, storyId, updateSceneDetails]);
 
   // Add these handlers for the SceneChat component
-  const handleAddScene = async (newScene: Scene) => {
-    if (!storyId) {
-      toast.error("Please save your story first");
+  const handleAddScene = useCallback(async (newScene: Scene) => {
+    if (!storyId || !user) {
+      toast.error("Please save your story first and ensure you are logged in");
       return;
     }
     
@@ -1198,11 +1255,11 @@ function ProjectContent() {
       console.error("Error adding scene:", error);
       toast.error(error instanceof Error ? error.message : "Failed to add scene. Please try again.");
     }
-  };
+  }, [storyId, user, setScenes, setCurrentScene]);
 
-  const handleAddShot = async (sceneId: string, newShot: Shot) => {
-    if (!storyId) {
-      toast.error("Please save your story first");
+  const handleAddShot = useCallback(async (sceneId: string, newShot: Shot) => {
+    if (!storyId || !user) {
+      toast.error("Please save your story first and ensure you are logged in");
       return;
     }
     
@@ -1284,12 +1341,14 @@ function ProjectContent() {
       console.error("Error adding shot:", error);
       toast.error(error instanceof Error ? error.message : "Failed to add shot. Please try again.");
     }
-  };
+  }, [storyId, user, currentScene, setScenes, setCurrentScene]);
 
   // Generate lip sync for a shot with dialogue
-  const generateLipSync = async (shotIndex: number) => {
-    if (!currentScene?.shots[shotIndex]) return;
-    
+  const generateLipSync = useCallback(async (shotIndex: number) => {
+    if (!currentScene?.shots[shotIndex] || !storyId) {
+        toast.error("Cannot generate lip sync: Missing scene, shot, or story ID");
+        return;
+    }
     const shot = currentScene.shots[shotIndex];
     if (!shot.dialogue) {
       toast.error("No dialogue found for this shot");
@@ -1408,7 +1467,7 @@ function ProjectContent() {
       console.error("Error generating lip sync:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate lip sync. Please try again.");
     }
-  };
+  }, [currentScene, storyId, setScenes, setCurrentScene]);
 
   // Helper function to upload temporary files
   const uploadTemporaryFile = async (base64Data: string, contentType: string): Promise<string> => {
@@ -1449,194 +1508,85 @@ function ProjectContent() {
   };
 
   // Update shot description handler
-  const handleShotDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
-    if (!currentScene) return;
-    
-    const updatedShots = [...currentScene.shots];
-    const existingShot = updatedShots[index];
-    
-    updatedShots[index] = {
-      ...existingShot, // Keep all existing properties
-      description: e.target.value,
-      prompt: e.target.value,
-      // Preserve existing media
-      generatedImage: existingShot.generatedImage || null,
-      generatedVideo: existingShot.generatedVideo || null,
-      lipSyncVideo: existingShot.lipSyncVideo || null,
-      lipSyncAudio: existingShot.lipSyncAudio || null
-    };
-    
-    const updatedScene = { ...currentScene, shots: updatedShots };
-    setCurrentScene(updatedScene);
-    setScenes(scenes.map(scene => 
-      scene.id === currentScene.id ? updatedScene : scene
-    ));
-
-    // Save to Firebase
-    if (storyId && currentScene.id) {
-      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
-        console.error("Error saving shot description:", error);
-        toast.error("Failed to save shot description");
-      });
-    }
-  };
+  const handleShotDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    const updates = { description: e.target.value, prompt: e.target.value };
+    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  }, [currentScene, storyId, updateShotDetails]);
 
   // Update shot type handler
-  const handleShotTypeChange = (e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
-    if (!currentScene) return;
-    
-    const updatedShots = [...currentScene.shots];
-    const existingShot = updatedShots[index];
-    
-    updatedShots[index] = {
-      ...existingShot, // Keep all existing properties
-      type: e.target.value,
-      // Preserve existing media
-      generatedImage: existingShot.generatedImage || null,
-      generatedVideo: existingShot.generatedVideo || null,
-      lipSyncVideo: existingShot.lipSyncVideo || null,
-      lipSyncAudio: existingShot.lipSyncAudio || null
-    };
-    
-    const updatedScene = { ...currentScene, shots: updatedShots };
-    setCurrentScene(updatedScene);
-    setScenes(scenes.map(scene => 
-      scene.id === currentScene.id ? updatedScene : scene
-    ));
-
-    // Save to Firebase
-    if (storyId && currentScene.id) {
-      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
-        console.error("Error saving shot type:", error);
-        toast.error("Failed to save shot type");
-      });
-    }
-  };
+  const handleShotTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    const updates = { type: e.target.value };
+    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  }, [currentScene, storyId, updateShotDetails]);
 
   // Update dialogue handler
-  const handleDialogueChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
-    if (!currentScene) return;
-    
-    const updatedShots = [...currentScene.shots];
-    const existingShot = updatedShots[index];
-    
-    updatedShots[index] = {
-      ...existingShot, // Keep all existing properties
-      dialogue: e.target.value,
-      hasDialogue: !!e.target.value,
-      // Preserve existing media
-      generatedImage: existingShot.generatedImage || null,
-      generatedVideo: existingShot.generatedVideo || null,
-      lipSyncVideo: existingShot.lipSyncVideo || null,
-      lipSyncAudio: existingShot.lipSyncAudio || null
-    };
-    
-    const updatedScene = { ...currentScene, shots: updatedShots };
-    setCurrentScene(updatedScene);
-    setScenes(scenes.map(scene => 
-      scene.id === currentScene.id ? updatedScene : scene
-    ));
-
-    // Save to Firebase
-    if (storyId && currentScene.id) {
-      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
-        console.error("Error saving dialogue:", error);
-        toast.error("Failed to save dialogue");
-      });
-    }
-  };
+  const handleDialogueChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    const updates = { dialogue: e.target.value, hasDialogue: !!e.target.value };
+    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  }, [currentScene, storyId, updateShotDetails]);
 
   // Update sound effects handler
-  const handleSoundEffectsChange = (e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
-    if (!currentScene) return;
-    
-    const updatedShots = [...currentScene.shots];
-    const existingShot = updatedShots[index];
-    
-    updatedShots[index] = {
-      ...existingShot, // Keep all existing properties
-      soundEffects: e.target.value,
-      hasSoundEffects: !!e.target.value,
-      // Preserve existing media
-      generatedImage: existingShot.generatedImage || null,
-      generatedVideo: existingShot.generatedVideo || null,
-      lipSyncVideo: existingShot.lipSyncVideo || null,
-      lipSyncAudio: existingShot.lipSyncAudio || null
-    };
-    
-    const updatedScene = { ...currentScene, shots: updatedShots };
-    setCurrentScene(updatedScene);
-    setScenes(scenes.map(scene => 
-      scene.id === currentScene.id ? updatedScene : scene
-    ));
-
-    // Save to Firebase
-    if (storyId && currentScene.id) {
-      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
-        console.error("Error saving sound effects:", error);
-        toast.error("Failed to save sound effects");
-      });
-    }
-  };
+  const handleSoundEffectsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    const updates = { soundEffects: e.target.value, hasSoundEffects: !!e.target.value };
+    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  }, [currentScene, storyId, updateShotDetails]);
 
   // Add voice selection handler
-  const handleVoiceSelect = (e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
-    if (!currentScene) return;
-    
-    const updatedShots = [...currentScene.shots];
-    const existingShot = updatedShots[index];
-    
-    updatedShots[index] = {
-      ...existingShot, // Keep all existing properties
-      voiceId: e.target.value,
-      // Preserve existing media
-      generatedImage: existingShot.generatedImage || null,
-      generatedVideo: existingShot.generatedVideo || null,
-      lipSyncVideo: existingShot.lipSyncVideo || null,
-      lipSyncAudio: existingShot.lipSyncAudio || null
-    };
-    
-    const updatedScene = { ...currentScene, shots: updatedShots };
-    
-    // Use updateShotDetails to update the entire story
-    if (storyId && currentScene.id && existingShot.id) {
-      updateShotDetails(currentScene.id, existingShot.id, { voiceId: e.target.value });
-    } else {
-      // If no storyId or sceneId, just update local state
-      setCurrentScene(updatedScene);
-      setScenes(scenes.map(scene => 
-        scene.id === currentScene.id ? updatedScene : scene
-      ));
-    }
-  };
+  const handleVoiceSelect = useCallback((e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    const updates = { voiceId: e.target.value };
+    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  }, [currentScene, storyId, updateShotDetails]);
 
   // Update scene description handler
-  const handleSceneDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!currentScene || !storyId) return;
+  const handleSceneDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene?.id || !storyId) return;
     const updates = { description: e.target.value };
     updateSceneDetails(currentScene.id, updates);
-  };
+  }, [currentScene, storyId, updateSceneDetails]);
 
   // Update scene lighting handler
-  const handleSceneLightingChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!currentScene || !storyId) return;
+  const handleSceneLightingChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene?.id || !storyId) return;
     const updates = { lighting: e.target.value };
     updateSceneDetails(currentScene.id, updates);
-  };
+  }, [currentScene, storyId, updateSceneDetails]);
 
   // Update scene weather handler
-  const handleSceneWeatherChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (!currentScene || !storyId) return;
+  const handleSceneWeatherChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (!currentScene?.id || !storyId) return;
     const updates = { weather: e.target.value };
     updateSceneDetails(currentScene.id, updates);
-  };
+  }, [currentScene, storyId, updateSceneDetails]);
 
   // Add handler for scene style change
-  const handleSceneStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!currentScene || !storyId) return;
+  const handleSceneStyleChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!currentScene?.id || !storyId) return;
     const updates = { style: e.target.value };
     updateSceneDetails(currentScene.id, updates);
-  };
+  }, [currentScene, storyId, updateSceneDetails]);
+
+  const handleSyncScenes = useCallback(async () => {
+      if (!storyId) {
+          toast.error("No story ID found");
+          return;
+      }
+      try {
+          const story = await getStory(storyId);
+          if (story) {
+              setScenes(story.scenes || []);
+              setCurrentScene(story.scenes[0] || null);
+              toast.success("Scenes synced successfully");
+          }
+      } catch (error) {
+          console.error("Error syncing scenes:", error);
+          toast.error("Failed to sync scenes. Please try again.");
+      }
+  }, [storyId, setScenes, setCurrentScene]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
@@ -1645,23 +1595,7 @@ function ProjectContent() {
         isSaving={isSaving}
         isLoadingAuth={loading} // Pass the auth loading state
         onSaveStory={saveStory}
-        onSyncScenes={async () => {
-          if (!storyId) {
-            toast.error("No story ID found");
-            return;
-          }
-          try {
-            const story = await getStory(storyId);
-            if (story) {
-              setScenes(story.scenes || []);
-              setCurrentScene(story.scenes[0] || null);
-              toast.success("Scenes synced successfully");
-            }
-          } catch (error) {
-            console.error("Error syncing scenes:", error);
-            toast.error("Failed to sync scenes. Please try again.");
-          }
-        }}
+        onSyncScenes={handleSyncScenes}
         onExportScene={handleExportScene}
         onCopyToClipboard={handleCopyToClipboard}
         onDownloadScript={handleDownload}
