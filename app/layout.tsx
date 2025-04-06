@@ -6,6 +6,7 @@ import { ThemeProvider } from "../components/theme-provider";
 import { Toaster } from "sonner";
 import { AuthProvider } from "./context/auth-context";
 import { PreferencesProvider } from "./context/preferences-context";
+import { Analytics } from "@vercel/analytics/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,6 +33,7 @@ export default function RootLayout({
             >
               {children}
               <Toaster position="top-right" closeButton />
+              <Analytics />
             </ThemeProvider>
           </PreferencesProvider>
         </AuthProvider>

@@ -5,32 +5,41 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Particles from "@/components/Particle";
 import ConfirmationModal from "@/components/ConfirmationModal";
+import HeroVideoDialog from "@/registry/magicui/hero-video-dialog";
+import { Features } from "@/registry/magicui/features";
+import { FAQ } from "@/registry/magicui/faq";
+import { Logo } from "@/components/ui/logo";
 
 export default function RootPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Submit using native form behavior to Brevo's endpoint
     if (formRef.current) {
       const form = formRef.current;
+      const email = form.EMAIL.value;
 
-      // Create a hidden iframe to prevent page navigation
-      const iframe = document.createElement('iframe');
-      iframe.name = 'hidden_iframe';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
+      try {
+        const response = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email }),
+        });
 
-      form.target = 'hidden_iframe';
-      form.submit();
+        if (!response.ok) {
+          throw new Error('Failed to add to waitlist');
+        }
 
-      // Show confirmation after a short delay
-      setTimeout(() => {
         setIsModalOpen(true);
         form.reset();
-      }, 800);
+      } catch (error) {
+        console.error('Waitlist submission error:', error);
+        // You might want to show an error message to the user here
+      }
     }
   };
   
@@ -45,9 +54,10 @@ export default function RootPage() {
       {/* Navigation */}
       <header>
         <div className="relative container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+            <Logo className="w-8 h-8" />
             <span className="font-bold text-2xl">Arthur AI</span>
-          </div>
+          </Link>
           <nav className="flex items-center gap-4">
             <Link 
               href="/auth/signin" 
@@ -63,26 +73,48 @@ export default function RootPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative container flex flex-col items-center justify-center gap-6 py-12 text-center">
-        <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
-          Conversational AI<br />
-          <span className="text-primary">Powered by State-of-the-Art Models</span>
-        </h1>
-        <p className="max-w-[640px] text-muted-foreground sm:text-xl">
-          Experience the future of AI conversation with Arthur. Our platform provides intelligent responses
-          and creative content generation using cutting-edge models.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Link href="/auth/signup">
-            <Button size="lg" className="px-8">
-              Get Started for Free
-            </Button>
-          </Link>
-          <Link href="#features">
-            <Button size="lg" variant="outline" className="px-8">
-              Learn More
-            </Button>
-          </Link>
+      <section className="relative pt-32 md:pt-40 pb-20">
+        <div className="container">
+          <div className="mx-auto max-w-[58rem] text-center">
+            <div className="flex justify-center mb-8">
+              <Logo className="w-24 h-24 animate-float" />
+            </div>
+            <h1 className="font-bold tracking-tight text-4xl sm:text-6xl md:text-7xl lg:text-8xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+              Turn Words Into
+              <br /> Living Stories
+            </h1>
+            <p className="mt-6 text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
+              Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated stories using Studio Ghibli-inspired visuals and cutting-edge AI.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-4">
+              <Button size="lg" className="text-base">
+                Get Started for Free
+              </Button>
+              <Button size="lg" variant="outline" className="text-base">
+                Watch Demo
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Video Dialog Section */}
+      <section className="relative container flex justify-center items-center py-12">
+        <div className="w-full max-w-4xl">
+          <HeroVideoDialog
+            className="block dark:hidden"
+            animationStyle="top-in-bottom-out"
+            videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
+            thumbnailSrc="https://startup-template-sage.vercel.app/hero-light.png"
+            thumbnailAlt="Hero Video"
+          />
+          <HeroVideoDialog
+            className="hidden dark:block"
+            animationStyle="top-in-bottom-out"
+            videoSrc="https://www.youtube.com/embed/qh3NGpYRG3I?si=4rb-zSdDkVK9qxxb"
+            thumbnailSrc="https://startup-template-sage.vercel.app/hero-dark.png"
+            thumbnailAlt="Hero Video"
+          />
         </div>
       </section>
 
@@ -96,9 +128,6 @@ export default function RootPage() {
           <form
             ref={formRef}
             className="flex flex-col gap-4 items-center"
-            method="POST"
-            action="https://sibforms.com/serve/MUIFAENYE8GnabaYfEgPei8I6O4jdoA6wH2b7D5qCgLtPP3hbI8JxV0izEiBM1vK7df0YreYY9L2DYm6IvmqYlJe3UV02nNlwURWrm74fIfmZzdQlLtknNXZD0_L693_ksz7xVgztocBMS6M4b8UPe3wS-5pi1A1JjdTxcvMsHImyivQ3zkyF8VTmj3q6YuNibqlCyidW6Z6ztiP"
-            data-type="subscription"
             onSubmit={handleSubmit}
           >
             <div className="w-full max-w-md">
@@ -127,80 +156,11 @@ export default function RootPage() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="bg-muted/50 py-16">
-        <div className="container space-y-12">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              Powerful Features
-            </h2>
-            <p className="max-w-[640px] mx-auto text-muted-foreground sm:text-lg">
-              Arthur AI brings together the best of generative AI in a seamless experience.
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-background rounded-lg p-6 shadow-sm border border-border/50">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold mb-2">Smart Conversations</h3>
-              <p className="text-muted-foreground">
-                Chat with an AI assistant that understands context and provides helpful, accurate responses.
-              </p>
-            </div>
-            
-            {/* Feature 2 */}
-            <div className="bg-background rounded-lg p-6 shadow-sm border border-border/50">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <path d="m16 10-4 4-4-4"></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold mb-2">Content Generation</h3>
-              <p className="text-muted-foreground">
-                Generate creative content, from stories to scripts, powered by state-of-the-art models.
-              </p>
-            </div>
-            
-            {/* Feature 3 */}
-            <div className="bg-background rounded-lg p-6 shadow-sm border border-border/50">
-              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold mb-2">Secure and Private</h3>
-              <p className="text-muted-foreground">
-                Your conversations and data are protected with enterprise-grade security and authentication.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+   
 
-      {/* CTA Section */}
-      <section className="container py-24 md:py-32">
-        <div className="bg-primary/5 border border-border rounded-lg p-8 md:p-12 shadow-sm flex flex-col items-center text-center">
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl mb-4">
-            Ready to experience Arthur AI?
-          </h2>
-          <p className="max-w-[640px] text-muted-foreground sm:text-lg mb-8">
-            Join thousands of users already transforming how they work with AI.
-            Sign up today and start chatting in seconds.
-          </p>
-          <Link href="/auth/signup">
-            <Button size="lg" className="px-8">
-              Get Started for Free
-            </Button>
-          </Link>
-        </div>
-      </section>
+
+      {/* FAQ Section */}
+      <FAQ />
 
       {/* Footer */}
       <footer className="relative border-t border-border/40 bg-muted/20 py-6">

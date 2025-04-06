@@ -18,6 +18,9 @@ import SceneChat from "../../components/SceneChat";
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase/client';
 import type { Shot, Scene, Story } from '../../types/shared';
+import ShotCard from "../../components/project/ShotCard";
+import SceneSidebar from "../../components/project/SceneSidebar"; // Import the new component
+import ProjectHeader from "../../components/project/ProjectHeader"; // Import the new header component
 
 function ProjectContent() {
   const searchParams = useSearchParams();
@@ -33,6 +36,9 @@ function ProjectContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
+  // Add state for image and video loading states
+  const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
+  const [videoLoadingStates, setVideoLoadingStates] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -95,9 +101,9 @@ function ProjectContent() {
     try {
       const story = await getStory(id);
       if (story) {
-        setTitle(story.title);
-        setScript(story.description);
-        setScenes(story.scenes);
+        setTitle(story.title || "Untitled Story");
+        setScript(story.description || ""); // Use description instead of script
+        setScenes(story.scenes || []);
         setCurrentScene(story.scenes[0] || null);
       }
     } catch (error) {
@@ -184,14 +190,15 @@ function ProjectContent() {
         console.log('Updating existing story:', storyId);
         await updateStory(storyId, {
           title,
-          description: script,
+          description: script || "", // Ensure script is not undefined
+          script: script || "", // Explicitly provide script with a fallback value
           scenes,
           updatedAt: new Date()
         });
         toast.success('Story updated successfully');
       } else {
         console.log('Creating new story...');
-        const newStoryId = await createStory(user.uid, title, script, scenes);
+        const newStoryId = await createStory(user.uid, title, script || "", scenes);
         setStoryId(newStoryId);
         toast.success('Story created successfully');
       }
@@ -332,10 +339,30 @@ function ProjectContent() {
     if (!storyId) return;
     
     try {
-      await updateScene(storyId, sceneId, updates);
-      setScenes(scenes.map(scene => 
+      // Get the full story first
+      const story = await getStory(storyId);
+      if (!story) {
+        throw new Error("Story not found");
+      }
+      
+      // Update the specific scene in the story
+      const updatedScenes = story.scenes.map(scene => 
         scene.id === sceneId ? { ...scene, ...updates } : scene
-      ));
+      );
+      
+      // Update the entire story
+      await updateStory(storyId, {
+        ...story,
+        scenes: updatedScenes,
+        title: story.title || "Untitled Story",
+        description: story.description || "No description",
+        script: story.script || "", // Explicitly include script with fallback
+        userId: story.userId || user?.uid || "",
+        updatedAt: new Date()
+      });
+      
+      // Update local state
+      setScenes(updatedScenes);
       if (currentScene?.id === sceneId) {
         setCurrentScene({ ...currentScene, ...updates });
       }
@@ -350,8 +377,14 @@ function ProjectContent() {
     if (!storyId) return;
     
     try {
-      await updateShot(storyId, sceneId, shotId, updates);
-      setScenes(scenes.map(scene => {
+      // Get the full story first
+      const story = await getStory(storyId);
+      if (!story) {
+        throw new Error("Story not found");
+      }
+      
+      // Create an updated version of the scenes array
+      const updatedScenes = story.scenes.map(scene => {
         if (scene.id === sceneId) {
           return {
             ...scene,
@@ -361,8 +394,21 @@ function ProjectContent() {
           };
         }
         return scene;
-      }));
+      });
       
+      // Update the entire story
+      await updateStory(storyId, {
+        ...story,
+        scenes: updatedScenes,
+        title: story.title || "Untitled Story",
+        description: story.description || "No description",
+        script: story.script || "", // Explicitly include script with fallback
+        userId: story.userId || user?.uid || "",
+        updatedAt: new Date()
+      });
+      
+      // Update local state
+      setScenes(updatedScenes);
       if (currentScene?.id === sceneId) {
         setCurrentScene({
           ...currentScene,
@@ -428,7 +474,11 @@ function ProjectContent() {
       const updatedScenes = [...story.scenes, newScene];
       await updateStory(storyId, {
         ...story,
-        scenes: updatedScenes
+        scenes: updatedScenes,
+        title: story.title || "Untitled Story",
+        description: story.description || "No description",
+        script: story.script || "", // Explicitly include script with fallback
+        updatedAt: new Date()
       });
       
       // Update local state
@@ -484,7 +534,11 @@ function ProjectContent() {
 
       await updateStory(storyId, {
         ...story,
-        scenes: updatedScenes
+        scenes: updatedScenes,
+        title: story.title || "Untitled Story",
+        description: story.description || "No description",
+        script: story.script || "", // Explicitly include script with fallback
+        updatedAt: new Date()
       });
       
       // Update local state
@@ -608,11 +662,14 @@ function ProjectContent() {
       return;
     }
     
-    // Show generating indicator
-    const shotElement = document.getElementById(`shot-${shotIndex}-prompt`);
-    if (shotElement) {
-      shotElement.classList.add('opacity-50');
-    }
+    // Set loading state for this shot
+    const shotId = currentScene.shots[shotIndex]?.id;
+    if (!shotId) return;
+    
+    setImageLoadingStates(prev => ({
+      ...prev,
+      [shotId]: true
+    }));
     
     try {
       console.log(`Starting image generation for shot ${shotIndex + 1}/${currentScene.shots.length}:`, prompt);
@@ -652,30 +709,29 @@ function ProjectContent() {
 
           if (statusData.state === "completed") {
             try {
-              // Get the current story first
+              // Get the current story first to ensure we have the latest data
               const story = await getStory(storyId);
               if (!story) {
                 throw new Error("Story not found");
               }
 
-              // Find the current scene in the story
-              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene.id);
+              // Find the scene index in the fetched story data
+              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene?.id);
               if (sceneIndex === -1) {
-                throw new Error("Scene not found in story");
+                  throw new Error("Scene not found in fetched story data");
               }
-
-              // Get the current shot to preserve its data
-              const currentShot = currentScene.shots[shotIndex];
-              if (!currentShot) {
-                throw new Error("Shot not found");
+              
+              // Ensure the shotIndex is valid for the fetched scene
+              if (shotIndex < 0 || shotIndex >= story.scenes[sceneIndex].shots.length) {
+                  throw new Error("Shot index out of bounds for fetched scene data");
               }
 
               // Upload the generated image to Firebase Storage
               console.log(`Uploading generated image for shot ${shotIndex + 1} to Firebase`);
               const downloadUrl = await uploadShotImage(
                 storyId,
-                currentScene.id,
-                currentShot.id,
+                story.scenes[sceneIndex].id, // Use ID from fetched data
+                story.scenes[sceneIndex].shots[shotIndex].id, // Use ID from fetched data
                 statusData.assets.image
               );
 
@@ -683,79 +739,66 @@ function ProjectContent() {
                 throw new Error("Failed to get download URL for the image");
               }
 
-              // Create updated shot with new image while preserving ALL existing data
-              const updatedShot: Shot = {
-                ...currentShot, // Keep ALL existing properties
-                description: prompt,
-                prompt: prompt, // Update prompt to match description
-                generatedImage: downloadUrl,
-                // Explicitly preserve all media and properties
-                generatedVideo: currentShot.generatedVideo || null,
-                lipSyncVideo: currentShot.lipSyncVideo || null,
-                lipSyncAudio: currentShot.lipSyncAudio || null,
-                dialogue: currentShot.dialogue || null,
-                soundEffects: currentShot.soundEffects || null,
-                hasDialogue: currentShot.hasDialogue || false,
-                hasSoundEffects: currentShot.hasSoundEffects || false,
-                hasNarration: currentShot.hasNarration || false,
-                narration: currentShot.narration || null,
-                location: currentShot.location || null,
-                lighting: currentShot.lighting || null,
-                weather: currentShot.weather || null,
-                voiceId: currentShot.voiceId || null,
-                type: currentShot.type || "MEDIUM SHOT"
-              };
+              // --- Create the updated scenes array based purely on fetched data --- 
+              const finalUpdatedScenes = story.scenes.map((scene, sIndex) => {
+                if (sIndex !== sceneIndex) {
+                  return scene; // Return other scenes unmodified
+                }
+                // Modify the target scene
+                return {
+                  ...scene, // Keep existing scene properties
+                  shots: scene.shots.map((shot, shIndex) => {
+                    if (shIndex !== shotIndex) {
+                      return shot; // Return other shots unmodified
+                    }
+                    // Update the target shot
+                    return {
+                      ...shot, // Keep ALL existing properties of the shot
+                      description: prompt, // Update description from input
+                      prompt: prompt, // Update prompt from input
+                      generatedImage: downloadUrl, // Add the new image URL
+                    };
+                  })
+                };
+              });
+              // --- End of state update logic --- 
 
-              // Create updated shots array
-              const updatedShots = [...currentScene.shots];
-              updatedShots[shotIndex] = updatedShot;
-
-              // Create updated scene with ALL existing properties
-              const updatedScene = {
-                ...currentScene,
-                shots: updatedShots,
-                title: currentScene.title || `Scene ${sceneIndex + 1}`,
-                location: currentScene.location || "INT. LOCATION - DAY",
-                description: currentScene.description || "Describe your scene...",
-                lighting: currentScene.lighting || "Natural daylight",
-                weather: currentScene.weather || "Clear",
-                style: currentScene.style || "hyperrealistic",
-                generatedVideo: currentScene.generatedVideo || undefined
-              };
-
-              // Create updated scenes array for the story
-              const updatedScenes = [...story.scenes];
-              updatedScenes[sceneIndex] = updatedScene;
-
-              // Create clean story update with ALL required fields
+              // Create clean story update object
               const storyUpdate = {
-                scenes: updatedScenes,
+                scenes: finalUpdatedScenes, // Use the correctly derived scenes
                 title: story.title || "Untitled Story",
                 description: story.description || "No description",
+                script: story.script || "", 
                 userId: story.userId || "",
                 createdAt: story.createdAt || new Date(),
                 updatedAt: new Date()
               };
 
-              // Remove any undefined values from the update
-              const cleanUpdate = Object.fromEntries(
-                Object.entries(storyUpdate).filter(([_, value]) => value !== undefined)
-              );
+              // Update the entire story in Firestore
+              await updateStory(storyId, storyUpdate);
 
-              // Update the entire story
-              await updateStory(storyId, cleanUpdate);
-
-              // Update local state
-              setCurrentScene(updatedScene);
-              setScenes(updatedScenes);
+              // Update local state with the final, correct scenes array
+              setScenes(finalUpdatedScenes);
+              // Update current scene from the updated array
+              setCurrentScene(finalUpdatedScenes[sceneIndex]); 
               
               console.log(`Successfully updated shot ${shotIndex + 1} with generated image`);
               toast.success(`Image generated for shot ${shotIndex + 1}!`);
             } catch (uploadError) {
               console.error(`Error uploading image for shot ${shotIndex + 1} to Firebase:`, uploadError);
               toast.error(`Failed to save generated image for shot ${shotIndex + 1}. Please try again.`);
+            } finally {
+              // Clear loading state for this shot
+              setImageLoadingStates(prev => ({
+                ...prev,
+                [shotId]: false
+              }));
             }
           } else if (statusData.state === "failed") {
+            setImageLoadingStates(prev => ({
+              ...prev,
+              [shotId]: false
+            }));
             throw new Error(statusData.failure_reason || "Image generation failed");
           } else {
             // Continue polling
@@ -764,6 +807,11 @@ function ProjectContent() {
         } catch (error) {
           console.error(`Error during status polling for shot ${shotIndex + 1}:`, error);
           toast.error(error instanceof Error ? error.message : `Failed to check generation status for shot ${shotIndex + 1}. Please try again.`);
+          // Clear loading state for this shot on error
+          setImageLoadingStates(prev => ({
+            ...prev,
+            [shotId]: false
+          }));
         }
       };
 
@@ -771,10 +819,11 @@ function ProjectContent() {
     } catch (error) {
       console.error(`Error generating image for shot ${shotIndex + 1}:`, error);
       toast.error(error instanceof Error ? error.message : `Failed to generate image for shot ${shotIndex + 1}. Please try again.`);
-    } finally {
-      if (shotElement) {
-        shotElement.classList.remove('opacity-50');
-      }
+      // Clear loading state for this shot on error
+      setImageLoadingStates(prev => ({
+        ...prev,
+        [shotId]: false
+      }));
     }
   };
 
@@ -810,6 +859,12 @@ function ProjectContent() {
       toast.error("Please generate an image for this shot first");
       return;
     }
+
+    // Set loading state for this shot's video
+    setVideoLoadingStates(prev => ({
+      ...prev,
+      [shot.id]: true
+    }));
 
     try {
       // Start video generation
@@ -880,8 +935,19 @@ function ProjectContent() {
               toast.error("Failed to save generated video. Please try again.", {
                 id: "video-generation",
               });
+            } finally {
+              // Clear loading state
+              setVideoLoadingStates(prev => ({
+                ...prev,
+                [shot.id]: false
+              }));
             }
           } else if (statusData.state === "failed") {
+            // Clear loading state on failure
+            setVideoLoadingStates(prev => ({
+              ...prev,
+              [shot.id]: false
+            }));
             throw new Error(statusData.failure_reason || "Video generation failed");
           } else {
             // Continue polling
@@ -892,6 +958,11 @@ function ProjectContent() {
           toast.error(error instanceof Error ? error.message : "Failed to check video generation status. Please try again.", {
             id: "video-generation",
           });
+          // Clear loading state on error
+          setVideoLoadingStates(prev => ({
+            ...prev,
+            [shot.id]: false
+          }));
         }
       };
 
@@ -899,6 +970,11 @@ function ProjectContent() {
     } catch (error) {
       console.error("Error generating video:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate video. Please try again.");
+      // Clear loading state on error
+      setVideoLoadingStates(prev => ({
+        ...prev,
+        [shot.id]: false
+      }));
     }
   };
 
@@ -1104,7 +1180,12 @@ function ProjectContent() {
       // Update the story with new scenes
       await updateStory(storyId, {
         ...currentStory,
-        scenes: updatedScenes
+        scenes: updatedScenes,
+        title: currentStory.title || "Untitled Story",
+        description: currentStory.description || "No description",
+        script: currentStory.script || "", // Explicitly include script with fallback
+        userId: currentStory.userId || user?.uid || "",
+        updatedAt: new Date()
       });
 
       // Update local state
@@ -1173,8 +1254,19 @@ function ProjectContent() {
       // Validate the updated scene
       validateSceneData(updatedScene);
 
-      // Update the scene in Firestore
-      await updateScene(storyId, sceneId, updatedScene);
+      // Update the scene in Firestore by updating the whole story
+      const updatedScenes = [...currentStory.scenes];
+      updatedScenes[sceneIndex] = updatedScene;
+      
+      await updateStory(storyId, {
+        ...currentStory,
+        scenes: updatedScenes,
+        title: currentStory.title || "Untitled Story",
+        description: currentStory.description || "No description",
+        script: currentStory.script || "", // Explicitly include script with fallback
+        userId: currentStory.userId || user?.uid || "",
+        updatedAt: new Date()
+      });
 
       // Update local state
       setScenes(prevScenes => 
@@ -1505,469 +1597,114 @@ function ProjectContent() {
     };
     
     const updatedScene = { ...currentScene, shots: updatedShots };
-    setCurrentScene(updatedScene);
-    setScenes(scenes.map(scene => 
-      scene.id === currentScene.id ? updatedScene : scene
-    ));
-
-    // Save to Firebase
-    if (storyId && currentScene.id) {
-      updateScene(storyId, currentScene.id, updatedScene).catch(error => {
-        console.error("Error saving voice selection:", error);
-        toast.error("Failed to save voice selection");
-      });
+    
+    // Use updateShotDetails to update the entire story
+    if (storyId && currentScene.id && existingShot.id) {
+      updateShotDetails(currentScene.id, existingShot.id, { voiceId: e.target.value });
+    } else {
+      // If no storyId or sceneId, just update local state
+      setCurrentScene(updatedScene);
+      setScenes(scenes.map(scene => 
+        scene.id === currentScene.id ? updatedScene : scene
+      ));
     }
   };
 
-  // Add the missing handler functions
+  // Update scene description handler
   const handleSceneDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!currentScene || !storyId) return;
-    const updatedScene = { ...currentScene, description: e.target.value };
-    updateScene(storyId, currentScene.id, updatedScene);
+    const updates = { description: e.target.value };
+    updateSceneDetails(currentScene.id, updates);
   };
 
+  // Update scene lighting handler
   const handleSceneLightingChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!currentScene || !storyId) return;
-    const updatedScene = { ...currentScene, lighting: e.target.value };
-    updateScene(storyId, currentScene.id, updatedScene);
+    const updates = { lighting: e.target.value };
+    updateSceneDetails(currentScene.id, updates);
   };
 
+  // Update scene weather handler
   const handleSceneWeatherChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (!currentScene || !storyId) return;
-    const updatedScene = { ...currentScene, weather: e.target.value };
-    updateScene(storyId, currentScene.id, updatedScene);
+    const updates = { weather: e.target.value };
+    updateSceneDetails(currentScene.id, updates);
+  };
+
+  // Add handler for scene style change
+  const handleSceneStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!currentScene || !storyId) return;
+    const updates = { style: e.target.value };
+    updateSceneDetails(currentScene.id, updates);
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-gray-800">
-      <div className="bg-white border-b p-3 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <Link href="/">
-            <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-100">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-800">Storyboard</h1>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={saveStory} 
-            disabled={isSaving || loading}
-            className="text-green-600 border-green-300 hover:bg-green-50"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save
-              </>
-            )}
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={async () => {
-              if (!storyId) {
-                toast.error("No story ID found");
-                return;
-              }
-              try {
-                const story = await getStory(storyId);
-                if (story) {
-                  setScenes(story.scenes);
-                  setCurrentScene(story.scenes[0] || null);
-                  toast.success("Scenes synced successfully");
-                }
-              } catch (error) {
-                console.error("Error syncing scenes:", error);
-                toast.error("Failed to sync scenes. Please try again.");
-              }
-            }}
-            className="text-blue-600 border-blue-300 hover:bg-blue-50"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Sync
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportScene} className="text-amber-600 border-amber-300 hover:bg-amber-50">
-            <Download className="mr-2 h-4 w-4" />
-            Export Scene
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleCopyToClipboard} className="text-gray-600 border-gray-300">
-            <Copy className="mr-2 h-4 w-4" />
-            Copy
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload} className="text-gray-600 border-gray-300">
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
-        </div>
-      </div>
+      {/* Use the ProjectHeader component */}
+      <ProjectHeader
+        isSaving={isSaving}
+        isLoadingAuth={loading} // Pass the auth loading state
+        onSaveStory={saveStory}
+        onSyncScenes={async () => {
+          if (!storyId) {
+            toast.error("No story ID found");
+            return;
+          }
+          try {
+            const story = await getStory(storyId);
+            if (story) {
+              setScenes(story.scenes || []);
+              setCurrentScene(story.scenes[0] || null);
+              toast.success("Scenes synced successfully");
+            }
+          } catch (error) {
+            console.error("Error syncing scenes:", error);
+            toast.error("Failed to sync scenes. Please try again.");
+          }
+        }}
+        onExportScene={handleExportScene}
+        onCopyToClipboard={handleCopyToClipboard}
+        onDownloadScript={handleDownload}
+      />
       
       <div className="flex flex-col md:flex-row">
-        {/* Left sidebar with scene info */}
-        <div className="w-full md:w-64 bg-gray-50 p-4 flex flex-col border-r">
-          {/* Scene List */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Scenes</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={addNewScene}
-                className="h-8 px-2"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {scenes.map((scene) => (
-                <div
-                  key={scene.id}
-                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-                    currentScene?.id === scene.id
-                      ? "bg-purple-100 border border-purple-200"
-                      : "hover:bg-gray-100 border border-transparent"
-                  }`}
-                  onClick={() => handleSceneSelect(scene)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Film className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-700 truncate">
-                      {scene.title || "Untitled Scene"}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSceneRename(scene.id, prompt("Enter new scene title:", scene.title) || scene.title);
-                      }}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSceneDelete(scene.id);
-                      }}
-                    >
-                      <Trash className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <h2 className="text-xl font-bold text-amber-600">{currentScene?.title || "SCENE 1"}</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {script.includes("INT.") || script.includes("EXT.") 
-                ? script.split('\n')[0].trim() 
-                : "Sarah Thompson returns to Eldridge, evoking nostalgia as she revisits her childhood town."}
-            </p>
-
-            {/* Scene Video Preview */}
-            {currentScene?.generatedVideo && (
-              <div className="mt-4 mb-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Scene Video</h3>
-                <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
-                  <video
-                    src={currentScene.generatedVideo}
-                    controls
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                    Generated Scene Video
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col space-y-2 mt-3">
-              <Button 
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
-                onClick={generateAllShotImages}
-              >
-                <Camera className="mr-2 h-5 w-5" />
-                Generate All Images
-              </Button>
-              {currentScene && (
-                <button
-                  onClick={() => generateSceneVideo(currentScene.id)}
-                  disabled={!currentScene.shots.some(shot => shot.generatedImage)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span>Generate Scene Video</span>
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Generates images and video for all shots in this scene
-            </p>
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Description</h3>
-            <textarea
-              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              rows={3}
-              placeholder="Describe the location"
-              value={currentScene?.description || ''}
-              onChange={(e) => handleSceneDescriptionChange(e)}
-            />
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Lighting</h3>
-            <textarea
-              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              rows={2}
-              placeholder="Describe the lighting"
-              value={currentScene?.lighting || ''}
-              onChange={(e) => handleSceneLightingChange(e)}
-            />
-          </div>
-          
-          <div className="mb-4">
-            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Weather</h3>
-            <textarea
-              className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              rows={2}
-              placeholder="Describe the weather"
-              value={currentScene?.weather || ''}
-              onChange={(e) => handleSceneWeatherChange(e)}
-            />
-          </div>
-          
-          <div className="mt-4">
-            <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Style</h3>
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Camera className="text-gray-500 h-5 w-5" />
-                <p className="text-sm text-gray-700">Video Style</p>
-              </div>
-              <select 
-                className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                defaultValue="hyperrealistic"
-              >
-                <option value="hyperrealistic">Hyperrealistic</option>
-                <option value="anime">Anime</option>
-                <option value="90s-cartoon">90s Cartoon</option>
-                <option value="cyberpunk">Cyberpunk</option>
-                <option value="steampunk">Steampunk</option>
-                <option value="pixar">Pixar Style</option>
-                <option value="studio-ghibli">Studio Ghibli</option>
-                <option value="comic-book">Comic Book</option>
-                <option value="watercolor">Watercolor</option>
-                <option value="oil-painting">Oil Painting</option>
-                <option value="pixel-art">Pixel Art</option>
-                <option value="low-poly">Low Poly</option>
-                <option value="retro-wave">Retro Wave</option>
-                <option value="vaporwave">Vaporwave</option>
-                <option value="synthwave">Synthwave</option>
-                <option value="neon">Neon</option>
-                <option value="noir">Film Noir</option>
-                <option value="western">Western</option>
-                <option value="sci-fi">Sci-Fi</option>
-                <option value="fantasy">Fantasy</option>
-                <option value="horror">Horror</option>
-                <option value="documentary">Documentary</option>
-                <option value="vintage">Vintage</option>
-                <option value="minimalist">Minimalist</option>
-                <option value="abstract">Abstract</option>
-                <option value="surreal">Surreal</option>
-                <option value="pop-art">Pop Art</option>
-                <option value="impressionist">Impressionist</option>
-                <option value="expressionist">Expressionist</option>
-                <option value="cubist">Cubist</option>
-                <option value="art-deco">Art Deco</option>
-                <option value="brutalism">Brutalism</option>
-                <option value="retro-futuristic">Retro Futuristic</option>
-                <option value="biopunk">Biopunk</option>
-                <option value="dieselpunk">Dieselpunk</option>
-                <option value="solarpunk">Solarpunk</option>
-                <option value="atompunk">Atompunk</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        {/* Use the SceneSidebar component */}
+        <SceneSidebar
+          scenes={scenes}
+          currentScene={currentScene}
+          script={script}
+          onSceneSelect={handleSceneSelect}
+          onSceneRename={handleSceneRename}
+          onSceneDelete={handleSceneDelete}
+          onAddNewScene={addNewScene}
+          onGenerateAllImages={generateAllShotImages}
+          onGenerateSceneVideo={generateSceneVideo}
+          onSceneDescriptionChange={handleSceneDescriptionChange}
+          onSceneLightingChange={handleSceneLightingChange}
+          onSceneWeatherChange={handleSceneWeatherChange}
+          onSceneStyleChange={handleSceneStyleChange} // Pass the new handler
+        />
         
         {/* Main content area */}
         <div className="flex-1 overflow-auto">
           {/* Scene shots area */}
           <div className="grid grid-cols-2 gap-4 p-4">
             {currentScene?.shots.map((shot, index) => (
-              <div key={shot.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm flex flex-col">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm text-gray-500">#{index + 1}</span>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Edit className="h-4 w-4 text-gray-500" />
-                    </Button>
-                    {shot.generatedImage && (
-                      <>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
-                          const promptElement = document.getElementById(`shot-${index}-prompt`) as HTMLTextAreaElement;
-                          if (promptElement && promptElement.value.trim()) {
-                            generateShotFromPrompt(index, promptElement.value);
-                          }
-                        }}>
-                          <RefreshCw className="h-4 w-4 text-gray-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => generateShotVideo(index)}
-                        >
-                          <Film className="h-4 w-4 text-gray-500" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Image Preview */}
-                {shot.generatedImage && (
-                  <div className="relative aspect-video mb-3">
-                    <img
-                      src={shot.generatedImage}
-                      alt={`Shot ${index + 1}`}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                  </div>
-                )}
-
-                {/* Video Preview */}
-                {shot.generatedVideo && (
-                  <div className="relative aspect-video mb-3">
-                    <video
-                      src={shot.generatedVideo}
-                      controls
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                    <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                      Generated Shot Video
-                    </div>
-                  </div>
-                )}
-                
-                {/* Shot Details */}
-                <div className="space-y-2">
-                  <textarea
-                    id={`shot-${index}-prompt`}
-                    className="w-full text-sm border rounded p-2"
-                    rows={3}
-                    placeholder="Describe this shot..."
-                    defaultValue={shot.description}
-                    onChange={(e) => handleShotDescriptionChange(e, index)}
-                  />
-                  <div>
-                    <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Shot Type</h3>
-                    <select 
-                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-                      value={shot.type}
-                      onChange={(e) => handleShotTypeChange(e, index)}
-                    >
-                      <option value="">Select shot type</option>
-                      <option value="ESTABLISHING SHOT">Establishing Shot</option>
-                      <option value="CLOSE-UP">Close-Up</option>
-                      <option value="MEDIUM SHOT">Medium Shot</option>
-                      <option value="WIDE SHOT">Wide Shot</option>
-                      <option value="POV">POV</option>
-                      <option value="TRACKING SHOT">Tracking Shot</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Character Dialogue</h3>
-                    <textarea
-                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-                      rows={2}
-                      placeholder="Add character dialogue..."
-                      defaultValue={shot.dialogue || ""}
-                      onChange={(e) => handleDialogueChange(e, index)}
-                    />
-                  </div>
-                  
-                  <div>
-                    <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Sound Effects</h3>
-                    <textarea
-                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-                      rows={2}
-                      placeholder="Add sound effects..."
-                      defaultValue={shot.soundEffects || ""}
-                      onChange={(e) => handleSoundEffectsChange(e, index)}
-                    />
-                  </div>
-                </div>
-
-                {/* Add voice selection dropdown */}
-                {shot.hasDialogue && (
-                  <div className="mt-2">
-                    <select
-                      value={shot.voiceId || ""}
-                      onChange={(e) => handleVoiceSelect(e, index)}
-                      className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
-                    >
-                      <option value="">Select voice</option>
-                      <option value="21m00Tcm4TlvDq8ikWAM">Rachel</option>
-                      <option value="AZnzlk1XvdvUeBnXmlld">Domi</option>
-                      <option value="EXAVITQu4vr4xnSDxMaL">Bella</option>
-                      <option value="ErXwobaYiN019PkySvjV">Antoni</option>
-                      <option value="MF3mGyEYCl7XYWbV9V6O">Elli</option>
-                      <option value="TxGEqnHWrfWFTfGW9XjX">Josh</option>
-                      <option value="VR6AewLTigWG4xSOukaG">Arnold</option>
-                      <option value="pNInz6obpgDQGcFmaJgB">Adam</option>
-                      <option value="yoZ06aMxZJJ28xfdgOL">Sam</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Add lip sync button */}
-                {shot.hasDialogue && shot.voiceId && (
-                  <Button
-                    onClick={() => generateLipSync(index)}
-                    className="mt-2"
-                    disabled={!shot.generatedVideo}
-                  >
-                    Generate Lip Sync
-                  </Button>
-                )}
-              </div>
+              <ShotCard
+                key={shot.id}
+                shot={shot}
+                index={index}
+                isImageLoading={!!imageLoadingStates[shot.id]}
+                isVideoLoading={!!videoLoadingStates[shot.id]}
+                onGenerateImage={generateShotFromPrompt}
+                onGenerateVideo={generateShotVideo}
+                onGenerateLipSync={generateLipSync}
+                onShotDescriptionChange={handleShotDescriptionChange}
+                onShotTypeChange={handleShotTypeChange}
+                onDialogueChange={handleDialogueChange}
+                onSoundEffectsChange={handleSoundEffectsChange}
+                onVoiceSelect={handleVoiceSelect}
+              />
             ))}
           </div>
           
@@ -1999,16 +1736,16 @@ function ProjectContent() {
         
         {expandedScript ? (
           <div className="bg-white p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-gray-700 border border-gray-200 shadow-sm max-h-[600px] overflow-y-auto">
-            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-              {script}
-            </ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{
+              script
+            }</ReactMarkdown>
           </div>
         ) : (
           <div className="bg-white p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-gray-700 border border-gray-200 shadow-sm max-h-[150px] overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white pointer-events-none" style={{ opacity: 0.7 }}></div>
-            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-              {script.substring(0, 300) + (script.length > 300 ? "..." : "")}
-            </ReactMarkdown>
+            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{
+              script.substring(0, 300) + (script.length > 300 ? "..." : "")
+            }</ReactMarkdown>
           </div>
         )}
       </div>

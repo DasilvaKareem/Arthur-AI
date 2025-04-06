@@ -227,7 +227,7 @@ export async function updateStory(storyId: string, updates: Partial<Story>): Pro
     const cleanUpdates: Record<string, any> = {
       title: updates.title || currentStory.title,
       description: updates.description || currentStory.description,
-      script: updates.script || currentStory.script,
+      script: updates.script !== undefined ? updates.script : currentStory.script || "",
       scenes: cleanScenes,
       updatedAt: new Date()
     };
