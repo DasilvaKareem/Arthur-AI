@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
+import { useTheme } from 'next-themes';
 
 export default function Particles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
+  const { theme, resolvedTheme } = useTheme();
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -21,6 +23,9 @@ export default function Particles() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
+    // Determine if dark mode is active
+    const isDarkMode = theme === 'dark' || resolvedTheme === 'dark';
+    
     // Particle class
     class Particle {
       x: number = 0;
@@ -37,7 +42,13 @@ export default function Particles() {
         this.size = Math.random() * 2 + 1;
         this.speedX = Math.random() * 0.5 - 0.25;
         this.speedY = Math.random() * 0.5 - 0.25;
-        this.color = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
+        
+        // Different colors based on theme
+        if (isDarkMode) {
+          this.color = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
+        } else {
+          this.color = `rgba(60, 60, 60, ${Math.random() * 0.2})`;
+        }
       }
 
       update() {
@@ -78,8 +89,10 @@ export default function Particles() {
         particle.draw();
       });
 
-      // Draw connections
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      // Draw connections - different colors based on theme
+      ctx.strokeStyle = isDarkMode 
+        ? 'rgba(255, 255, 255, 0.1)' 
+        : 'rgba(60, 60, 60, 0.1)';
       ctx.lineWidth = 0.5;
 
       for (let i = 0; i < particles.length; i++) {
@@ -106,7 +119,7 @@ export default function Particles() {
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, []);
+  }, [theme, resolvedTheme]);
 
   return (
     <canvas

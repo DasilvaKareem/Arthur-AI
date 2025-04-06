@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Particles from "@/components/Particle";
@@ -43,11 +43,33 @@ export default function RootPage() {
     }
   };
   
+  // CSS animation styles for gradient
+  const animatedGradientStyle = {
+    backgroundSize: '300% 300%',
+    backgroundImage: 'linear-gradient(45deg, #1a245f, #5f7fc5, #64c5f6, #5f7fc5, #1a245f)',
+    animation: 'gradient 8s ease infinite',
+  };
+  
+  // Add the keyframes animation to the page
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+  
   return (
     <div className="relative flex-col min-h-screen">
-      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none" style={{
-        background: 'linear-gradient(170deg, #5f7fc5 0%, #1a245f 10%, #0a0e2a 20%, #0a0e2a 100%)'
-      }} />
+      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a] bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white" />
       <ConfirmationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <Particles />
@@ -79,9 +101,11 @@ export default function RootPage() {
             <div className="flex justify-center mb-8">
               <Logo className="w-24 h-24 animate-float" />
             </div>
-            <h1 className="font-bold tracking-tight text-4xl sm:text-6xl md:text-7xl lg:text-8xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              Turn Words Into
-              <br /> Living Stories
+            <h1 className="font-bold tracking-tight text-4xl sm:text-6xl md:text-7xl lg:text-8xl">
+              <span className="bg-clip-text text-transparent" style={animatedGradientStyle}>
+                Tell Beautiful Stories
+                <br /> With Arthur AI
+              </span>
             </h1>
             <p className="mt-6 text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
               Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated stories using Studio Ghibli-inspired visuals and cutting-edge AI.
@@ -120,9 +144,9 @@ export default function RootPage() {
 
       {/* Waitlist Section */}
       <section className="relative z-10 container py-12 text-center">
-        <div className="mx-auto max-w-4xl rounded-lg border border-gray-700 bg-gray-800/50 p-8 backdrop-blur-sm">
-          <h2 className="text-3xl font-bold mb-4 text-white">Join the Waitlist</h2>
-          <p className="text-gray-300 mb-6">
+        <div className="mx-auto max-w-4xl rounded-lg border dark:border-gray-700 border-gray-300 dark:bg-gray-800/50 bg-white/80 p-8 backdrop-blur-sm">
+          <h2 className="text-3xl font-bold mb-4 dark:text-white text-gray-900">Join the Waitlist</h2>
+          <p className="dark:text-gray-300 text-gray-700 mb-6">
             Be the first to access the future of AI Storytelling. Early beta members get priority support, feedback access, and launch perks.
           </p>
           <form
@@ -131,7 +155,7 @@ export default function RootPage() {
             onSubmit={handleSubmit}
           >
             <div className="w-full max-w-md">
-              <label htmlFor="EMAIL" className="text-left font-medium text-gray-300">
+              <label htmlFor="EMAIL" className="text-left font-medium dark:text-gray-300 text-gray-700">
                 Join waitlist for exclusive early access
               </label>
               <input
@@ -140,9 +164,9 @@ export default function RootPage() {
                 id="EMAIL"
                 placeholder="you@example.com"
                 required
-                className="w-full rounded border border-gray-700 bg-gray-900/50 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded dark:border-gray-700 border-gray-300 dark:bg-gray-900/50 bg-white/80 px-4 py-2 text-sm dark:text-white text-gray-900 placeholder:dark:text-gray-400 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <p className="text-left text-xs text-gray-400 mt-1">
+              <p className="text-left text-xs dark:text-gray-400 text-gray-500 mt-1">
                 Provide your email address to subscribe. For example: abc@xyz.com
               </p>
             </div>
