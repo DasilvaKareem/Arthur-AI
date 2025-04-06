@@ -13,11 +13,11 @@ export default function ConfirmationModal({ isOpen, onClose }: ConfirmationModal
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Thank you for joining the waitlist!</DialogTitle>
+          <DialogTitle>Thank you for requesting access!</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col space-y-4">
           <p className="text-sm text-muted-foreground">
-            We've received your email and will keep you updated on our progress. You'll be among the first to know when we launch!
+            We've received your request and will keep you updated on our progress. You'll be among the first to know when we launch!
           </p>
           <button
             onClick={onClose}

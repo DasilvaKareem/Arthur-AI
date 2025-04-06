@@ -256,16 +256,6 @@ const MessageContent = ({
         {parsed.redirect_to_agent && (
           <UISelector redirectToAgent={parsed.redirect_to_agent} />
         )}
-        {(parsed.can_generate_project || isScriptResponse(parsed.response)) && parsed.response && (
-          <Button 
-            onClick={handleGenerateProject}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
-            size="sm"
-          >
-            <WandSparkles className="mr-2 h-4 w-4" />
-            Create Scene Project
-          </Button>
-        )}
       </div>
     </>
   );
@@ -675,7 +665,7 @@ function ChatArea() {
   }, []);
 
   return (
-    <Card className="flex-1 flex flex-col mb-4 mr-4 ml-4 bg-[#1a1a1a] text-[#e6e6e6] border-none">
+    <Card className="flex-1 flex flex-col mb-4 mr-4 ml-4 border-none">
       <CardContent className="flex-1 flex flex-col overflow-hidden pt-4 px-4 pb-0">
         <ConversationHeader
           selectedModel={selectedModel}
@@ -690,25 +680,25 @@ function ChatArea() {
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in-up">
               <ArthurAvatar size="md" className="mb-4" />
-              <h2 className="text-2xl font-mono mb-8 text-[#e6e6e6]">
+              <h2 className="text-2xl font-mono mb-8">
                 Create Amazing Content
               </h2>
               <div className="space-y-4 text-sm font-mono">
                 <div className="flex items-center gap-3">
-                  <WandSparkles className="text-[#666]" />
-                  <p className="text-[#666]">
+                  <WandSparkles className="text-muted-foreground" />
+                  <p className="text-muted-foreground">
                     Create short films, commercials, and storyboards with AI-powered creativity.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <BookOpenText className="text-[#666]" />
-                  <p className="text-[#666]">
+                  <BookOpenText className="text-muted-foreground" />
+                  <p className="text-muted-foreground">
                     Generate professional business memos and presentations in seconds.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <HandHelping className="text-[#666]" />
-                  <p className="text-[#666]">
+                  <HandHelping className="text-muted-foreground" />
+                  <p className="text-muted-foreground">
                     Transform your ideas into stunning visual content with our AI tools.
                   </p>
                 </div>
@@ -735,12 +725,12 @@ function ChatArea() {
                     <div
                       className={`p-3 rounded-md text-sm max-w-[65%] font-mono ${
                         message.role === "user"
-                          ? "bg-[#333] text-[#e6e6e6]"
-                          : `${preferences.chatColor ? `bg-${preferences.chatColor}` : 'bg-[#2a2a2a]'} border border-[#333]`
+                          ? "bg-primary text-primary-foreground"
+                          : `${preferences.chatColor ? `bg-${preferences.chatColor}` : 'bg-secondary'} border border-border`
                       }`}
                       style={message.role === "assistant" && preferences.chatColor ? {
                         backgroundColor: preferences.chatColor,
-                        color: '#e6e6e6'
+                        color: 'var(--primary-foreground)'
                       } : undefined}
                     >
                       <MessageContent
@@ -769,7 +759,7 @@ function ChatArea() {
       <CardFooter className="p-4 pt-0">
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col w-full relative bg-[#2a2a2a] border border-[#333] rounded-xl focus-within:ring-2 focus-within:ring-[#666] focus-within:ring-offset-2"
+          className="flex flex-col w-full relative bg-secondary border border-border rounded-xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
         >
           <Textarea
             value={input}
@@ -777,23 +767,23 @@ function ChatArea() {
             onKeyDown={handleKeyDown}
             placeholder="Type your message here..."
             disabled={isLoading}
-            className="resize-none min-h-[44px] bg-[#2a2a2a] text-[#e6e6e6] border-0 p-3 rounded-xl shadow-none focus-visible:ring-0 font-mono"
+            className="resize-none min-h-[44px] bg-secondary text-secondary-foreground border-0 p-3 rounded-xl shadow-none focus-visible:ring-0 font-mono"
             rows={1}
           />
           <div className="flex justify-between items-center p-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm" style={{ color: preferences.chatColor || '#666' }}>Arthur</span>
+              <span className="text-sm" style={{ color: preferences.chatColor || 'var(--muted-foreground)' }}>Arthur</span>
               
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 px-2 text-[#666] hover:text-[#e6e6e6]">
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-muted-foreground hover:text-foreground">
                     <ImageIcon className="h-4 w-4" />
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-auto bg-[#1a1a1a] text-[#e6e6e6] border-[#333]">
+                <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-auto border-border">
                   <DialogHeader>
                     <DialogTitle className="font-mono">Generate Image with Luma</DialogTitle>
-                    <DialogDescription className="text-[#666] font-mono">
+                    <DialogDescription className="text-muted-foreground font-mono">
                       Create AI-generated images using Luma Labs
                     </DialogDescription>
                   </DialogHeader>
@@ -810,11 +800,11 @@ function ChatArea() {
             <Button
               type="submit"
               disabled={isLoading || input.trim() === ""}
-              className="gap-2 bg-[#333] hover:bg-[#444] text-[#e6e6e6] font-mono"
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-mono"
               size="sm"
             >
               {isLoading ? (
-                <div className="animate-spin h-5 w-5 border-t-2 border-[#e6e6e6] rounded-full" />
+                <div className="animate-spin h-5 w-5 border-t-2 border-primary-foreground rounded-full" />
               ) : (
                 <>
                   Send Message

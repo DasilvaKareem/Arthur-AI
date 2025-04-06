@@ -5,10 +5,10 @@ export default function WaitlistConfirmedPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="max-w-md w-full space-y-8 p-8 bg-card rounded-lg shadow-lg border border-border">
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to the Waitlist!</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Access Request Confirmed!</h1>
           <p className="mt-2 text-muted-foreground">
-            Thank you for joining our waitlist. We've sent a confirmation email to your inbox.
-            Please check your email and click the confirmation link to complete your subscription.
+            Thank you for requesting access. We've sent a confirmation email to your inbox.
+            Please check your email and click the confirmation link to complete your request.
           </p>
         </div>
         

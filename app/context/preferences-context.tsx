@@ -28,7 +28,14 @@ export const PreferencesProvider = ({ children }: { children: React.ReactNode })
         try {
           const userPrefs = await getUserPreferences(user.uid);
           if (userPrefs) {
+            // Ensure theme defaults to light if not set
+            if (!userPrefs.theme) {
+              userPrefs.theme = 'light';
+            }
             setPreferences(userPrefs);
+          } else {
+            // Set default preferences if none exist
+            setPreferences({ theme: 'light' });
           }
         } catch (error) {
           console.error('Error loading preferences:', error);

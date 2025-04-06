@@ -53,6 +53,9 @@ const TopNavBar = () => {
 
   useEffect(() => {
     setMounted(true);
+    
+    // Don't clear the theme from localStorage to allow it to persist
+    
     const savedColorTheme = (localStorage.getItem("color-theme") ||
       "neutral") as ThemeName;
     setColorTheme(savedColorTheme);

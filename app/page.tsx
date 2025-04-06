@@ -22,6 +22,8 @@ export default function RootPage() {
       const email = form.EMAIL.value;
 
       try {
+        console.log("Submitting email:", email);
+        
         const response = await fetch('/api/waitlist', {
           method: 'POST',
           headers: {
@@ -30,15 +32,19 @@ export default function RootPage() {
           body: JSON.stringify({ email }),
         });
 
+        const data = await response.json();
+        console.log("Waitlist response:", data);
+
         if (!response.ok) {
-          throw new Error('Failed to add to waitlist');
+          throw new Error(data.error || 'Failed to request access');
         }
 
+        // Show success modal even if the user is already registered
         setIsModalOpen(true);
         form.reset();
       } catch (error) {
-        console.error('Waitlist submission error:', error);
-        // You might want to show an error message to the user here
+        console.error('Access request submission error:', error);
+        alert('There was an error submitting your request. Please try again later.');
       }
     }
   };
@@ -69,7 +75,7 @@ export default function RootPage() {
   
   return (
     <div className="relative flex-col min-h-screen">
-      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a] bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white" />
+      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a]" />
       <ConfirmationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <Particles />
@@ -87,8 +93,8 @@ export default function RootPage() {
             >
               Sign In
             </Link>
-            <Link href="/auth/signup">
-              <Button>Get Started</Button>
+            <Link href="#request-access">
+              <Button>Request Access</Button>
             </Link>
           </nav>
         </div>
@@ -111,9 +117,11 @@ export default function RootPage() {
               Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated videos using Studio Ghibli-inspired visuals and cutting-edge AI.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Button size="lg" className="text-base">
-                Get Started for Free
-              </Button>
+              <Link href="#request-access">
+                <Button size="lg" className="text-base">
+                  Request Access
+                </Button>
+              </Link>
               <Button size="lg" variant="outline" className="text-base">
                 Watch Demo
               </Button>
@@ -142,10 +150,10 @@ export default function RootPage() {
         </div>
       </section>
 
-      {/* Waitlist Section */}
-      <section className="relative z-10 container py-12 text-center">
+      {/* Request Access Section */}
+      <section id="request-access" className="relative z-10 container py-12 text-center">
         <div className="mx-auto max-w-4xl rounded-lg border dark:border-gray-700 border-gray-300 dark:bg-gray-800/50 bg-white/80 p-8 backdrop-blur-sm">
-          <h2 className="text-3xl font-bold mb-4 dark:text-white text-gray-900">Join the Waitlist</h2>
+          <h2 className="text-3xl font-bold mb-4 dark:text-white text-gray-900">Request Access</h2>
           <p className="dark:text-gray-300 text-gray-700 mb-6">
             Be the first to access the future of AI Storytelling. Early beta members get priority support, feedback access, and launch perks.
           </p>
@@ -156,7 +164,7 @@ export default function RootPage() {
           >
             <div className="w-full max-w-md">
               <label htmlFor="EMAIL" className="text-left font-medium dark:text-gray-300 text-gray-700">
-                Join waitlist for exclusive early access
+                Request access for exclusive early access
               </label>
               <input
                 type="email"
@@ -167,14 +175,14 @@ export default function RootPage() {
                 className="w-full rounded dark:border-gray-700 border-gray-300 dark:bg-gray-900/50 bg-white/80 px-4 py-2 text-sm dark:text-white text-gray-900 placeholder:dark:text-gray-400 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <p className="text-left text-xs dark:text-gray-400 text-gray-500 mt-1">
-                Provide your email address to subscribe. For example: abc@xyz.com
+                Provide your email address to request access. For example: abc@xyz.com
               </p>
             </div>
             <button
               type="submit"
               className="mt-4 rounded w-[200px] bg-blue-600 px-6 py-2 text-white font-semibold hover:bg-blue-700"
             >
-              Subscribe
+              Request Access
             </button>
           </form>
         </div>
