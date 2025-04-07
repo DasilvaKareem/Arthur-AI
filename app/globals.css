@@ -66,6 +66,12 @@
     body {
         @apply bg-background text-foreground;
     }
+    textarea {
+        @apply text-gray-700 dark:text-gray-200 dark:bg-gray-800 dark:border-gray-700;
+    }
+    select {
+        @apply text-gray-700 dark:text-gray-200 dark:bg-gray-800 dark:border-gray-700;
+    }
 }
 
 @layer utilities {

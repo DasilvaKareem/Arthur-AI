@@ -225,10 +225,10 @@ IMPORTANT:
   };
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 bg-white rounded-lg shadow-lg border">
-      <div className="p-4 border-b">
-        <h3 className="font-semibold">Scene Assistant</h3>
-        <p className="text-sm text-gray-500">Add scenes and shots through chat</p>
+    <div className="fixed bottom-4 right-4 w-96 bg-card rounded-lg shadow-lg border border-border">
+      <div className="p-4 border-b border-border">
+        <h3 className="font-semibold text-foreground">Scene Assistant</h3>
+        <p className="text-sm text-muted-foreground">Add scenes and shots through chat</p>
       </div>
       
       <div className="p-4">

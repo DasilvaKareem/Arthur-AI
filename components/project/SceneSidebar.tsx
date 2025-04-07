@@ -38,11 +38,11 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
   onSceneStyleChange
 }) => {
   return (
-    <div className="w-full md:w-64 bg-gray-50 p-4 flex flex-col border-r">
+    <div className="w-full md:w-64 bg-muted/30 p-4 flex flex-col border-r border-border">
       {/* Scene List */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700">Scenes</h3>
+          <h3 className="text-sm font-semibold text-foreground">Scenes</h3>
           <Button
             variant="ghost"
             size="sm"
@@ -58,14 +58,14 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
               key={scene.id}
               className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
                 currentScene?.id === scene.id
-                  ? "bg-purple-100 border border-purple-200"
-                  : "hover:bg-gray-100 border border-transparent"
+                  ? "bg-primary/10 border border-primary/20"
+                  : "hover:bg-muted border border-transparent"
               }`}
               onClick={() => onSceneSelect(scene)}
             >
               <div className="flex items-center space-x-2">
-                <Film className="h-4 w-4 text-gray-500" />
-                <span className="text-sm text-gray-700 truncate">
+                <Film className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-foreground truncate">
                   {scene.title || "Untitled Scene"}
                 </span>
               </div>
@@ -87,7 +87,7 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                  className="h-6 w-6 p-0 text-destructive hover:text-destructive/80"
                   onClick={(e) => {
                     e.stopPropagation();
                     onSceneDelete(scene.id);
@@ -102,8 +102,8 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
       </div>
 
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-amber-600">{currentScene?.title || "SCENE 1"}</h2>
-        <p className="text-sm text-gray-600 mt-1">
+        <h2 className="text-xl font-bold text-amber-600 dark:text-amber-400">{currentScene?.title || "SCENE 1"}</h2>
+        <p className="text-sm text-muted-foreground mt-1">
           {script.includes("INT.") || script.includes("EXT.") 
             ? script.split('\n')[0].trim() 
             : "Sarah Thompson returns to Eldridge, evoking nostalgia as she revisits her childhood town."}
@@ -112,8 +112,8 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
         {/* Scene Video Preview */}
         {currentScene?.generatedVideo && (
           <div className="mt-4 mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Scene Video</h3>
-            <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Scene Video</h3>
+            <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
               <video
                 src={currentScene.generatedVideo}
                 controls
@@ -128,37 +128,56 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
 
         <div className="flex flex-col space-y-2 mt-3">
           <Button 
-            className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={onGenerateAllImages}
+            disabled={currentScene?.isGeneratingImages}
           >
-            <Camera className="mr-2 h-5 w-5" />
-            Generate All Images
+            {currentScene?.isGeneratingImages ? (
+              <>
+                <div className="animate-spin h-5 w-5 border-2 border-white border-opacity-20 border-t-white rounded-full mr-2" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Camera className="mr-2 h-5 w-5" />
+                Generate All Images
+              </>
+            )}
           </Button>
           {currentScene && (
             <button
               onClick={() => onGenerateSceneVideo(currentScene.id)}
-              disabled={!currentScene.shots.some(shot => shot.generatedImage)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              disabled={!currentScene.shots.some(shot => shot.generatedImage) || currentScene.isGeneratingVideo}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              <span>Generate Scene Video</span>
+              {currentScene.isGeneratingVideo ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-opacity-20 border-t-white rounded-full" />
+                  <span>Processing...</span>
+                </>
+              ) : (
+                <>
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span>Generate Scene Video</span>
+                </>
+              )}
             </button>
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-2 text-center">
+        <p className="text-xs text-muted-foreground mt-2 text-center">
           Generates images and video for all shots in this scene
         </p>
       </div>
@@ -197,14 +216,14 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
       </div>
       
       <div className="mt-4">
-        <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-2">Style</h3>
+        <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Style</h3>
         <div className="space-y-3">
           <div className="flex items-center space-x-2">
-            <Camera className="text-gray-500 h-5 w-5" />
-            <p className="text-sm text-gray-700">Video Style</p>
+            <Camera className="text-muted-foreground h-5 w-5" />
+            <p className="text-sm text-foreground">Video Style</p>
           </div>
           <select 
-            className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             value={currentScene?.style || "hyperrealistic"} // Ensure controlled component
             onChange={onSceneStyleChange} // Use passed handler
           >

@@ -25,15 +25,15 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
   onDownloadScript,
 }) => {
   return (
-    <div className="bg-white border-b p-3 flex justify-between items-center">
+    <div className="bg-background border-b border-border p-3 flex justify-between items-center">
       <div className="flex items-center space-x-4">
         <Link href="/">
-          <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-100">
+          <Button variant="outline" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold text-gray-800">Storyboard</h1>
+        <h1 className="text-3xl font-bold text-foreground">Storyboard</h1>
       </div>
       <div className="flex items-center space-x-3">
         <Button 
@@ -41,7 +41,7 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
           size="sm" 
           onClick={onSaveStory} 
           disabled={isSaving || isLoadingAuth}
-          className="text-green-600 border-green-300 hover:bg-green-50"
+          className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
         >
           {isSaving ? (
             <>
@@ -64,20 +64,20 @@ const ProjectHeader: React.FC<ProjectHeaderProps> = ({
           variant="outline" 
           size="sm" 
           onClick={onSyncScenes}
-          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+          className="text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
           Sync
         </Button>
-        <Button variant="outline" size="sm" onClick={onExportScene} className="text-amber-600 border-amber-300 hover:bg-amber-50">
+        <Button variant="outline" size="sm" onClick={onExportScene} className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20">
           <Download className="mr-2 h-4 w-4" />
           Export Scene
         </Button>
-        <Button variant="outline" size="sm" onClick={onCopyToClipboard} className="text-gray-600 border-gray-300">
+        <Button variant="outline" size="sm" onClick={onCopyToClipboard}>
           <Copy className="mr-2 h-4 w-4" />
           Copy
         </Button>
-        <Button variant="outline" size="sm" onClick={onDownloadScript} className="text-gray-600 border-gray-300">
+        <Button variant="outline" size="sm" onClick={onDownloadScript}>
           <Download className="mr-2 h-4 w-4" />
           Download
         </Button>

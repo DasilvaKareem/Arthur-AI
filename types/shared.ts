@@ -29,6 +29,8 @@ export interface Scene {
   style: string;
   shots: Shot[];
   generatedVideo?: string;
+  isGeneratingImages?: boolean;
+  isGeneratingVideo?: boolean;
 }
 
 export interface Story {

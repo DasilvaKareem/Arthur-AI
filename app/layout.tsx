@@ -7,8 +7,10 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "./context/auth-context";
 import { PreferencesProvider } from "./context/preferences-context";
 import { Analytics } from "@vercel/analytics/react";
+import dynamic from "next/dynamic";
 
 const inter = Inter({ subsets: ["latin"] });
+const ThemeDetector = dynamic(() => import("../components/ThemeDetector"), { ssr: false });
 
 export const metadata: Metadata = {
   title: "Arthur AI - AI Storytelling",
@@ -34,6 +36,7 @@ export default function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
+              <ThemeDetector />
               {children}
               <Toaster position="top-right" closeButton />
               <Analytics />

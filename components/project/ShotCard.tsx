@@ -48,12 +48,12 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
   // --- DEBUG LOGGING END ---
 
   return (
-    <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm flex flex-col">
+    <div className="bg-card rounded-lg p-4 border border-border shadow-sm flex flex-col">
       <div className="flex justify-between items-center mb-3">
-        <span className="text-sm text-gray-500">#{index + 1}</span>
+        <span className="text-sm text-muted-foreground">#{index + 1}</span>
         <div className="flex items-center space-x-2">
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Edit className="h-4 w-4 text-gray-500" />
+            <Edit className="h-4 w-4 text-muted-foreground" />
           </Button>
           {shot.generatedImage && (
             <>
@@ -68,7 +68,7 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
                   }
                 }}
               >
-                <RefreshCw className="h-4 w-4 text-gray-500" />
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
               </Button>
               <Button
                 variant="ghost"
@@ -76,7 +76,7 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
                 className="h-8 w-8 p-0"
                 onClick={() => onGenerateVideo(index)}
               >
-                <Film className="h-4 w-4 text-gray-500" />
+                <Film className="h-4 w-4 text-muted-foreground" />
               </Button>
             </>
           )}
@@ -85,10 +85,10 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
       
       {/* Image Preview */}
       {isImageLoading ? (
-        <div className="relative aspect-video mb-3 bg-gray-100 flex flex-col items-center justify-center rounded-lg border border-gray-200">
+        <div className="relative aspect-video mb-3 bg-muted flex flex-col items-center justify-center rounded-lg border border-border">
           <div className="animate-pulse flex flex-col items-center justify-center h-full">
-            <div className="h-8 w-8 border-4 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-400 text-sm mt-2">Generating image...</p>
+            <div className="h-8 w-8 border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+            <p className="text-muted-foreground text-sm mt-2">Generating image...</p>
           </div>
         </div>
       ) : shot.generatedImage ? (
@@ -100,18 +100,18 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
           />
         </div>
       ) : (
-        <div className="relative aspect-video mb-3 bg-gray-100 flex items-center justify-center rounded-lg border border-gray-200">
-          <Camera className="h-10 w-10 text-gray-300" />
-          <p className="text-gray-400 text-sm mt-2 absolute bottom-2">Image placeholder</p>
+        <div className="relative aspect-video mb-3 bg-muted flex items-center justify-center rounded-lg border border-border">
+          <Camera className="h-10 w-10 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm mt-2 absolute bottom-2">Image placeholder</p>
         </div>
       )}
 
       {/* Video Preview */}
       {isVideoLoading ? (
-        <div className="relative aspect-video mb-3 bg-gray-100 flex flex-col items-center justify-center rounded-lg border border-gray-200">
+        <div className="relative aspect-video mb-3 bg-muted flex flex-col items-center justify-center rounded-lg border border-border">
           <div className="animate-pulse flex flex-col items-center justify-center h-full">
-            <div className="h-8 w-8 border-4 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-400 text-sm mt-2">Generating video...</p>
+            <div className="h-8 w-8 border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+            <p className="text-muted-foreground text-sm mt-2">Generating video...</p>
           </div>
         </div>
       ) : shot.generatedVideo ? (
@@ -126,9 +126,9 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
           </div>
         </div>
       ) : shot.generatedImage && (
-        <div className="relative aspect-video mb-3 bg-gray-100 flex flex-col items-center justify-center rounded-lg border border-gray-200">
-          <Film className="h-10 w-10 text-gray-300" />
-          <p className="text-gray-400 text-sm mt-2">Video placeholder</p>
+        <div className="relative aspect-video mb-3 bg-muted flex flex-col items-center justify-center rounded-lg border border-border">
+          <Film className="h-10 w-10 text-muted-foreground" />
+          <p className="text-muted-foreground text-sm mt-2">Video placeholder</p>
         </div>
       )}
       
@@ -136,16 +136,16 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
       <div className="space-y-2">
         <textarea
           id={`shot-${index}-prompt`}
-          className="w-full text-sm border rounded p-2"
+          className="w-full text-sm border rounded p-2 bg-background text-foreground border-input"
           rows={3}
           placeholder="Describe this shot..."
           defaultValue={shot.description}
           onChange={(e) => onShotDescriptionChange(e, index)}
         />
         <div>
-          <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Shot Type</h3>
+          <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-1">Shot Type</h3>
           <select 
-            className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
             value={shot.type}
             onChange={(e) => onShotTypeChange(e, index)}
           >
@@ -160,9 +160,9 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
         </div>
         
         <div>
-          <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Character Dialogue</h3>
+          <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-1">Character Dialogue</h3>
           <textarea
-            className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
             rows={2}
             placeholder="Add character dialogue..."
             defaultValue={shot.dialogue || ""}
@@ -171,9 +171,9 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
         </div>
         
         <div>
-          <h3 className="uppercase text-xs tracking-wide text-gray-500 mb-1">Sound Effects</h3>
+          <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-1">Sound Effects</h3>
           <textarea
-            className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
             rows={2}
             placeholder="Add sound effects..."
             defaultValue={shot.soundEffects || ""}
@@ -188,7 +188,7 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
           <select
             value={shot.voiceId || ""}
             onChange={(e) => onVoiceSelect(e, index)}
-            className="w-full bg-white border border-gray-200 rounded p-2 text-sm text-gray-700"
+            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
           >
             <option value="">Select voice</option>
             <option value="21m00Tcm4TlvDq8ikWAM">Rachel</option>

@@ -55,10 +55,12 @@ export async function POST(request: Request) {
     console.log("📄 Brevo API response:", responseData);
 
     // Handle the case where the contact already exists (which returns a 400 error)
-    if (response.status === 400 && responseData?.message?.includes("Contact already exist")) {
+    if (response.status === 400 && 
+        (responseData?.message?.includes("Contact already exist") || 
+         responseData?.code === "duplicate_parameter")) {
       console.log("ℹ️ Contact already exists, considering this a success");
       return NextResponse.json(
-        { message: 'Contact is already on the waitlist' },
+        { message: 'You are already on the waitlist' },
         { status: 200 }
       );
     }
@@ -73,7 +75,6 @@ export async function POST(request: Request) {
 
     console.log("✅ Successfully added to waitlist");
     
-    // Simulate success for now to test the UI flow
     return NextResponse.json(
       { message: 'Successfully added to waitlist' },
       { status: 201 }

@@ -831,19 +831,39 @@ function ProjectContent() {
 
     console.log(`Starting image generation for ${currentScene.shots.length} shots`);
     
-    // Process shots sequentially
-    for (let i = 0; i < currentScene.shots.length; i++) {
-      const shot = currentScene.shots[i];
-      const promptElement = document.getElementById(`shot-${i}-prompt`) as HTMLTextAreaElement;
-      
-      if (promptElement && promptElement.value.trim()) {
-        console.log(`Generating image for shot ${i + 1}/${currentScene.shots.length}`);
-        await generateShotFromPrompt(i, promptElement.value);
-        // Wait a bit between shots to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    // Set generating flag
+    const updatedScene = { ...currentScene, isGeneratingImages: true };
+    setCurrentScene(updatedScene);
+    setScenes(prevScenes => 
+      prevScenes.map(scene => 
+        scene.id === currentScene.id ? updatedScene : scene
+      )
+    );
+    
+    try {
+      // Process shots sequentially
+      for (let i = 0; i < currentScene.shots.length; i++) {
+        const shot = currentScene.shots[i];
+        const promptElement = document.getElementById(`shot-${i}-prompt`) as HTMLTextAreaElement;
+        
+        if (promptElement && promptElement.value.trim()) {
+          console.log(`Generating image for shot ${i + 1}/${currentScene.shots.length}`);
+          await generateShotFromPrompt(i, promptElement.value);
+          // Wait a bit between shots to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
       }
+    } finally {
+      // Clear generating flag
+      const finalScene = { ...currentScene, isGeneratingImages: false };
+      setCurrentScene(finalScene);
+      setScenes(prevScenes => 
+        prevScenes.map(scene => 
+          scene.id === currentScene.id ? finalScene : scene
+        )
+      );
     }
-  }, [currentScene, generateShotFromPrompt]);
+  }, [currentScene, generateShotFromPrompt, setScenes, setCurrentScene]);
 
   // Generate video for a single shot
   const generateShotVideo = useCallback(async (shotIndex: number) => {
@@ -1044,6 +1064,15 @@ function ProjectContent() {
       return;
     }
 
+    // Set generating flag
+    const updatedScene = { ...currentScene, isGeneratingVideo: true };
+    setCurrentScene(updatedScene);
+    setScenes(prevScenes => 
+      prevScenes.map(scene => 
+        scene.id === sceneId ? updatedScene : scene
+      )
+    );
+
     try {
       // Format shots data for the API
       const shots = currentScene.shots.map(shot => ({
@@ -1154,6 +1183,15 @@ function ProjectContent() {
     } catch (error) {
       console.error("Error generating scene videos:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate scene videos. Please try again.");
+    } finally {
+      // Clear generating flag
+      const finalScene = { ...currentScene, isGeneratingVideo: false };
+      setCurrentScene(finalScene);
+      setScenes(prevScenes => 
+        prevScenes.map(scene => 
+          scene.id === sceneId ? finalScene : scene
+        )
+      );
     }
   }, [currentScene, setScenes, setCurrentScene]);
 
@@ -1589,7 +1627,7 @@ function ProjectContent() {
   }, [storyId, setScenes, setCurrentScene]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-white text-gray-800">
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Use the ProjectHeader component */}
       <ProjectHeader
         isSaving={isSaving}
@@ -1620,7 +1658,7 @@ function ProjectContent() {
         />
         
         {/* Main content area */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto bg-background">
           {/* Scene shots area */}
           <div className="grid grid-cols-2 gap-4 p-4">
             {currentScene?.shots.map((shot, index) => (
@@ -1655,28 +1693,28 @@ function ProjectContent() {
       </div>
       
       {/* Full script view */}
-      <div className="p-4 bg-gray-50 border-t">
+      <div className="p-4 bg-muted/50 dark:bg-muted/10 border-t border-border">
         <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg font-bold text-gray-800">Full Script</h2>
+          <h2 className="text-lg font-bold text-foreground">Full Script</h2>
           <Button 
             variant="ghost" 
             size="sm" 
             onClick={() => setExpandedScript(!expandedScript)}
-            className="text-gray-600"
+            className="text-muted-foreground"
           >
             {expandedScript ? "Collapse" : "Expand"} <ChevronDown className={`ml-1 h-4 w-4 ${expandedScript ? "transform rotate-180" : ""}`} />
           </Button>
         </div>
         
         {expandedScript ? (
-          <div className="bg-white p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-gray-700 border border-gray-200 shadow-sm max-h-[600px] overflow-y-auto">
+          <div className="bg-background p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-foreground border border-border shadow-sm max-h-[600px] overflow-y-auto">
             <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{
               script
             }</ReactMarkdown>
           </div>
         ) : (
-          <div className="bg-white p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-gray-700 border border-gray-200 shadow-sm max-h-[150px] overflow-hidden relative">
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white pointer-events-none" style={{ opacity: 0.7 }}></div>
+          <div className="bg-background p-4 rounded-md whitespace-pre-wrap font-mono text-sm text-foreground border border-border shadow-sm max-h-[150px] overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent dark:to-background to-background pointer-events-none" style={{ opacity: 0.7 }}></div>
             <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{
               script.substring(0, 300) + (script.length > 300 ? "..." : "")
             }</ReactMarkdown>
