@@ -52,24 +52,24 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <div className="space-y-2 max-h-[200px] overflow-y-auto">
+        <div className="flex overflow-x-auto pb-3 space-x-2 snap-x">
           {scenes.map((scene) => (
             <div
               key={scene.id}
-              className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+              className={`flex-none min-w-[140px] flex flex-col justify-between p-2 rounded-lg cursor-pointer transition-colors snap-start ${
                 currentScene?.id === scene.id
                   ? "bg-primary/10 border border-primary/20"
                   : "hover:bg-muted border border-transparent"
               }`}
               onClick={() => onSceneSelect(scene)}
             >
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 mb-2">
                 <Film className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-foreground truncate">
                   {scene.title || "Untitled Scene"}
                 </span>
               </div>
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 justify-end">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -128,13 +128,13 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
 
         <div className="flex flex-col space-y-2 mt-3">
           <Button 
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm rounded-md px-4 py-2 text-sm text-foreground hover:bg-primary/10 hover:text-primary dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white w-full"
             onClick={onGenerateAllImages}
             disabled={currentScene?.isGeneratingImages}
           >
             {currentScene?.isGeneratingImages ? (
               <>
-                <div className="animate-spin h-5 w-5 border-2 border-white border-opacity-20 border-t-white rounded-full mr-2" />
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-opacity-30 border-t-primary rounded-full mr-2 dark:border-slate-200 dark:border-t-slate-200 dark:border-opacity-80" />
                 Processing...
               </>
             ) : (
@@ -148,17 +148,17 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
             <button
               onClick={() => onGenerateSceneVideo(currentScene.id)}
               disabled={!currentScene.shots.some(shot => shot.generatedImage) || currentScene.isGeneratingVideo}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm rounded-md px-4 py-2 text-sm text-foreground hover:bg-primary/10 hover:text-primary dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white w-full"
             >
               {currentScene.isGeneratingVideo ? (
                 <>
-                  <div className="animate-spin h-5 w-5 border-2 border-white border-opacity-20 border-t-white rounded-full" />
+                  <div className="animate-spin h-5 w-5 border-2 border-primary border-opacity-30 border-t-primary rounded-full mr-2 dark:border-slate-200 dark:border-t-slate-200 dark:border-opacity-80" />
                   <span>Processing...</span>
                 </>
               ) : (
                 <>
                   <svg
-                    className="w-5 h-5"
+                    className="w-5 h-5 mr-2"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -186,89 +186,14 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
         <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Description</h3>
         <textarea
           className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          rows={3}
-          placeholder="Describe the location"
+          rows={6}
+          placeholder="Describe the scene in detail (location, lighting, weather, style and background elements)"
           value={currentScene?.description || ''}
           onChange={onSceneDescriptionChange}
         />
-      </div>
-      
-      <div className="mb-4">
-        <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Lighting</h3>
-        <textarea
-          className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          rows={2}
-          placeholder="Describe the lighting"
-          value={currentScene?.lighting || ''}
-          onChange={onSceneLightingChange}
-        />
-      </div>
-      
-      <div className="mb-4">
-        <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Weather</h3>
-        <textarea
-          className="w-full bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          rows={2}
-          placeholder="Describe the weather"
-          value={currentScene?.weather || ''}
-          onChange={onSceneWeatherChange}
-        />
-      </div>
-      
-      <div className="mt-4">
-        <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-2">Style</h3>
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <Camera className="text-muted-foreground h-5 w-5" />
-            <p className="text-sm text-foreground">Video Style</p>
-          </div>
-          <select 
-            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            value={currentScene?.style || "hyperrealistic"} // Ensure controlled component
-            onChange={onSceneStyleChange} // Use passed handler
-          >
-            <option value="hyperrealistic">Hyperrealistic</option>
-            <option value="anime">Anime</option>
-            <option value="90s-cartoon">90s Cartoon</option>
-            <option value="cyberpunk">Cyberpunk</option>
-            <option value="steampunk">Steampunk</option>
-            <option value="pixar">Pixar Style</option>
-            <option value="studio-ghibli">Studio Ghibli</option>
-            <option value="comic-book">Comic Book</option>
-            <option value="watercolor">Watercolor</option>
-            <option value="oil-painting">Oil Painting</option>
-            <option value="pixel-art">Pixel Art</option>
-            <option value="low-poly">Low Poly</option>
-            <option value="retro-wave">Retro Wave</option>
-            <option value="vaporwave">Vaporwave</option>
-            <option value="synthwave">Synthwave</option>
-            <option value="neon">Neon</option>
-            <option value="noir">Film Noir</option>
-            <option value="western">Western</option>
-            <option value="sci-fi">Sci-Fi</option>
-            <option value="fantasy">Fantasy</option>
-            <option value="horror">Horror</option>
-            <option value="documentary">Documentary</option>
-            <option value="vintage">Vintage</option>
-            <option value="minimalist">Minimalist</option>
-            <option value="abstract">Abstract</option>
-            <option value="surreal">Surreal</option>
-            <option value="pop-art">Pop Art</option>
-            <option value="impressionist">Impressionist</option>
-            <option value="expressionist">Expressionist</option>
-            <option value="cubist">Cubist</option>
-            <option value="art-deco">Art Deco</option>
-            <option value="brutalism">Brutalism</option>
-            <option value="retro-futuristic">Retro Futuristic</option>
-            <option value="biopunk">Biopunk</option>
-            <option value="dieselpunk">Dieselpunk</option>
-            <option value="solarpunk">Solarpunk</option>
-            <option value="atompunk">Atompunk</option>
-          </select>
-        </div>
       </div>
     </div>
   );
 };
 
-export default SceneSidebar; 
+export default SceneSidebar;

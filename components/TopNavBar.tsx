@@ -109,15 +109,30 @@ const TopNavBar = () => {
 
   return (
     <nav className="text-foreground p-4 flex justify-between items-center border-b bg-background">
-      <Link href="/" className="font-bold text-xl flex gap-2 items-center">
-        <Image
-          src={theme === "dark" ? "/wordmark-dark.svg" : "/wordmark.svg"}
-          alt="Company Wordmark"
-          width={112}
-          height={20}
-          priority
-        />
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link href="/" className="font-bold text-xl flex gap-2 items-center">
+          <Image
+            src={theme === "dark" ? "/wordmark-dark.svg" : "/wordmark.svg"}
+            alt="Company Wordmark"
+            width={112}
+            height={20}
+            priority
+          />
+        </Link>
+        {user && (
+          <div className="flex gap-4 ml-6">
+            <Link href="/dashboard-app" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Dashboard
+            </Link>
+            <Link href="/workspace" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Workspace
+            </Link>
+            <Link href="/project" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Projects
+            </Link>
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -12,6 +12,7 @@ import Strike from "@tiptap/extension-strike";
 import Heading from "@tiptap/extension-heading";
 import BulletList from "@tiptap/extension-bullet-list";
 import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
 import Blockquote from "@tiptap/extension-blockquote";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -72,6 +73,7 @@ const DocEditor = ({ initialContent, onChange, readOnly = false }: DocEditorProp
       }),
       BulletList,
       OrderedList,
+      ListItem,
       Blockquote,
       Link.configure({
         openOnClick: true,
@@ -80,7 +82,7 @@ const DocEditor = ({ initialContent, onChange, readOnly = false }: DocEditorProp
         placeholder: "Start typing or use / commands...",
       }),
     ],
-    content: initialContent,
+    content: initialContent || '<p></p>',
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();

@@ -19,7 +19,6 @@ import { storage } from '../lib/firebase/client';
 import type { Shot, Scene, Story } from '../../types/shared';
 import ShotCard from "../../components/project/ShotCard";
 import SceneSidebar from "../../components/project/SceneSidebar"; // Import the new component
-import SceneTimeline from "../../components/project/SceneTimeline"; // Import the new timeline component
 import ProjectHeader from "../../components/project/ProjectHeader"; // Import the new header component
 
 function ProjectContent() {
@@ -39,7 +38,6 @@ function ProjectContent() {
   // Add state for image and video loading states
   const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
   const [videoLoadingStates, setVideoLoadingStates] = useState<Record<string, boolean>>({});
-  const [isEmbedded, setIsEmbedded] = useState(false);
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -97,13 +95,6 @@ function ProjectContent() {
     // Log that the project page was loaded
     console.log("📜 Script Project Page Loaded!");
   }, [searchParams, user]);
-
-  useEffect(() => {
-    // Check if this page is inside an iframe
-    const isInsideIframe = window !== window.parent;
-    setIsEmbedded(isInsideIframe);
-    console.log("Project page is embedded in iframe:", isInsideIframe);
-  }, []);
 
   const loadStory = useCallback(async (id: string) => {
     try {
@@ -1487,7 +1478,24 @@ function ProjectContent() {
         onDownloadScript={handleDownload}
       />
       
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col md:flex-row">
+        {/* Use the SceneSidebar component */}
+        <SceneSidebar
+          scenes={scenes}
+          currentScene={currentScene}
+          script={script}
+          onSceneSelect={handleSceneSelect}
+          onSceneRename={handleSceneRename}
+          onSceneDelete={handleSceneDelete}
+          onAddNewScene={addNewScene}
+          onGenerateAllImages={generateAllShotImages}
+          onGenerateSceneVideo={generateSceneVideo}
+          onSceneDescriptionChange={handleSceneDescriptionChange}
+          onSceneLightingChange={handleSceneLightingChange}
+          onSceneWeatherChange={handleSceneWeatherChange}
+          onSceneStyleChange={handleSceneStyleChange} // Pass the new handler
+        />
+        
         {/* Main content area */}
         <div className="flex-1 overflow-auto bg-background">
           {/* Storyboard-style shot layout */}
@@ -1530,7 +1538,7 @@ function ProjectContent() {
                         </div>
                       ) : (
                         <Button
-                          className="bg-primary/90 hover:bg-primary text-primary-foreground dark:bg-primary/80 dark:hover:bg-primary/90 shadow-sm"
+                          className="bg-primary hover:bg-primary/80 text-white"
                           onClick={() => generateShotFromPrompt(index, shot.description)}
                         >
                           <Camera className="mr-2 h-4 w-4" /> Generate
@@ -1560,11 +1568,11 @@ function ProjectContent() {
                       size="sm"
                       variant="outline"
                       onClick={() => generateShotVideo(index)}
-                      className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm h-8 rounded-md px-3 text-xs flex-1 text-foreground hover:bg-primary/10 hover:text-primary dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+                      className="flex-1"
                       disabled={videoLoadingStates[shot.id]}
                     >
                       {videoLoadingStates[shot.id] ? (
-                        <div className="animate-spin h-4 w-4 border-2 border-primary border-opacity-30 border-t-primary rounded-full mr-2 dark:border-slate-200 dark:border-t-slate-200 dark:border-opacity-80"></div>
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-opacity-20 border-t-primary rounded-full mr-2"></div>
                       ) : (
                         <Film className="h-3 w-3 mr-1" />
                       )}
@@ -1579,7 +1587,7 @@ function ProjectContent() {
             <div className="flex-none w-[350px] min-w-[350px] snap-center flex items-center justify-center">
               <Button 
                 onClick={addNewShot} 
-                className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 dark:from-purple-700 dark:to-purple-900 dark:hover:from-purple-600 dark:hover:to-purple-800 text-white h-40 w-full flex flex-col items-center justify-center shadow-md"
+                className="bg-purple-600 hover:bg-purple-700 text-white h-40 w-full flex flex-col items-center justify-center"
               >
                 <Plus className="h-12 w-12 mb-2" />
                 <span>Add Shot</span>
@@ -1587,21 +1595,6 @@ function ProjectContent() {
             </div>
           </div>
         </div>
-
-        {/* Timeline at the bottom - only show if not embedded in workspace */}
-        {!isEmbedded && (
-          <SceneTimeline
-            scenes={scenes}
-            currentScene={currentScene}
-            script={script}
-            onSceneSelect={handleSceneSelect}
-            onSceneRename={handleSceneRename}
-            onSceneDelete={handleSceneDelete}
-            onAddNewScene={addNewScene}
-            onGenerateAllImages={generateAllShotImages}
-            onGenerateSceneVideo={generateSceneVideo}
-          />
-        )}
       </div>
     </div>
   );
