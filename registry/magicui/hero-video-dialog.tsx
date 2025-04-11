@@ -15,6 +15,8 @@ interface HeroVideoDialogProps {
   videoSrc: string;
   thumbnailSrc: string;
   thumbnailAlt: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const HeroVideoDialog = ({
@@ -23,11 +25,15 @@ const HeroVideoDialog = ({
   videoSrc,
   thumbnailSrc,
   thumbnailAlt,
+  isOpen,
+  onOpenChange,
 }: HeroVideoDialogProps) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const open = isOpen ?? internalIsOpen;
+  const setOpen = onOpenChange ?? setInternalIsOpen;
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
           className={cn(
