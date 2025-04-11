@@ -98,7 +98,7 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
         // Reset attempts on successful login
         localStorage.setItem('signInAttempts', JSON.stringify({ count: 0, timestamp: now }));
         toast.success('Signed in successfully');
-        router.push('/dashboard-app');
+        router.push('/create-story');
       } catch (error: any) {
         // Update attempts count on failure
         localStorage.setItem('signInAttempts', JSON.stringify({
@@ -133,7 +133,7 @@ export const AuthPagesProvider = ({ children }: { children: React.ReactNode }) =
       }
       
       toast.success('Account created successfully');
-      router.push('/dashboard-app');
+      router.push('/create-story');
     } catch (error: any) {
       console.error("Sign Up Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);

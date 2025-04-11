@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { getStory, updateStory } from "../lib/firebase/stories";
 import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
+import type { Shot, Scene } from "../../types/shared";
 
 // Create a style element with the CSS to hide the header
 const hideProjectHeaderStyle = `
@@ -373,8 +374,8 @@ function StoryboardWrapper({ projectId }: { projectId: string | null }) {
 }
 
 function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
-  const [scenes, setScenes] = useState<any[]>([]);
-  const [currentScene, setCurrentScene] = useState<any>(null);
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [currentScene, setCurrentScene] = useState<Scene | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const isMounted = useRef(false);
   
@@ -520,9 +521,87 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
         }
       }}
       onGenerateSceneVideo={(sceneId: string) => {
+        // Find and click the generate video button
         const generateButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Film"])');
         if (generateButton) {
-          (generateButton as HTMLElement).click();
+          // Instead of clicking the button, call our MCP endpoint
+          const scene = scenes.find(s => s.id === sceneId);
+          if (!scene) {
+            toast.error("Scene not found");
+            return;
+          }
+
+          // Check if all shots have generated images
+          const missingImages = scene.shots.filter((shot: Shot) => !shot.generatedImage);
+          if (missingImages.length > 0) {
+            toast.error(`Please generate images for all shots first (${missingImages.length} missing)`);
+            return;
+          }
+
+          // Set generating flag
+          const updatedScene = { ...scene, isGeneratingVideo: true };
+          setCurrentScene(updatedScene);
+          setScenes(prevScenes => 
+            prevScenes.map(s => 
+              s.id === sceneId ? updatedScene : s
+            )
+          );
+
+          // Format shots data for the API
+          const shots = (scene as Scene).shots.map((shot: Shot) => ({
+            imageUrl: shot.generatedImage,
+            prompt: shot.description,
+            duration: 5
+          }));
+
+          // Call the MCP endpoint
+          fetch("/api/mcp-video", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              shots,
+              style: scene.style || "cinematic",
+              prompt: "Create a cinematic video",
+              duration: 5
+            }),
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.error) {
+              throw new Error(data.error);
+            }
+            
+            // Update the scene with the generated video
+            if (data.assets?.video) {
+              const finalScene = {
+                ...scene,
+                isGeneratingVideo: false,
+                generatedVideo: data.assets.video
+              };
+              setCurrentScene(finalScene);
+              setScenes(prevScenes => 
+                prevScenes.map(s => 
+                  s.id === sceneId ? finalScene : s
+                )
+              );
+              toast.success("Video generated successfully!");
+            }
+          })
+          .catch(error => {
+            console.error("Error generating video:", error);
+            toast.error(error.message || "Failed to generate video");
+            
+            // Clear generating flag
+            const finalScene = { ...scene, isGeneratingVideo: false };
+            setCurrentScene(finalScene);
+            setScenes(prevScenes => 
+              prevScenes.map(s => 
+                s.id === sceneId ? finalScene : s
+              )
+            );
+          });
         }
       }}
     />

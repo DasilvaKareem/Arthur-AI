@@ -119,19 +119,6 @@ const TopNavBar = () => {
             priority
           />
         </Link>
-        {user && (
-          <div className="flex gap-4 ml-6">
-            <Link href="/dashboard-app" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Dashboard
-            </Link>
-            <Link href="/workspace" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Workspace
-            </Link>
-            <Link href="/project" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Projects
-            </Link>
-          </div>
-        )}
       </div>
       <div className="flex items-center gap-2">
         <DropdownMenu>

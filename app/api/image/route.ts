@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
-import { LumaAI } from "lumaai";
+import { luma } from '../../lib/luma';
 import crypto from "crypto";
-
-// Initialize the Luma client
-const luma = new LumaAI({
-  authToken: process.env.LUMAAI_API_KEY,
-});
 
 // Helper function to check generation status
 async function checkGenerationStatus(generationId: string) {
@@ -32,6 +27,10 @@ export async function POST(req: Request) {
       );
     }
 
+    // Log environment variables for debugging (without exposing sensitive info)
+    console.log("API key present:", !!process.env.LUMAAI_API_KEY);
+    console.log("API key length:", process.env.LUMAAI_API_KEY?.length || 0);
+    
     // Configure generation options
     const generationOptions: any = {
       prompt,
@@ -47,15 +46,27 @@ export async function POST(req: Request) {
 
     // Start the image generation
     console.log("Starting image generation with options:", generationOptions);
-    const generation = await luma.generations.image.create(generationOptions);
-    console.log("Generation started with ID:", generation.id);
     
-    // Return the generation ID for client-side polling
-    return NextResponse.json({ 
-      id: generation.id,
-      status: "dreaming",
-      message: "Image generation started successfully"
-    });
+    try {
+      const generation = await luma.generations.image.create(generationOptions);
+      console.log("Generation started with ID:", generation.id);
+      
+      // Return the generation ID for client-side polling
+      return NextResponse.json({ 
+        id: generation.id,
+        status: "dreaming",
+        message: "Image generation started successfully"
+      });
+    } catch (error) {
+      console.error("Luma API Error:", error);
+      return NextResponse.json(
+        { 
+          error: "Luma API Error",
+          details: (error as Error).message 
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("Error generating image:", error);
     return NextResponse.json(

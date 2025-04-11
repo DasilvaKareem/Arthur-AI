@@ -35,7 +35,7 @@ export function ArthurAvatar({ size = "md", showImage = true, className = "" }: 
     <Avatar className={`${sizeClasses[size]} ${className}`} style={getAvatarStyle()}>
       {showImage && (
         <AvatarImage
-          src="/arthur-logo.svg"
+          src="/Arthur-Ai-Logo.svg"
           alt="Arthur AI Assistant Avatar"
           width={size === "lg" ? 48 : size === "md" ? 40 : 32}
           height={size === "lg" ? 48 : size === "md" ? 40 : 32}

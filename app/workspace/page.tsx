@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { getStory, updateStory } from "../lib/firebase/stories";
 import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
+import { useRouter } from "next/navigation";
 
 // Create a style element with the CSS to hide the header
 const hideProjectHeaderStyle = `
@@ -131,6 +132,20 @@ export default function WorkspacePage() {
   const [showChat, setShowChat] = useState(true);
   const { user } = useAuth();
   const styleRef = useRef<HTMLStyleElement | null>(null);
+  const router = useRouter();
+
+  // Load story from URL query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const storyId = params.get('story');
+    
+    if (storyId) {
+      setCurrentProjectId(storyId);
+      // Remove the story parameter from URL without refreshing
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   // Add effect to hide the project header using CSS after render
   useEffect(() => {

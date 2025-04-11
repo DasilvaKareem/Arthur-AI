@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { LumaAI } from "lumaai";
-import crypto from "crypto";
+import { luma } from '../../lib/luma';
 
 // Initialize the Luma client
-const luma = new LumaAI({
+const lumaAI = new LumaAI({
   authToken: process.env.LUMAAI_API_KEY,
 });
 
@@ -17,9 +17,14 @@ if (!process.env.LUMAAI_API_KEY) {
 async function checkGenerationStatus(generationId: string) {
   try {
     console.log("Checking video generation status for ID:", generationId);
-    const generation = await luma.generations.get(generationId);
+    const generation = await lumaAI.generations.get(generationId);
     console.log("Video generation status:", generation.state);
-    return generation;
+    return {
+      id: generation.id,
+      state: generation.state,
+      assets: generation.assets,
+      failure_reason: generation.failure_reason
+    };
   } catch (error) {
     console.error("Error checking video generation status:", error);
     throw error;
@@ -29,8 +34,32 @@ async function checkGenerationStatus(generationId: string) {
 // Helper function to validate image URL
 async function validateImageUrl(url: string): Promise<boolean> {
   try {
+    // Check if it's a valid URL
+    const parsedUrl = new URL(url);
+    
+    // Check if the URL is accessible and returns an image
     const response = await fetch(url, { method: 'HEAD' });
-    return response.ok;
+    const contentType = response.headers.get('content-type');
+    
+    if (!response.ok) {
+      console.error('Image URL validation failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType
+      });
+      return false;
+    }
+
+    // Verify it's an image
+    if (!contentType?.startsWith('image/')) {
+      console.error('URL does not point to an image:', {
+        contentType,
+        url
+      });
+      return false;
+    }
+
+    return true;
   } catch (error) {
     console.error("Error validating image URL:", error);
     return false;
@@ -41,103 +70,72 @@ export async function POST(req: Request) {
   try {
     // Parse the request body
     const body = await req.json();
-    console.log("Received video generation request:", {
-      hasShots: !!body.shots,
-      shotsCount: body.shots?.length,
-      style: body.style,
-      prompt: body.prompt,
-      duration: body.duration
-    });
+    console.log("Received video generation request:", body);
     
-    const { shots, prompt, style, duration } = body;
+    const { shots, prompt, duration } = body;
     
     // Validate required fields
     if (!shots || !Array.isArray(shots) || shots.length === 0) {
       throw new Error("No shots provided");
     }
 
-    // Validate each shot has a valid image URL
-    for (const shot of shots) {
-      if (!shot.imageUrl) {
-        throw new Error("Missing image URL in shot");
-      }
-      if (!shot.prompt) {
-        throw new Error("Missing prompt in shot");
-      }
-      // Validate image URL is accessible
-      const isValid = await validateImageUrl(shot.imageUrl);
-      if (!isValid) {
-        throw new Error(`Invalid or inaccessible image URL: ${shot.imageUrl}`);
-      }
-    }
-
     // Process one shot at a time
     const shot = shots[0]; // Get the first shot
-    console.log("Processing shot:", {
-      imageUrl: shot.imageUrl,
-      prompt: shot.prompt
-    });
-
-    // Configure generation options for single shot
-    const generationOptions = {
-      model: "ray-2" as const,
-      mode: "video" as const,
-      image: shot.imageUrl,
-      prompt: shot.prompt || prompt || "Create a cinematic video",
-      negative_prompt: "blurry, low quality, distorted, deformed, ugly, bad anatomy, bad proportions",
-      steps: 50,
-      seed: Math.floor(Math.random() * 1000000),
-      cfg_scale: 7.5,
-      motion_bucket_id: 127,
-      crf: 20
-    };
-
-    console.log("Starting video generation with options:", {
-      model: generationOptions.model,
-      mode: generationOptions.mode,
-      image: generationOptions.image,
-      prompt: generationOptions.prompt,
-      steps: generationOptions.steps,
-      cfg_scale: generationOptions.cfg_scale,
-      motion_bucket_id: generationOptions.motion_bucket_id
-    });
     
-    // Start the video generation with retries
-    let retries = 3;
-    let lastError = null;
-    
-    while (retries > 0) {
-      try {
-        console.log("Attempting video generation with options:", JSON.stringify(generationOptions, null, 2));
-        const generation = await luma.generations.create(generationOptions);
-        console.log("Video generation started with ID:", generation.id);
-        
-        return NextResponse.json({ 
-          id: generation.id,
-          status: "processing",
-          message: "Video generation started successfully",
-          remainingShots: shots.length - 1 // Return number of remaining shots
-        });
-      } catch (error) {
-        lastError = error;
-        console.error(`Video generation attempt ${4 - retries} failed:`, error);
-        console.error("Full error details:", JSON.stringify(error, null, 2));
-        retries--;
-        if (retries > 0) {
-          // Wait before retrying
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
+    if (!shot.imageUrl) {
+      throw new Error("Missing image URL in shot");
     }
 
-    // If all retries failed, throw the last error
-    throw lastError;
+    console.log("Processing shot:", {
+      imageUrl: shot.imageUrl,
+      prompt: shot.prompt || prompt
+    });
+
+    // Log environment variables for debugging (without exposing sensitive info)
+    console.log("API key present:", !!process.env.LUMAAI_API_KEY);
+    console.log("API key length:", process.env.LUMAAI_API_KEY?.length || 0);
+
+    // Start the video generation
+    try {
+      const generation = await luma.generations.create({
+        prompt: shot.prompt || prompt || "Create a cinematic video",
+        keyframes: {
+          frame0: {
+            type: "image" as const,
+            url: shot.imageUrl
+          }
+        },
+        model: "ray-2" as const,
+        resolution: "720p" as const,
+        duration: duration || "5s"
+      });
+      
+      console.log("Video generation started with ID:", generation.id);
+      
+      return NextResponse.json({ 
+        id: generation.id,
+        status: "dreaming",
+        message: "Video generation started successfully"
+      });
+    } catch (lumaError) {
+      console.error("Luma API Error:", lumaError);
+      return NextResponse.json(
+        { 
+          error: "Luma API Error",
+          details: (lumaError as Error).message 
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("Error generating video:", error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Failed to generate video",
-      details: error instanceof Error ? error.stack : undefined
-    }, { status: 500 });
+    return NextResponse.json(
+      { 
+        error: "Failed to generate video",
+        details: (error as Error).message 
+      },
+      { status: 500 }
+    );
   }
 }
 

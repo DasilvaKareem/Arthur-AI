@@ -10,7 +10,11 @@ const nextConfig = {
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
   },
   images: {
-    domains: ['startup-template-sage.vercel.app', 'firebasestorage.googleapis.com'],
+    domains: [
+      'startup-template-sage.vercel.app', 
+      'firebasestorage.googleapis.com',
+      'storage.cdn-luma.com'
+    ],
   },
 }
 

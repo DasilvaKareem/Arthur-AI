@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ChevronRight, ChevronLeft, Film, Plus } from "lucide-react";
+import { ChevronRight, ChevronLeft, Film, Plus, WandSparkles } from "lucide-react";
 import { useAuth } from "@/app/hooks/useAuth";
 import { getUserStories } from "@/app/lib/firebase/stories";
 import type { Story } from "@/types/shared";
@@ -67,16 +67,28 @@ const LeftSidebar: React.FC = () => {
               <CardTitle className="text-sm font-medium">
                 Your Stories
               </CardTitle>
-              <Link href="/project">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0"
-                  title="Create New Story"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="flex gap-2">
+                <Link href="/create-story">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    title="Create New Story with AI"
+                  >
+                    <WandSparkles className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="/project">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    title="Create New Story"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </CardHeader>
             <CardContent className="overflow-y-auto h-[calc(100%-45px)] space-y-2 px-2">
               {stories.length === 0 ? (

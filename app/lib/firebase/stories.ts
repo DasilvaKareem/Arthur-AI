@@ -46,40 +46,42 @@ export async function createStory(
 // Get a story by ID
 export async function getStory(storyId: string): Promise<(Story & { scenes: (Scene & { shots: Shot[] })[] }) | null> {
   try {
+    console.log("Fetching story:", storyId);
     const storyRef = doc(db, 'stories', storyId);
     const storyDoc = await getDoc(storyRef);
     
-    if (storyDoc.exists()) {
-      const story = storyDoc.data() as Story;
-      
-      // If the story already has scenes array, return it directly
-      if (story.scenes && story.scenes.length > 0) {
-        return story as Story & { scenes: (Scene & { shots: Shot[] })[] };
-      }
-      
-      // Otherwise, get scenes from subcollection
-      const scenesRef = collection(storyRef, 'scenes');
-      const scenesSnapshot = await getDocs(scenesRef);
-      const scenes: (Scene & { shots: Shot[] })[] = [];
+    if (!storyDoc.exists()) {
+      console.log("Story not found:", storyId);
+      return null;
+    }
 
-      // Get shots for each scene
-      for (const sceneDoc of scenesSnapshot.docs) {
-        const scene = sceneDoc.data() as Scene;
-        const shotsRef = collection(sceneDoc.ref, 'shots');
-        const shotsSnapshot = await getDocs(shotsRef);
-        const shots = shotsSnapshot.docs.map(doc => doc.data() as Shot);
-        scenes.push({ ...scene, shots });
-      }
-
-      // Update the story document with the scenes array
+    const story = storyDoc.data() as Story;
+    
+    // If the story has scenes array with shots, return it directly
+    if (story.scenes?.length > 0 && story.scenes[0]?.shots?.length >= 0) {
+      console.log("Story already has scenes and shots:", storyId);
+      return story as Story & { scenes: (Scene & { shots: Shot[] })[] };
+    }
+    
+    // Initialize scenes array if it doesn't exist
+    story.scenes = story.scenes || [];
+    
+    // Update the story with empty scenes array if needed
+    if (!story.scenes.length) {
+      console.log("Updating story with empty scenes array:", storyId);
       await updateDoc(storyRef, {
-        scenes,
+        scenes: [],
         updatedAt: new Date()
       });
-
-      return { ...story, scenes };
     }
-    return null;
+
+    return {
+      ...story,
+      scenes: story.scenes.map(scene => ({
+        ...scene,
+        shots: scene.shots || []
+      }))
+    };
   } catch (error) {
     console.error('Error getting story:', error);
     throw error;
@@ -176,67 +178,43 @@ export async function getUserStories(userId: string): Promise<Story[]> {
 // Update a story
 export async function updateStory(storyId: string, updates: Partial<Story>): Promise<void> {
   try {
-    console.log("Starting story update...", {
-      storyId,
-      updates
-    });
-
+    console.log("Starting story update:", storyId);
     const storyRef = doc(db, 'stories', storyId);
-    
-    // Get the current story first
-    const storyDoc = await getDoc(storyRef);
-    if (!storyDoc.exists()) {
-      throw new Error("Story not found");
-    }
 
-    const currentStory = storyDoc.data() as Story;
-    
-    // Clean the scenes array to ensure no undefined values
-    const cleanScenes = updates.scenes?.map(scene => ({
-      id: scene.id || `scene-${Date.now()}`,
-      title: scene.title || "Untitled Scene",
-      location: scene.location || "INT. LOCATION - DAY",
-      description: scene.description || "No description",
-      lighting: scene.lighting || "Natural daylight",
-      weather: scene.weather || "Clear",
-      style: scene.style || "hyperrealistic",
-      generatedVideo: scene.generatedVideo || null,
-      shots: scene.shots.map(shot => ({
-        id: shot.id || `shot-${Date.now()}`,
-        type: shot.type || "MEDIUM SHOT",
-        description: shot.description || "No description",
-        prompt: shot.prompt || shot.description || "No description",
-        hasNarration: !!shot.narration,
-        hasDialogue: !!shot.dialogue,
-        hasSoundEffects: !!shot.soundEffects,
-        narration: shot.narration || null,
-        dialogue: shot.dialogue || null,
-        soundEffects: shot.soundEffects || null,
-        location: shot.location || null,
-        lighting: shot.lighting || null,
-        weather: shot.weather || null,
-        generatedImage: shot.generatedImage || null,
-        generatedVideo: shot.generatedVideo || null,
-        lipSyncVideo: shot.lipSyncVideo || null,
-        lipSyncAudio: shot.lipSyncAudio || null,
-        voiceId: shot.voiceId || null
-      }))
-    })) || currentStory.scenes;
-
-    // Create a clean updates object with only the fields we want to update
-    const cleanUpdates: Record<string, any> = {
-      title: updates.title || currentStory.title,
-      description: updates.description || currentStory.description,
-      script: updates.script !== undefined ? updates.script : currentStory.script || "",
-      scenes: cleanScenes,
-      updatedAt: new Date()
+    // Clean and validate the updates
+    const cleanUpdates = {
+      ...updates,
+      updatedAt: new Date(),
+      scenes: updates.scenes?.map(scene => ({
+        id: scene.id || `scene-${Date.now()}`,
+        title: scene.title || "Untitled Scene",
+        location: scene.location || "",
+        description: scene.description || "",
+        lighting: scene.lighting || "",
+        weather: scene.weather || "",
+        style: scene.style || "hyperrealistic",
+        shots: scene.shots?.map(shot => ({
+          id: shot.id || `shot-${Date.now()}`,
+          type: shot.type || "WIDE",
+          description: shot.description || "",
+          hasNarration: shot.hasNarration || false,
+          hasDialogue: shot.hasDialogue || false,
+          hasSoundEffects: shot.hasSoundEffects || false,
+          prompt: shot.prompt || "",
+          narration: shot.narration || "",
+          dialogue: shot.dialogue || "",
+          soundEffects: shot.soundEffects || "",
+          generatedImage: shot.generatedImage || null,
+          generatedVideo: shot.generatedVideo || null
+        })) || []
+      })) || []
     };
 
-    console.log("Updating story with:", cleanUpdates);
+    // Update in a single operation
     await updateDoc(storyRef, cleanUpdates);
-    console.log('Story updated successfully:', storyId);
+    console.log("Story updated successfully:", storyId);
   } catch (error) {
-    console.error('Error updating story:', error);
+    console.error("Error updating story:", error);
     throw error;
   }
 }
@@ -468,6 +446,38 @@ export async function deleteShotImage(storyId: string, sceneId: string, shotId: 
     await deleteObject(imageRef);
   } catch (error) {
     console.error('Error deleting shot image:', error);
+    throw error;
+  }
+}
+
+// Clean up shot descriptions
+export async function cleanupShotDescriptions(storyId: string): Promise<void> {
+  try {
+    const storyRef = doc(db, 'stories', storyId);
+    const storyDoc = await getDoc(storyRef);
+    
+    if (!storyDoc.exists()) return;
+    
+    const story = storyDoc.data() as Story;
+    if (!story.scenes) return;
+    
+    const cleanedScenes = story.scenes.map(scene => ({
+      ...scene,
+      shots: scene.shots.map(shot => ({
+        ...shot,
+        description: shot.description === "Describe your shot..." ? "" : shot.description,
+        prompt: shot.prompt === "Describe your shot..." ? "" : shot.prompt
+      }))
+    }));
+    
+    await updateDoc(storyRef, {
+      scenes: cleanedScenes,
+      updatedAt: new Date()
+    });
+    
+    console.log("Shot descriptions cleaned up for story:", storyId);
+  } catch (error) {
+    console.error("Error cleaning up shot descriptions:", error);
     throw error;
   }
 } 

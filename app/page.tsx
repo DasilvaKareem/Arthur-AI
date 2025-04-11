@@ -73,7 +73,7 @@ export default function RootPage() {
       document.head.removeChild(style);
     };
   }, []);
-  
+
   return (
     <div className="relative flex-col min-h-screen">
       <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a]" />
@@ -192,9 +192,6 @@ export default function RootPage() {
           </form>
         </div>
       </section>
-
-   
-
 
       {/* FAQ Section */}
       <FAQ />

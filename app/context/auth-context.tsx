@@ -126,8 +126,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Prevent authenticated users from accessing auth pages
     if (user && (pathname?.includes('/auth/signin') || pathname?.includes('/auth/signup'))) {
-      console.log("🚀 Redirecting authenticated user from auth page to dashboard");
-      router.push('/dashboard');
+      console.log("🚀 Redirecting authenticated user from auth page to create-story");
+      router.push('/create-story');
     }
   }, [user, loading, pathname, router]);
 
@@ -141,7 +141,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
       console.log("✅ Sign in successful:", result.user.email);
       toast.success('Signed in successfully');
-      router.push('/dashboard');
+      router.push('/create-story');
     } catch (error: any) {
       console.error("❌ Sign In Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);
@@ -168,7 +168,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       console.log("✅ Sign up successful:", user.email);
       toast.success('Account created successfully');
-      router.push('/dashboard');
+      router.push('/create-story');
     } catch (error: any) {
       console.error("❌ Sign Up Error:", error);
       const errorMessage = getAuthErrorMessage(error.code);

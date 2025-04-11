@@ -192,16 +192,28 @@ const MessageContent = ({
     }
 
     try {
-      console.log("🎬 Generating project from script!");
-      toast.loading("Preparing your script project...");
+      console.log("🎬 Generating project from story!");
+      toast.loading("Preparing your story...");
+
+      // Create a blank scene with the story content
+      const blankScene = {
+        id: crypto.randomUUID(),
+        title: "Scene 1",
+        location: "",
+        description: parsed.response.split('\n\n')[0], // Use the first paragraph as scene description
+        lighting: "",
+        weather: "",
+        style: "hyperrealistic",
+        shots: []
+      };
 
       // Create a new story in Firebase
       const story = {
         id: crypto.randomUUID(),
-        title: "New Story",
+        title: parsed.response.split('\n')[0].replace('📝 Title: ', ''), // Extract title from response
         description: parsed.response,
         userId: user.uid,
-        scenes: [],
+        scenes: [blankScene],
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -212,9 +224,9 @@ const MessageContent = ({
         throw new Error("Failed to create story");
       }
 
-      // Use Next.js router for client-side navigation
-      router.push(`/project?id=${storyId}`);
-      toast.success("Project created successfully!");
+      // Redirect to workspace with the story ID
+      router.push(`/workspace?story=${storyId}`);
+      toast.success("Story created successfully!");
     } catch (error) {
       console.error("Error creating project:", error);
       toast.error("Failed to create project. Please try again.");
@@ -248,16 +260,57 @@ const MessageContent = ({
   }
 
   return (
-    <>
-      <ReactMarkdown rehypePlugins={[rehypeRaw, rehypeHighlight]}>
-        {parsed.response || content}
-      </ReactMarkdown>
-      <div className="flex space-x-2 mt-3">
-        {parsed.redirect_to_agent && (
-          <UISelector redirectToAgent={parsed.redirect_to_agent} />
-        )}
-      </div>
-    </>
+    <div className="space-y-4">
+      {parsed.response && (
+        <div className="prose dark:prose-invert max-w-none">
+          <ReactMarkdown
+            rehypePlugins={[rehypeHighlight, rehypeRaw]}
+            components={{
+              code: ({ node, inline, className, children, ...props }) => {
+                const match = /language-(\w+)/.exec(className || "");
+                return !inline && match ? (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                ) : (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {parsed.response}
+          </ReactMarkdown>
+        </div>
+      )}
+
+      {parsed.can_generate_project && parsed.response && (
+        <div className="mt-4 flex justify-center">
+          <Button
+            onClick={handleGenerateProject}
+            className="w-[200px]"
+            disabled={!user}
+          >
+            {user ? "Create Story" : "Sign in to Create Story"}
+          </Button>
+        </div>
+      )}
+
+      {parsed.suggested_questions && (
+        <SuggestedQuestions
+          questions={parsed.suggested_questions}
+          onQuestionClick={(question) => {
+            // Handle question click
+          }}
+          isLoading={false}
+        />
+      )}
+
+      {parsed.redirect_to_agent && (
+        <UISelector redirectToAgent={parsed.redirect_to_agent} />
+      )}
+    </div>
   );
 };
 
@@ -380,12 +433,18 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   );
 };
 
-function ChatArea() {
+interface ChatAreaProps {
+  initialMessage?: string;
+  onMessageSubmit?: (message: string) => void;
+  isCreating?: boolean;
+}
+
+function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showHeader, setShowHeader] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("gemini-pro");
+  const [selectedModel, setSelectedModel] = useState("llama3-8b-8192");
   const [showAvatar, setShowAvatar] = useState(false);
   const { preferences } = usePreferences();
 
@@ -681,7 +740,7 @@ function ChatArea() {
             <div className="flex flex-col items-center justify-center h-full animate-fade-in-up">
               <ArthurAvatar size="md" className="mb-4" />
               <h2 className="text-2xl font-mono mb-8">
-                Create Amazing Content
+                {initialMessage || "Create Amazing Content"}
               </h2>
               <div className="space-y-4 text-sm font-mono">
                 <div className="flex items-center gap-3">
@@ -766,7 +825,7 @@ function ChatArea() {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Type your message here..."
-            disabled={isLoading}
+            disabled={isLoading || isCreating}
             className="resize-none min-h-[44px] bg-secondary text-secondary-foreground border-0 p-3 rounded-xl shadow-none focus-visible:ring-0 font-mono"
             rows={1}
           />
@@ -799,11 +858,11 @@ function ChatArea() {
             </div>
             <Button
               type="submit"
-              disabled={isLoading || input.trim() === ""}
+              disabled={isLoading || isCreating || input.trim() === ""}
               className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-mono"
               size="sm"
             >
-              {isLoading ? (
+              {isLoading || isCreating ? (
                 <div className="animate-spin h-5 w-5 border-t-2 border-primary-foreground rounded-full" />
               ) : (
                 <>

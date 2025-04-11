@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { Groq } from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import crypto from "crypto";
-import { getAdminDb } from "../../lib/firebase-admin";
-import { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
+import { db } from "../../lib/firebase/client";
+import { doc, getDoc } from "firebase/firestore";
 import type { Shot, Scene, Story } from '../../../types/shared';
 
 // Initialize Groq client
@@ -168,41 +168,42 @@ export async function POST(req: Request) {
     // Initialize variables for story creation context
     let isRagWorking = false;
 
-    // System prompt for script generation
+    // System prompt for story generation
     const systemPrompt = `You are Arthur, a master storytelling AI assistant who helps users craft incredible stories from scratch or improve existing ones.
-Your main goal is to assist in turning text ideas into fully fleshed-out scripts across different formats (screenplay, comic, novel, animation, or stage play).
-You must be collaborative, creative, and supportive — offering guidance, suggestions, rewrites, and reviews without ever taking over the creative voice of the user.
+Your main goal is to assist in turning text ideas into fully fleshed-out stories that are engaging, creative, and well-structured.
+
+You must be collaborative, creative, and supportive — offering guidance, suggestions, and reviews without ever taking over the creative voice of the user.
 
 🛠️ Core Abilities:
-Text-to-Script Generator: Convert user ideas into structured scripts. Ask clarifying questions when needed. Respect genre, tone, and medium.
+Story Generator: Convert user ideas into engaging stories. Ask clarifying questions when needed. Respect genre, tone, and style.
 
-Script Guide: Offer insightful suggestions to improve scenes, characters, pacing, and dialogue. Be constructive, never overly critical.
-
-Rewriter: Rewrite scenes in a requested tone, genre, or format while preserving meaning. Offer side-by-side comparisons when requested.
+Story Guide: Offer insightful suggestions to improve plot, characters, pacing, and narrative flow. Be constructive, never overly critical.
 
 Creative Partner: Brainstorm entirely new story ideas with or for the user. Ask about world, characters, themes, and structure before generating.
 
-Script Reviewer: Provide ratings (1–10 or star-based), emotional tone analysis, and professional notes for improvement.
-
-Formatter: Format stories into different writing styles: screenplay, comic panel script, novel prose, or stage play.
+Story Reviewer: Provide emotional tone analysis and professional notes for improvement.
 
 🎭 Style & Voice:
 Always keep a creative, respectful, and collaborative tone.
 
-Speak like a seasoned screenwriter or editor, not a robot.
+Speak like a seasoned storyteller, not a robot.
 
-Avoid filler; focus on actionable storytelling feedback.
+Avoid filler; focus on engaging narrative content.
 
-Use Markdown formatting to clearly show scripts, reviews, suggestions, and rewrites.
+Use Markdown formatting to clearly show story elements, reviews, and suggestions.
 
 🧠 Best Practices:
-When asked to "rewrite," show both versions if helpful.
-
-When generating from scratch, offer a short logline first.
+When generating from scratch, offer a clear story structure with:
+- Title
+- Genre
+- Logline
+- Story breakdown (with clear acts or sections)
+- Character descriptions
+- Setting details
 
 Encourage the user's creativity by asking smart, open-ended questions.
 
-Allow flexibility in storytelling formats, genres, and tones.`;
+Allow flexibility in storytelling styles, genres, and tones.`;
 
     // Format messages for API
     const formattedMessages: ChatMessage[] = [
@@ -216,48 +217,41 @@ Allow flexibility in storytelling formats, genres, and tones.`;
       }))
     ];
 
-    // If we have a knowledge base ID, try to get the story directly from Firebase first
-    if (knowledgeBaseId && knowledgeBaseId !== 'none') {
+    // Only check Firebase if this is a specific story retrieval request
+    if (knowledgeBaseId && knowledgeBaseId !== 'none' && latestMessage.toLowerCase().includes('get story')) {
       try {
-        console.log("🔍 Querying Firebase for story:", knowledgeBaseId);
-        const firestore = await getAdminDb();
+        console.log("🔍 Retrieving specific story from Firebase:", knowledgeBaseId);
         
-        if (firestore) {
-          const storyDoc = await firestore.collection('stories').doc(knowledgeBaseId).get();
+        const storyDoc = await getDoc(doc(db, 'stories', knowledgeBaseId));
+        
+        if (storyDoc.exists()) {
+          console.log("✅ Found story in Firebase");
+          const storyData = storyDoc.data() as Story;
           
-          if (storyDoc.exists) {
-            console.log("✅ Found story in Firebase");
-            const storyData = storyDoc.data() as Story | undefined;
-            
-            if (storyData) {
-              // Format the response to match our expected structure
-              const responseData = {
-                id: storyDoc.id,
-                response: `🎬 Story Breakdown:\n\n📝 Title: ${storyData.title || 'Untitled'}\n\n${storyData.script || ''}`,
-                thinking: "Retrieved story from database",
-                user_mood: "positive",
-                suggested_questions: [
-                  "How does this scene continue?",
-                  "Can you add more dialogue?",
-                  "What happens in the next scene?"
-                ],
-                debug: {
-                  context_used: true,
-                  hasScriptFormat: true,
-                  hasStoryJson: true
-                },
-                can_generate_project: true,
-                story_json: storyData
-              };
-              
-              return NextResponse.json(responseData);
-            }
-          } else {
-            console.log("⚠️ Story not found in Firebase");
-          }
+          // Format the response to match our expected structure
+          const responseData = {
+            id: storyDoc.id,
+            response: `🎬 Story Breakdown:\n\n📝 Title: ${storyData.title || 'Untitled'}\n\n${storyData.script || ''}`,
+            thinking: "Retrieved story from database",
+            user_mood: "positive",
+            suggested_questions: [
+              "How does this scene continue?",
+              "Can you add more dialogue?",
+              "What happens in the next scene?"
+            ],
+            debug: {
+              context_used: true,
+              hasScriptFormat: true,
+              hasStoryJson: true
+            },
+            can_generate_project: true,
+            story_json: storyData
+          };
+          
+          return NextResponse.json(responseData);
         }
-      } catch (error: unknown) {
-        console.error("❌ Firebase query error:", error instanceof Error ? error.message : 'Unknown error');
+      } catch (error) {
+        console.error("❌ Error fetching story:", error);
       }
     }
 
@@ -310,30 +304,59 @@ Allow flexibility in storytelling formats, genres, and tones.`;
       return NextResponse.json({ error: "No response from AI model" }, { status: 500 });
     }
 
-    const story = formatStoryToJson(response.choices[0].message.content, userId);
-    if (!story) {
-      return NextResponse.json({ error: "Failed to format story" }, { status: 500 });
-    }
+    const responseContent = response.choices[0].message.content;
 
-    // Format the response
-    const responseData = {
-      id: story.id,
-      response: `🎬 Story Breakdown:\n\n📝 Title: ${story.title}\n\n${story.script}`,
-      thinking: "Generated story using AI",
-      user_mood: "positive",
-      suggested_questions: [
-        "How does this scene continue?",
-        "Can you add more dialogue?",
-        "What happens in the next scene?"
-      ],
-      debug: {
-        context_used: false,
-        hasScriptFormat: true,
-        hasStoryJson: true
-      },
-      can_generate_project: true,
-      story_json: story
-    };
+    // Only format as story if explicitly creating one
+    const isCreatingStory = latestMessage.toLowerCase().includes('create') || 
+                           latestMessage.toLowerCase().includes('generate') ||
+                           latestMessage.toLowerCase().includes('make') ||
+                           latestMessage.toLowerCase().includes('write');
+
+    let responseData;
+    if (isCreatingStory) {
+      const story = formatStoryToJson(responseContent, userId);
+      if (!story) {
+        return NextResponse.json({ error: "Failed to format story" }, { status: 500 });
+      }
+
+      responseData = {
+        id: story.id,
+        response: `🎬 Story Breakdown:\n\n📝 Title: ${story.title}\n\n${story.script}`,
+        thinking: "Generated story using AI",
+        user_mood: "positive",
+        suggested_questions: [
+          "How does this scene continue?",
+          "Can you add more dialogue?",
+          "What happens in the next scene?"
+        ],
+        debug: {
+          context_used: false,
+          hasScriptFormat: true,
+          hasStoryJson: true
+        },
+        can_generate_project: true,
+        story_json: story
+      };
+    } else {
+      // For regular chat messages, just return the response without story formatting
+      responseData = {
+        id: crypto.randomUUID(),
+        response: responseContent,
+        thinking: "Chatting with AI",
+        user_mood: "positive",
+        suggested_questions: [
+          "Tell me more",
+          "Can you elaborate?",
+          "What else can you suggest?"
+        ],
+        debug: {
+          context_used: false,
+          hasScriptFormat: false,
+          hasStoryJson: false
+        },
+        can_generate_project: false
+      };
+    }
 
     return NextResponse.json(responseData);
   } catch (error: unknown) {

@@ -10,7 +10,7 @@ import rehypeHighlight from "rehype-highlight";
 import { ArrowLeft, Download, Copy, Share, ChevronDown, Plus, Edit, Trash, Pencil, Camera, Film, Music, Volume2, Loader2, Save, RefreshCw, Play } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { createStory, updateStory, getStory, updateScene, updateShot, deleteScene, deleteShot, uploadShotImage, validateSceneData, validateShotData } from '../lib/firebase/stories';
+import { createStory, updateStory, getStory, updateScene, updateShot, deleteScene, deleteShot, uploadShotImage, validateSceneData, validateShotData, cleanupShotDescriptions } from '../lib/firebase/stories';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -21,6 +21,20 @@ import ShotCard from "../../components/project/ShotCard";
 import SceneSidebar from "../../components/project/SceneSidebar"; // Import the new component
 import SceneTimeline from "../../components/project/SceneTimeline"; // Import the new timeline component
 import ProjectHeader from "../../components/project/ProjectHeader"; // Import the new header component
+import { debounce } from 'lodash';
+
+interface VideoGenerationShot {
+  imageUrl: string | null;
+  prompt?: string;
+  duration: number;
+}
+
+interface VideoGenerationRequest {
+  shots: VideoGenerationShot[];
+  style: string;
+  prompt: string;
+  duration: number;
+}
 
 function ProjectContent() {
   const searchParams = useSearchParams();
@@ -40,6 +54,7 @@ function ProjectContent() {
   const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
   const [videoLoadingStates, setVideoLoadingStates] = useState<Record<string, boolean>>({});
   const [isEmbedded, setIsEmbedded] = useState(false);
+  const [shotDescriptions, setShotDescriptions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -109,10 +124,17 @@ function ProjectContent() {
     try {
       const story = await getStory(id);
       if (story) {
-        setTitle(story.title || "Untitled Story");
-        setScript(story.description || ""); // Use description instead of script
-        setScenes(story.scenes || []);
-        setCurrentScene(story.scenes[0] || null);
+        // Clean up any "Describe your shot..." values
+        await cleanupShotDescriptions(id);
+        
+        // Reload the story after cleanup
+        const cleanedStory = await getStory(id);
+        if (cleanedStory) {
+          setTitle(cleanedStory.title || "Untitled Story");
+          setScript(cleanedStory.description || "");
+          setScenes(cleanedStory.scenes || []);
+          setCurrentScene(cleanedStory.scenes[0] || null);
+        }
       }
     } catch (error) {
       console.error("Error loading story:", error);
@@ -385,850 +407,89 @@ function ProjectContent() {
     if (!storyId) return;
     
     try {
-      // Get the full story first
       const story = await getStory(storyId);
       if (!story) {
         throw new Error("Story not found");
       }
-      
-      // Create an updated version of the scenes array
+
       const updatedScenes = story.scenes.map(scene => {
-        if (scene.id === sceneId) {
-          return {
-            ...scene,
-            shots: scene.shots.map(shot =>
-              shot.id === shotId ? { ...shot, ...updates } : shot
-            )
-          };
-        }
-        return scene;
+        if (scene.id !== sceneId) return scene;
+        return {
+          ...scene,
+          shots: scene.shots.map(shot => {
+            if (shot.id !== shotId) return shot;
+            return {
+              ...shot,
+              ...updates
+            };
+          })
+        };
       });
-      
-      // Update the entire story
-      await updateStory(storyId, {
-        ...story,
-        scenes: updatedScenes,
-        title: story.title || "Untitled Story",
-        description: story.description || "No description",
-        script: story.script || "", // Explicitly include script with fallback
-        userId: story.userId || user?.uid || "",
-        updatedAt: new Date()
-      });
-      
-      // Update local state
-      setScenes(updatedScenes);
-      if (currentScene?.id === sceneId) {
-        setCurrentScene({
-          ...currentScene,
-          shots: currentScene.shots.map(shot =>
-            shot.id === shotId ? { ...shot, ...updates } : shot
-          )
-        });
-      }
-    } catch (error) {
-      console.error("Error updating shot:", error);
-      alert("Failed to update shot. Please try again.");
-    }
-  }, [storyId, user, currentScene, setScenes, setCurrentScene]);
-
-  // Add new scene
-  const addNewScene = useCallback(async () => {
-    if (!storyId) {
-      toast.error("Please save your story first");
-      return;
-    }
-    
-    try {
-      // Get the current story first
-      const story = await getStory(storyId);
-      if (!story) {
-        throw new Error("Story not found");
-      }
-
-      // Create a new scene with a unique ID
-      const newScene: Scene = {
-        id: `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        title: `Scene ${scenes.length + 1}`,
-        location: "INT. LOCATION - DAY",
-        description: "Describe your scene in detail (include lighting, weather, and background elements)...",
-        lighting: "Natural daylight",
-        weather: "Clear",
-        style: "hyperrealistic",
-        shots: [
-          {
-            id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: "ESTABLISHING SHOT",
-            description: "Describe your shot...",
-            hasNarration: false,
-            hasDialogue: false,
-            hasSoundEffects: false,
-            prompt: "Describe your shot...",
-            narration: null,
-            dialogue: null,
-            soundEffects: null,
-            location: null,
-            lighting: null,
-            weather: null,
-            generatedImage: null,
-            generatedVideo: null,
-            lipSyncVideo: null,
-            lipSyncAudio: null,
-            voiceId: null
-          }
-        ]
-      };
-
-      // Update the story with the new scene
-      const updatedScenes = [...story.scenes, newScene];
-      await updateStory(storyId, {
-        ...story,
-        scenes: updatedScenes,
-        title: story.title || "Untitled Story",
-        description: story.description || "No description",
-        script: story.script || "", // Explicitly include script with fallback
-        updatedAt: new Date()
-      });
-      
-      // Update local state
-      setScenes(updatedScenes);
-      setCurrentScene(newScene);
-      toast.success("Scene added successfully");
-    } catch (error) {
-      console.error("Error adding scene:", error);
-      toast.error("Failed to add scene. Please try again.");
-    }
-  }, [storyId, scenes, setScenes, setCurrentScene]);
-
-  // Add new shot
-  const addNewShot = useCallback(async () => {
-    if (!currentScene || !storyId) {
-      toast.error("Please select a scene first");
-      return;
-    }
-    
-    try {
-      // Create a new shot with a unique ID
-      const newShot: Shot = {
-        id: `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: "MEDIUM SHOT",
-        description: "Describe your shot...",
-        hasNarration: false,
-        hasDialogue: false,
-        hasSoundEffects: false,
-        prompt: "Describe your shot...",
-        narration: null,
-        dialogue: null,
-        soundEffects: null,
-        location: null,
-        lighting: null,
-        weather: null,
-        generatedImage: null,
-        generatedVideo: null
-      };
-      
-      // Update the scene with the new shot
-      const updatedShots = [...currentScene.shots, newShot];
-      const updatedScene = { ...currentScene, shots: updatedShots };
-      
-      // Update the story with the new scene data
-      const story = await getStory(storyId);
-      if (!story) {
-        throw new Error("Story not found");
-      }
-
-      const updatedScenes = story.scenes.map(scene => 
-        scene.id === currentScene.id ? updatedScene : scene
-      );
 
       await updateStory(storyId, {
         ...story,
         scenes: updatedScenes,
-        title: story.title || "Untitled Story",
-        description: story.description || "No description",
-        script: story.script || "", // Explicitly include script with fallback
         updatedAt: new Date()
       });
-      
-      // Update local state
-      setCurrentScene(updatedScene);
-      setScenes(prevScenes => 
-        prevScenes.map(scene => 
-          scene.id === currentScene.id ? updatedScene : scene
-        )
-      );
 
-      toast.success("Shot added successfully");
-    } catch (error) {
-      console.error("Error adding shot:", error);
-      toast.error("Failed to add shot. Please try again.");
-    }
-  }, [currentScene, storyId, setScenes, setCurrentScene]);
-
-  // Delete scene
-  const handleSceneDelete = useCallback(async (sceneId: string) => {
-    if (!storyId || scenes.length <= 1) {
-      alert("Cannot delete the last scene");
-      return;
-    }
-    
-    try {
-      await deleteScene(storyId, sceneId);
-      const updatedScenes = scenes.filter(s => s.id !== sceneId);
       setScenes(updatedScenes);
-      
-      if (currentScene?.id === sceneId) {
-        setCurrentScene(updatedScenes[0]);
-      }
+      const foundScene = updatedScenes.find(scene => scene.id === sceneId);
+      setCurrentScene(foundScene || null);
     } catch (error) {
-      console.error("Error deleting scene:", error);
-      alert("Failed to delete scene. Please try again.");
+      console.error("Error updating shot details:", error);
+      toast.error("Failed to update shot details");
     }
-  }, [storyId, scenes, currentScene, setScenes, setCurrentScene]);
-
-  // Delete shot
-  const handleShotDelete = useCallback(async (sceneId: string, shotId: string) => {
-    if (!storyId || !currentScene || currentScene.shots.length <= 1) {
-      alert("Cannot delete the last shot");
-      return;
-    }
-    
-    try {
-      await deleteShot(storyId, sceneId, shotId);
-      const updatedShots = currentScene.shots.filter(s => s.id !== shotId);
-      const updatedScene = { ...currentScene, shots: updatedShots };
-      
-      setCurrentScene(updatedScene);
-      setScenes(scenes.map(scene => 
-        scene.id === sceneId ? updatedScene : scene
-      ));
-    } catch (error) {
-      console.error("Error deleting shot:", error);
-      alert("Failed to delete shot. Please try again.");
-    }
-  }, [storyId, currentScene, setScenes, setCurrentScene]);
-
-  const handleDownload = useCallback(() => {
-    const element = document.createElement("a");
-    const file = new Blob([script], { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = `${title.replace(/\s+/g, "_")}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  }, [script, title]);
-
-  const handleExportScene = useCallback(() => {
-    if (!currentScene) return;
-    
-    // Create a formatted scene export with all shots
-    let sceneText = `${currentScene.title}\n\n`;
-    
-    currentScene.shots.forEach((shot, index) => {
-      sceneText += `SHOT #${index + 1}: ${shot.type}\n`;
-      sceneText += `${shot.description}\n\n`;
-      
-      if (shot.dialogue) {
-        sceneText += `DIALOGUE:\n${shot.dialogue}\n\n`;
-      }
-      
-      if (shot.soundEffects) {
-        sceneText += `SOUND EFFECTS:\n${shot.soundEffects}\n\n`;
-      }
-      
-      sceneText += "---\n\n";
-    });
-    
-    // Create and download the file
-    const element = document.createElement("a");
-    const file = new Blob([sceneText], { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = `${currentScene.title.replace(/\s+/g, "_")}_shots.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  }, [currentScene]);
-
-  const handleCopyToClipboard = useCallback(() => {
-    navigator.clipboard.writeText(script)
-      .then(() => alert("Script copied to clipboard!"))
-      .catch(err => console.error("Failed to copy script:", err));
-  }, [script]);
-
-  const generateShotFromPrompt = useCallback(async (shotIndex: number, prompt: string) => {
-    if (!currentScene || !storyId) {
-      toast.error('Please select a scene and save your story first');
-      return;
-    }
-
-    if (!prompt.trim()) {
-      toast.error('Please enter a prompt for the shot');
-      return;
-    }
-    
-    // Set loading state for this shot
-    const shotId = currentScene.shots[shotIndex]?.id;
-    if (!shotId) return;
-    
-    setImageLoadingStates(prev => ({
-      ...prev,
-      [shotId]: true
-    }));
-    
-    try {
-      console.log(`Starting image generation for shot ${shotIndex + 1}/${currentScene.shots.length}:`, prompt);
-      
-      // Start image generation
-      const response = await fetch("/api/image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt,
-          aspectRatio: "16:9",
-          model: "photon-1",
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.details || "Failed to start image generation");
-      }
-
-      const data = await response.json();
-      console.log(`Image generation started for shot ${shotIndex + 1} with ID:`, data.id);
-
-      // Poll for image generation status
-      const pollStatus = async () => {
-        try {
-          const statusResponse = await fetch(`/api/image?id=${data.id}`);
-          if (!statusResponse.ok) {
-            const errorData = await statusResponse.json();
-            throw new Error(errorData.error || errorData.details || "Failed to check generation status");
-          }
-          
-          const statusData = await statusResponse.json();
-          console.log(`Shot ${shotIndex + 1} generation status:`, statusData.state);
-
-          if (statusData.state === "completed") {
-            try {
-              // Get the current story first to ensure we have the latest data
-              const story = await getStory(storyId);
-              if (!story) {
-                throw new Error("Story not found");
-              }
-
-              // Find the scene index in the fetched story data
-              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene?.id);
-              if (sceneIndex === -1) {
-                  throw new Error("Scene not found in fetched story data");
-              }
-              
-              // Ensure the shotIndex is valid for the fetched scene
-              if (shotIndex < 0 || shotIndex >= story.scenes[sceneIndex].shots.length) {
-                  throw new Error("Shot index out of bounds for fetched scene data");
-              }
-
-              // Upload the generated image to Firebase Storage
-              console.log(`Uploading generated image for shot ${shotIndex + 1} to Firebase`);
-              const downloadUrl = await uploadShotImage(
-                storyId,
-                story.scenes[sceneIndex].id, // Use ID from fetched data
-                story.scenes[sceneIndex].shots[shotIndex].id, // Use ID from fetched data
-                statusData.assets.image
-              );
-
-              if (!downloadUrl) {
-                throw new Error("Failed to get download URL for the image");
-              }
-
-              // --- Create the updated scenes array based purely on fetched data --- 
-              const finalUpdatedScenes = story.scenes.map((scene, sIndex) => {
-                if (sIndex !== sceneIndex) {
-                  return scene; // Return other scenes unmodified
-                }
-                // Modify the target scene
-                return {
-                  ...scene, // Keep existing scene properties
-                  shots: scene.shots.map((shot, shIndex) => {
-                    if (shIndex !== shotIndex) {
-                      return shot; // Return other shots unmodified
-                    }
-                    // Update the target shot
-                    return {
-                      ...shot, // Keep ALL existing properties of the shot
-                      description: prompt, // Update description from input
-                      prompt: prompt, // Update prompt from input
-                      generatedImage: downloadUrl, // Add the new image URL
-                    };
-                  })
-                };
-              });
-              // --- End of state update logic --- 
-
-              // Create clean story update object
-              const storyUpdate = {
-                scenes: finalUpdatedScenes, // Use the correctly derived scenes
-                title: story.title || "Untitled Story",
-                description: story.description || "No description",
-                script: story.script || "", 
-                userId: story.userId || "",
-                createdAt: story.createdAt || new Date(),
-                updatedAt: new Date()
-              };
-
-              // Update the entire story in Firestore
-              await updateStory(storyId, storyUpdate);
-
-              // Update local state with the final, correct scenes array
-              setScenes(finalUpdatedScenes);
-              // Update current scene from the updated array
-              setCurrentScene(finalUpdatedScenes[sceneIndex]); 
-              
-              console.log(`Successfully updated shot ${shotIndex + 1} with generated image`);
-              toast.success(`Image generated for shot ${shotIndex + 1}!`);
-            } catch (uploadError) {
-              console.error(`Error uploading image for shot ${shotIndex + 1} to Firebase:`, uploadError);
-              toast.error(`Failed to save generated image for shot ${shotIndex + 1}. Please try again.`);
-            } finally {
-              // Clear loading state for this shot
-              setImageLoadingStates(prev => ({
-                ...prev,
-                [shotId]: false
-              }));
-            }
-          } else if (statusData.state === "failed") {
-            setImageLoadingStates(prev => ({
-              ...prev,
-              [shotId]: false
-            }));
-            throw new Error(statusData.failure_reason || "Image generation failed");
-          } else {
-            // Continue polling
-            setTimeout(pollStatus, 3000);
-          }
-        } catch (error) {
-          console.error(`Error during status polling for shot ${shotIndex + 1}:`, error);
-          toast.error(error instanceof Error ? error.message : `Failed to check generation status for shot ${shotIndex + 1}. Please try again.`);
-          // Clear loading state for this shot on error
-          setImageLoadingStates(prev => ({
-            ...prev,
-            [shotId]: false
-          }));
-        }
-      };
-
-      pollStatus();
-    } catch (error) {
-      console.error(`Error generating image for shot ${shotIndex + 1}:`, error);
-      toast.error(error instanceof Error ? error.message : `Failed to generate image for shot ${shotIndex + 1}. Please try again.`);
-      // Clear loading state for this shot on error
-      setImageLoadingStates(prev => ({
-        ...prev,
-        [shotId]: false
-      }));
-    }
-  }, [currentScene, storyId, setImageLoadingStates, setScenes, setCurrentScene]);
-
-  // Add a new function to generate images for all shots
-  const generateAllShotImages = useCallback(async () => {
-    if (!currentScene || !currentScene.shots) {
-      toast.error('No shots to generate images for');
-      return;
-    }
-
-    console.log(`Starting image generation for ${currentScene.shots.length} shots`);
-    
-    // Set generating flag
-    const updatedScene = { ...currentScene, isGeneratingImages: true };
-    setCurrentScene(updatedScene);
-    setScenes(prevScenes => 
-      prevScenes.map(scene => 
-        scene.id === currentScene.id ? updatedScene : scene
-      )
-    );
-    
-    try {
-      // Process shots sequentially
-      for (let i = 0; i < currentScene.shots.length; i++) {
-        const shot = currentScene.shots[i];
-        const promptElement = document.getElementById(`shot-${i}-prompt`) as HTMLTextAreaElement;
-        
-        if (promptElement && promptElement.value.trim()) {
-          console.log(`Generating image for shot ${i + 1}/${currentScene.shots.length}`);
-          await generateShotFromPrompt(i, promptElement.value);
-          // Wait a bit between shots to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-      }
-    } finally {
-      // Clear generating flag
-      const finalScene = { ...currentScene, isGeneratingImages: false };
-      setCurrentScene(finalScene);
-      setScenes(prevScenes => 
-        prevScenes.map(scene => 
-          scene.id === currentScene.id ? finalScene : scene
-        )
-      );
-    }
-  }, [currentScene, generateShotFromPrompt, setScenes, setCurrentScene]);
-
-  // Generate video for a single shot
-  const generateShotVideo = useCallback(async (shotIndex: number) => {
-    if (!currentScene?.shots[shotIndex]) return;
-    
-    const shot = currentScene.shots[shotIndex];
-    if (!shot.generatedImage) {
-      toast.error("Please generate an image for this shot first");
-      return;
-    }
-
-    // Set loading state for this shot's video
-    setVideoLoadingStates(prev => ({
-      ...prev,
-      [shot.id]: true
-    }));
-
-    try {
-      // Start video generation
-      const response = await fetch("/api/video", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageUrl: shot.generatedImage,
-          prompt: shot.description,
-          duration: 5,
-          style: "cinematic",
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to start video generation");
-      }
-
-      const data = await response.json();
-      console.log("Video generation started with ID:", data.id);
-
-      // Show loading toast
-      toast.loading("Generating video...", {
-        id: "video-generation",
-      });
-
-      // Poll for video generation status
-      const pollStatus = async () => {
-        try {
-          const statusResponse = await fetch(`/api/video?id=${data.id}`);
-          if (!statusResponse.ok) {
-            throw new Error("Failed to check video generation status");
-          }
-          
-          const statusData = await statusResponse.json();
-          console.log("Video generation status:", statusData.state);
-
-          if (statusData.state === "completed") {
-            try {
-              // Check if we have a valid video URL
-              if (!statusData.assets?.video) {
-                console.error("❌ generateShotVideo Error: No video URL in completed statusData", statusData);
-                throw new Error("No video URL in response");
-              }
-              
-              const videoUrl = statusData.assets.video;
-              console.log("✅ generateShotVideo: Received video URL:", videoUrl);
-
-              // --- Get the latest story data and update correctly --- 
-              const story = await getStory(storyId!);
-              if (!story) {
-                console.error("❌ generateShotVideo Error: Failed to fetch story before update.");
-                throw new Error("Story not found");
-              }
-              console.log("✅ generateShotVideo: Fetched story before update.");
-
-              // Find the scene index in the fetched story data
-              const sceneIndex = story.scenes.findIndex(s => s.id === currentScene?.id);
-              if (sceneIndex === -1) {
-                console.error("❌ generateShotVideo Error: Scene not found in fetched story.");
-                throw new Error("Scene not found in fetched story data");
-              }
-
-              // Ensure the shotIndex is valid for the fetched scene
-              if (shotIndex < 0 || shotIndex >= story.scenes[sceneIndex].shots.length) {
-                console.error(`❌ generateShotVideo Error: Shot index ${shotIndex} out of bounds.`);
-                throw new Error("Shot index out of bounds for fetched scene data");
-              }
-
-              // Create the updated scenes array based purely on fetched data
-              const finalUpdatedScenes = story.scenes.map((scene, sIndex) => {
-                if (sIndex !== sceneIndex) {
-                  return scene; // Return other scenes unmodified
-                }
-                // Modify the target scene
-                return {
-                  ...scene, // Keep existing scene properties
-                  shots: scene.shots.map((shot, shIndex) => {
-                    if (shIndex !== shotIndex) {
-                      return shot; // Return other shots unmodified
-                    }
-                    // Update the target shot
-                    console.log(`✅ generateShotVideo: Updating shot ${shot.id} with video URL: ${videoUrl}`);
-                    return {
-                      ...shot, // Keep ALL existing properties of the shot
-                      generatedVideo: videoUrl, // Add the new video URL
-                    };
-                  })
-                };
-              });
-              // --- End of state update logic --- 
-
-              // Create clean story update object
-              const storyUpdate = {
-                scenes: finalUpdatedScenes, // Use the correctly derived scenes
-                title: story.title || "Untitled Story",
-                description: story.description || "No description",
-                script: story.script || "",
-                userId: story.userId || "",
-                createdAt: story.createdAt || new Date(),
-                updatedAt: new Date()
-              };
-              
-              console.log("✅ generateShotVideo: Preparing to update Firestore with:", storyUpdate);
-
-              // Update the entire story in Firestore
-              await updateStory(storyId!, storyUpdate);
-              console.log("✅ generateShotVideo: Firestore update successful.");
-
-              // Update local state with the final, correct scenes array
-              setScenes(finalUpdatedScenes);
-              // Update current scene from the updated array
-              setCurrentScene(finalUpdatedScenes[sceneIndex]);
-              console.log("✅ generateShotVideo: Local state updated.");
-
-              console.log("Successfully updated shot with generated video");
-              toast.success("Video generated successfully!", {
-                id: "video-generation",
-              });
-            } catch (error) {
-              console.error("❌ generateShotVideo Error during completion processing:", error);
-              toast.error("Failed to save generated video. Please try again.", {
-                id: "video-generation",
-              });
-            } finally {
-              // Clear loading state
-              setVideoLoadingStates(prev => ({
-                ...prev,
-                [shot.id]: false
-              }));
-            }
-          } else if (statusData.state === "failed") {
-            // Clear loading state on failure
-            setVideoLoadingStates(prev => ({
-              ...prev,
-              [shot.id]: false
-            }));
-            throw new Error(statusData.failure_reason || "Video generation failed");
-          } else {
-            // Continue polling
-            setTimeout(pollStatus, 3000);
-          }
-        } catch (error) {
-          console.error("Error during video status polling:", error);
-          toast.error(error instanceof Error ? error.message : "Failed to check video generation status. Please try again.", {
-            id: "video-generation",
-          });
-          // Clear loading state on error
-          setVideoLoadingStates(prev => ({
-            ...prev,
-            [shot.id]: false
-          }));
-        }
-      };
-
-      pollStatus();
-    } catch (error) {
-      console.error("Error generating video:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate video. Please try again.");
-      // Clear loading state on error
-      setVideoLoadingStates(prev => ({
-        ...prev,
-        [shot.id]: false
-      }));
-    }
-  }, [currentScene, storyId, setVideoLoadingStates, setScenes, setCurrentScene]);
-
-  // Generate video for all shots in a scene
-  const generateSceneVideo = useCallback(async (sceneId: string) => {
-    if (!currentScene) {
-      toast.error("No scene selected");
-      return;
-    }
-
-    // Check if all shots have generated images
-    const missingImages = currentScene.shots.filter(shot => !shot.generatedImage);
-    if (missingImages.length > 0) {
-      toast.error(`Please generate images for all shots first (${missingImages.length} missing)`);
-      return;
-    }
-
-    // Set generating flag
-    const updatedScene = { ...currentScene, isGeneratingVideo: true };
-    setCurrentScene(updatedScene);
-    setScenes(prevScenes => 
-      prevScenes.map(scene => 
-        scene.id === sceneId ? updatedScene : scene
-      )
-    );
-
-    try {
-      // Format shots data for the API
-      const shots = currentScene.shots.map(shot => ({
-        imageUrl: shot.generatedImage,
-        prompt: shot.description,
-        duration: 5
-      }));
-      
-      console.log("Starting sequential video generation for shots:", shots);
-
-      // Process shots sequentially
-      for (let i = 0; i < shots.length; i++) {
-        const shot = shots[i];
-        console.log(`Processing shot ${i + 1}/${shots.length}`);
-
-        // Start video generation for current shot
-        const response = await fetch("/api/video", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            shots: [shot], // Send only one shot at a time
-            style: currentScene.style || "cinematic",
-            prompt: shot.prompt || "Create a cinematic video",
-            duration: 5
-          }),
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || data.details || "Failed to start video generation");
-        }
-
-        console.log(`Video generation started for shot ${i + 1} with ID:`, data.id);
-
-        // Show loading toast for current shot
-        toast.loading(`Generating video for shot ${i + 1}/${shots.length}...`, {
-          id: "video-generation",
-        });
-
-        // Poll for video generation status
-        await new Promise<void>((resolve, reject) => {
-          const pollStatus = async () => {
-            try {
-              const statusResponse = await fetch(`/api/video?id=${data.id}`);
-              if (!statusResponse.ok) {
-                throw new Error("Failed to check video generation status");
-              }
-              
-              const statusData = await statusResponse.json();
-              console.log(`Shot ${i + 1} video generation status:`, statusData.state);
-
-              if (statusData.state === "completed") {
-                try {
-                  if (!statusData.assets?.video) {
-                    throw new Error("No video URL in completed generation");
-                  }
-
-                  // Update the shot with the generated video URL
-                  const updatedShots = [...currentScene.shots];
-                  if (updatedShots[i]) {
-                    const updatedShot: Shot = {
-                      ...updatedShots[i],
-                      generatedVideo: statusData.assets.video || undefined,
-                    };
-                    updatedShots[i] = updatedShot;
-                    
-                    const updatedScene = {
-                      ...currentScene,
-                      shots: updatedShots,
-                    } as Scene;
-                    
-                    // Update state with proper type casting
-                    setCurrentScene(updatedScene as Scene);
-                    setScenes(prevScenes => 
-                      prevScenes.map(s => s.id === sceneId ? updatedScene as Scene : s)
-                    );
-                    console.log(`Successfully updated shot ${i + 1} with generated video`);
-                    resolve();
-                  }
-                } catch (error) {
-                  console.error(`Error updating shot ${i + 1} with video:`, error);
-                  reject(error);
-                }
-              } else if (statusData.state === "failed") {
-                reject(new Error(statusData.failure_reason || "Video generation failed"));
-              } else {
-                // Continue polling
-                setTimeout(pollStatus, 3000);
-              }
-            } catch (error) {
-              reject(error);
-            }
-          };
-
-          pollStatus();
-        });
-
-        // Wait a bit before processing the next shot
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      toast.success("All shot videos generated successfully!", {
-        id: "video-generation",
-      });
-    } catch (error) {
-      console.error("Error generating scene videos:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate scene videos. Please try again.");
-    } finally {
-      // Clear generating flag
-      const finalScene = { ...currentScene, isGeneratingVideo: false };
-      setCurrentScene(finalScene);
-      setScenes(prevScenes => 
-        prevScenes.map(scene => 
-          scene.id === sceneId ? finalScene : scene
-        )
-      );
-    }
-  }, [currentScene, setScenes, setCurrentScene]);
-
-  const handleSceneSelect = useCallback((scene: Scene) => {
-    setCurrentScene(scene);
-  }, [setCurrentScene]);
-
-  const handleSceneRename = useCallback((sceneId: string, newTitle: string) => {
-    // Update local state immediately for responsiveness
-    const updatedScenes = scenes.map(scene => 
-      scene.id === sceneId ? { ...scene, title: newTitle } : scene
-    );
-    setScenes(updatedScenes);
-    if (currentScene?.id === sceneId) {
-      setCurrentScene(prev => prev ? { ...prev, title: newTitle } : null);
-    }
-    
-    // Debounce or directly call updateSceneDetails
-    if (storyId) {
-      updateSceneDetails(sceneId, { title: newTitle }); // Assuming updateSceneDetails handles saving
-    }
-  }, [scenes, currentScene, storyId, updateSceneDetails]);
+  }, [storyId, setScenes, setCurrentScene]);
 
   // Update shot description handler
   const handleShotDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
     if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
-    const updates = { description: e.target.value, prompt: e.target.value };
-    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
-  }, [currentScene, storyId, updateShotDetails]);
+    
+    const shotId = currentScene.shots[index].id;
+    
+    // Update local state immediately
+    setShotDescriptions(prev => ({
+      ...prev,
+      [shotId]: e.target.value
+    }));
+    
+    // Update scenes state for immediate UI feedback
+    setScenes(prevScenes => 
+      prevScenes.map(scene => {
+        if (scene.id !== currentScene.id) return scene;
+        return {
+          ...scene,
+          shots: scene.shots.map((shot, i) => {
+            if (i !== index) return shot;
+            return {
+              ...shot,
+              description: e.target.value,
+              prompt: e.target.value
+            };
+          })
+        };
+      })
+    );
+  }, [currentScene, storyId, setScenes]);
+
+  // Handle blur - update Firebase
+  const handleShotDescriptionBlur = useCallback(async (index: number) => {
+    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
+    
+    const shotId = currentScene.shots[index].id;
+    const description = shotDescriptions[shotId];
+    
+    try {
+      await updateShotDetails(currentScene.id, shotId, { 
+        description, 
+        prompt: description 
+      });
+      toast.success("Shot description saved");
+    } catch (error) {
+      console.error("Error saving shot description:", error);
+      toast.error("Failed to save shot description");
+    }
+  }, [currentScene, storyId, shotDescriptions, updateShotDetails]);
 
   // Update shot type handler
   const handleShotTypeChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>, index: number) => {
@@ -1295,8 +556,8 @@ function ProjectContent() {
   const handleSyncScenes = useCallback(async () => {
       if (!storyId) {
           toast.error("No story ID found");
-          return;
-      }
+      return;
+    }
       try {
           const story = await getStory(storyId);
           if (story) {
@@ -1304,10 +565,10 @@ function ProjectContent() {
               setCurrentScene(story.scenes[0] || null);
               toast.success("Scenes synced successfully");
           }
-      } catch (error) {
+    } catch (error) {
           console.error("Error syncing scenes:", error);
           toast.error("Failed to sync scenes. Please try again.");
-      }
+    }
   }, [storyId, setScenes, setCurrentScene]);
 
   // Generate lip sync for a shot with dialogue
@@ -1474,6 +735,358 @@ function ProjectContent() {
     }
   };
 
+  const handleDownload = () => {
+    // ... existing download code ...
+  };
+
+  const handleExportScene = async () => {
+    if (!currentScene) {
+      toast.error("No scene selected to export");
+      return;
+    }
+    
+    try {
+      const sceneData = {
+        title: currentScene.title,
+        location: currentScene.location,
+        description: currentScene.description,
+        shots: currentScene.shots.map(shot => ({
+          type: shot.type,
+          description: shot.description,
+          generatedImage: shot.generatedImage,
+          generatedVideo: shot.generatedVideo
+        }))
+      };
+      
+      // Create a JSON blob and download it
+      const blob = new Blob([JSON.stringify(sceneData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scene-${currentScene.title.replace(/\s+/g, '-').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast.success("Scene exported successfully");
+    } catch (error) {
+      console.error("Error exporting scene:", error);
+      toast.error("Failed to export scene");
+    }
+  };
+
+  const uploadTempFile = async (blob: Blob) => {
+    // ... existing code ...
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (!currentScene) {
+      toast.error("No scene selected to copy");
+      return;
+    }
+
+    try {
+      const sceneText = `Scene: ${currentScene.title}\nLocation: ${currentScene.location}\nDescription: ${currentScene.description}\n\nShots:\n${currentScene.shots.map((shot, index) => `${index + 1}. ${shot.type}: ${shot.description}`).join('\n')}`;
+      
+      await navigator.clipboard.writeText(sceneText);
+      toast.success("Scene details copied to clipboard");
+    } catch (error) {
+      console.error("Error copying to clipboard:", error);
+      toast.error("Failed to copy scene details");
+    }
+  };
+
+  const generateShotFromPrompt = async (index: number, description: string) => {
+    if (!currentScene) return;
+    
+    try {
+      setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: true }));
+      
+      // Call the image generation API
+      const response = await fetch("/api/image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: description,
+          aspectRatio: "16:9",
+          model: "photon-1"
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start image generation");
+      }
+
+      const data = await response.json();
+      
+      // Poll for the generated image using the ID returned from the API
+      let imageUrl = null;
+      let retries = 30; // 30 retries with 2 second delay = 1 minute timeout
+      
+      while (retries > 0 && !imageUrl) {
+        // Wait for 2 seconds between polling attempts
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        try {
+          const statusResponse = await fetch(`/api/image/status?id=${data.id}`);
+          
+          if (!statusResponse.ok) {
+            console.error("Status check failed:", await statusResponse.text());
+            retries--;
+            continue;
+          }
+          
+          const statusData = await statusResponse.json();
+          console.log("Status check:", statusData);
+          
+          if (statusData.status === "completed" && statusData.imageUrl) {
+            imageUrl = statusData.imageUrl;
+            break;
+          }
+          
+          if (statusData.status === "failed") {
+            throw new Error(statusData.error || "Image generation failed");
+          }
+        } catch (pollError) {
+          console.error("Error polling for image status:", pollError);
+        }
+        
+        retries--;
+      }
+      
+      if (!imageUrl) {
+        throw new Error("Image generation timed out or failed");
+      }
+      
+      // Update the shot with the generated image URL
+      const updatedShots = [...currentScene.shots];
+      updatedShots[index] = {
+        ...updatedShots[index],
+        generatedImage: imageUrl
+      };
+      
+      // Update Firebase with the new image URL
+      await updateShotDetails(currentScene.id, currentScene.shots[index].id, { 
+        generatedImage: imageUrl 
+      });
+      
+      // Update the UI
+      setScenes(prev => prev.map(scene => 
+        scene.id === currentScene.id 
+          ? { ...scene, shots: updatedShots }
+          : scene
+      ));
+      
+      toast.success("Shot image generated successfully");
+    } catch (error) {
+      console.error("Error generating shot:", error);
+      toast.error("Failed to generate shot image");
+    } finally {
+      setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
+    }
+  };
+
+  const generateShotVideo = async (index: number) => {
+    if (!currentScene) return;
+    
+    try {
+      setVideoLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: true }));
+      
+      // Ensure we have an image to use for video generation
+      if (!currentScene.shots[index].generatedImage) {
+        throw new Error("Shot needs an image before generating video");
+      }
+      
+      // Call the video generation API
+      const response = await fetch("/api/video", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shots: [{
+            imageUrl: currentScene.shots[index].generatedImage,
+            prompt: currentScene.shots[index].description || "Create a cinematic video"
+          }],
+          prompt: "Create a cinematic video",
+          duration: "5s"
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start video generation");
+      }
+
+      const data = await response.json();
+      
+      // Poll for the generated video using the ID returned from the API
+      let videoUrl = null;
+      let retries = 60; // 60 retries with 3 second delay = 3 minute timeout
+      
+      while (retries > 0 && !videoUrl) {
+        // Wait for 3 seconds between polling attempts
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        try {
+          const statusResponse = await fetch(`/api/video/status?id=${data.id}`);
+          
+          if (!statusResponse.ok) {
+            console.error("Status check failed:", await statusResponse.text());
+            retries--;
+            continue;
+          }
+          
+          const statusData = await statusResponse.json();
+          console.log("Video status check:", statusData);
+          
+          if (statusData.status === "completed" && statusData.videoUrl) {
+            videoUrl = statusData.videoUrl;
+            break;
+          }
+          
+          if (statusData.status === "failed") {
+            throw new Error(statusData.error || "Video generation failed");
+          }
+        } catch (pollError) {
+          console.error("Error polling for video status:", pollError);
+        }
+        
+        retries--;
+      }
+      
+      if (!videoUrl) {
+        throw new Error("Video generation timed out or failed");
+      }
+      
+      // Update the shot with the generated video URL
+      const updatedShots = [...currentScene.shots];
+      updatedShots[index] = {
+        ...updatedShots[index],
+        generatedVideo: videoUrl
+      };
+      
+      // Update Firebase with the new video URL
+      await updateShotDetails(currentScene.id, currentScene.shots[index].id, { 
+        generatedVideo: videoUrl 
+      });
+      
+      // Update the UI
+      setScenes(prev => prev.map(scene => 
+        scene.id === currentScene.id 
+          ? { ...scene, shots: updatedShots }
+          : scene
+      ));
+      
+      toast.success("Shot video generated successfully");
+    } catch (error) {
+      console.error("Error generating video:", error);
+      toast.error("Failed to generate shot video");
+    } finally {
+      setVideoLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
+    }
+  };
+
+  const addNewShot = () => {
+    if (!currentScene) return;
+    
+    const newShot: Shot = {
+      id: crypto.randomUUID(),
+      type: "WIDE",
+      description: "",
+      generatedImage: null,
+      generatedVideo: null,
+      hasNarration: false,
+      hasDialogue: false,
+      hasSoundEffects: false,
+      prompt: "",
+      narration: "",
+      dialogue: "",
+      soundEffects: ""
+    };
+    
+    setScenes(prev => prev.map(scene => 
+      scene.id === currentScene.id 
+        ? { ...scene, shots: [...scene.shots, newShot] }
+        : scene
+    ));
+  };
+
+  const handleSceneSelect = (scene: Scene) => {
+    setCurrentScene(scene);
+  };
+
+  const handleSceneRename = (sceneId: string, newTitle: string) => {
+    setScenes(prev => prev.map(scene => 
+      scene.id === sceneId 
+        ? { ...scene, title: newTitle }
+        : scene
+    ));
+  };
+
+  const handleSceneDelete = async (sceneId: string) => {
+    if (!confirm("Are you sure you want to delete this scene?")) return;
+    
+    try {
+      if (storyId) {
+        await deleteScene(storyId, sceneId);
+      }
+      setScenes(prev => prev.filter(scene => scene.id !== sceneId));
+      if (currentScene?.id === sceneId) {
+        setCurrentScene(null);
+      }
+      toast.success("Scene deleted successfully");
+    } catch (error) {
+      console.error("Error deleting scene:", error);
+      toast.error("Failed to delete scene");
+    }
+  };
+
+  const addNewScene = () => {
+    const newScene: Scene = {
+      id: crypto.randomUUID(),
+      title: `Scene ${scenes.length + 1}`,
+      location: "",
+      description: "",
+      lighting: "NATURAL",
+      weather: "CLEAR",
+      style: "CINEMATIC",
+      shots: []
+    };
+    
+    setScenes(prev => [...prev, newScene]);
+    setCurrentScene(newScene);
+  };
+
+  const generateAllShotImages = async () => {
+    if (!currentScene) return;
+    
+    try {
+      for (let i = 0; i < currentScene.shots.length; i++) {
+        await generateShotFromPrompt(i, currentScene.shots[i].description);
+      }
+    } catch (error) {
+      console.error("Error generating all shot images:", error);
+      toast.error("Failed to generate all shot images");
+    }
+  };
+
+  const generateSceneVideo = async () => {
+    if (!currentScene) return;
+    
+    try {
+      for (let i = 0; i < currentScene.shots.length; i++) {
+        await generateShotVideo(i);
+      }
+      toast.success("Scene video generation complete");
+    } catch (error) {
+      console.error("Error generating scene video:", error);
+      toast.error("Failed to generate scene video");
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Use the ProjectHeader component */}
@@ -1529,7 +1142,7 @@ function ProjectContent() {
                           <p className="text-sm">Generating image...</p>
                         </div>
                       ) : (
-                        <Button
+                        <Button 
                           className="bg-primary/90 hover:bg-primary text-primary-foreground dark:bg-primary/80 dark:hover:bg-primary/90 shadow-sm"
                           onClick={() => generateShotFromPrompt(index, shot.description)}
                         >
@@ -1547,17 +1160,18 @@ function ProjectContent() {
                 <textarea
                   className="w-full mt-2 bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                   rows={3}
-                  placeholder="Describe your shot..."
-                  value={shot.description}
+                  placeholder={`Shot ${index + 1} description`}
+                  value={shotDescriptions[shot.id] ?? shot.description}
                   onChange={(e) => handleShotDescriptionChange(e, index)}
+                  onBlur={() => handleShotDescriptionBlur(index)}
                   id={`shot-${index}-prompt`}
                 />
                 
                 {/* Action buttons */}
                 <div className="flex gap-2 mt-2">
                   {shot.generatedImage && !videoLoadingStates[shot.id] && (
-                    <Button
-                      size="sm"
+                    <Button 
+                      size="sm" 
                       variant="outline"
                       onClick={() => generateShotVideo(index)}
                       className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm h-8 rounded-md px-3 text-xs flex-1 text-foreground hover:bg-primary/10 hover:text-primary dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
