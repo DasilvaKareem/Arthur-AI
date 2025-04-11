@@ -12,6 +12,7 @@ import { Logo } from "@/components/ui/logo";
 
 export default function RootPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,7 +123,7 @@ export default function RootPage() {
                   Request Access
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="text-base">
+              <Button size="lg" variant="outline" className="text-base" onClick={() => setIsVideoOpen(true)}>
                 Watch Demo
               </Button>
             </div>
@@ -139,6 +140,8 @@ export default function RootPage() {
             videoSrc="https://www.youtube.com/embed/fiBaijTp8eg"
             thumbnailSrc="/thumbnail.jpg"
             thumbnailAlt="Hero Video"
+            isOpen={isVideoOpen}
+            onOpenChange={setIsVideoOpen}
           />
           <HeroVideoDialog
             className="hidden dark:block"
@@ -146,6 +149,8 @@ export default function RootPage() {
             videoSrc="https://www.youtube.com/embed/fiBaijTp8eg"
             thumbnailSrc="/thumbnail.jpg"
             thumbnailAlt="Hero Video"
+            isOpen={isVideoOpen}
+            onOpenChange={setIsVideoOpen}
           />
         </div>
       </section>
