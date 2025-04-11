@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../../context/auth-context";
+import { Logo } from "../../../components/ui/logo";
+import { useScrollDirection } from "../../hooks/useScrollDirection";
 
 export default function ResetPasswordPage() {
   const { resetPassword } = useAuth();
@@ -10,6 +12,7 @@ export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const isScrollingUp = useScrollDirection();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +38,21 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navigation */}
-      <header className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className={`fixed w-full transition-transform duration-300 ${
+        isScrollingUp ? "translate-y-0" : "-translate-y-full"
+      } top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60`}>
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="font-bold text-2xl">Arthur AI</Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2">
+              <Logo className="w-8 h-8" />
+              <span className="font-bold text-2xl">Arthur AI</span>
+            </Link>
+            <Link 
+              href="/pricing" 
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Pricing
+            </Link>
           </div>
           <nav className="flex items-center gap-4">
             <Link href="/auth/signin" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">

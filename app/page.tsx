@@ -2,18 +2,20 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import Particles from "@/components/Particle";
-import ConfirmationModal from "@/components/ConfirmationModal";
-import HeroVideoDialog from "@/registry/magicui/hero-video-dialog";
-import { Features } from "@/registry/magicui/features";
-import { FAQ } from "@/registry/magicui/faq";
-import { Logo } from "@/components/ui/logo";
+import { Button } from "../components/ui/button";
+import Particles from "../components/Particle";
+import ConfirmationModal from "../components/ConfirmationModal";
+import HeroVideoDialog from "../registry/magicui/hero-video-dialog";
+import { Features } from "../registry/magicui/features";
+import { FAQ } from "../registry/magicui/faq";
+import { Logo } from "../components/ui/logo";
+import { useScrollDirection } from "./hooks/useScrollDirection";
 
 export default function RootPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const isScrollingUp = useScrollDirection();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,12 +83,22 @@ export default function RootPage() {
 
       <Particles />
       {/* Navigation */}
-      <header>
+      <header className={`fixed w-full transition-transform duration-300 ${
+        isScrollingUp ? "translate-y-0" : "-translate-y-full"
+      } top-0 z-50 border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60`}>
         <div className="relative container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-            <Logo className="w-8 h-8" />
-            <span className="font-bold text-2xl">Arthur AI</span>
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+              <Logo className="w-8 h-8" />
+              <span className="font-bold text-2xl">Arthur AI</span>
+            </Link>
+            <Link 
+              href="/pricing" 
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Pricing
+            </Link>
+          </div>
           <nav className="flex items-center gap-4">
             <Link 
               href="/auth/signin" 
