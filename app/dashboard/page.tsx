@@ -7,14 +7,14 @@ export default function DashboardRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to the main dashboard
-    router.replace("/dashboard-app");
+    // Redirect to the workspace
+    router.replace("/workspace");
   }, [router]);
 
   // Loading state while redirecting
   return (
     <div className="flex items-center justify-center h-screen">
-      <div className="animate-pulse text-primary">Loading dashboard...</div>
+      <div className="animate-pulse text-primary">Loading workspace...</div>
     </div>
   );
 } 
