@@ -93,6 +93,12 @@ export default function RootPage() {
               <span className="font-bold text-2xl">Arthur AI</span>
             </Link>
             <Link 
+              href="/features" 
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Features
+            </Link>
+            <Link 
               href="/pricing" 
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
