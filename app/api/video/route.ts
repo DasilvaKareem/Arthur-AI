@@ -76,29 +76,46 @@ export async function POST(req: Request) {
     
     // Validate required fields
     if (!shots || !Array.isArray(shots) || shots.length === 0) {
-      throw new Error("No shots provided");
+      return NextResponse.json(
+        { error: "No shots provided" },
+        { status: 400 }
+      );
     }
 
     // Process one shot at a time
     const shot = shots[0]; // Get the first shot
     
     if (!shot.imageUrl) {
-      throw new Error("Missing image URL in shot");
+      return NextResponse.json(
+        { error: "Missing image URL in shot" },
+        { status: 400 }
+      );
+    }
+
+    // Ensure prompt is valid and meets minimum length requirement
+    const shotPrompt = shot.prompt || prompt || "Create a cinematic video";
+    const cleanedPrompt = shotPrompt.trim();
+    
+    if (cleanedPrompt.length < 3) {
+      return NextResponse.json(
+        { error: "Prompt is too short, minimum length is 3 characters" },
+        { status: 400 }
+      );
     }
 
     console.log("Processing shot:", {
       imageUrl: shot.imageUrl,
-      prompt: shot.prompt || prompt
+      prompt: cleanedPrompt
     });
 
-    // Log environment variables for debugging (without exposing sensitive info)
+    // Log environment variables for debugging
     console.log("API key present:", !!process.env.LUMAAI_API_KEY);
     console.log("API key length:", process.env.LUMAAI_API_KEY?.length || 0);
 
     // Start the video generation
     try {
-      const generation = await luma.generations.create({
-        prompt: shot.prompt || prompt || "Create a cinematic video",
+      const videoOptions = {
+        prompt: cleanedPrompt,
         keyframes: {
           frame0: {
             type: "image" as const,
@@ -108,8 +125,11 @@ export async function POST(req: Request) {
         model: "ray-2" as const,
         resolution: "720p" as const,
         duration: duration || "5s"
-      });
+      };
       
+      console.log("Starting video generation with options:", JSON.stringify(videoOptions, null, 2));
+      
+      const generation = await luma.generations.create(videoOptions);
       console.log("Video generation started with ID:", generation.id);
       
       return NextResponse.json({ 

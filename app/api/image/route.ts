@@ -20,9 +20,18 @@ export async function POST(req: Request) {
     // Parse the request body
     const { prompt, aspectRatio, model, imageRef, styleRef, characterRef, modifyImageRef } = await req.json();
     
-    if (!prompt) {
+    // Ensure prompt is valid and meets minimum length requirement
+    if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
         { error: "Prompt is required" },
+        { status: 400 }
+      );
+    }
+    
+    const cleanedPrompt = prompt.trim();
+    if (cleanedPrompt.length < 3) {
+      return NextResponse.json(
+        { error: "Prompt is too short, minimum length is 3 characters" },
         { status: 400 }
       );
     }
@@ -33,7 +42,7 @@ export async function POST(req: Request) {
     
     // Configure generation options
     const generationOptions: any = {
-      prompt,
+      prompt: cleanedPrompt,
       aspect_ratio: aspectRatio || "16:9",
       model: model || "photon-1",
     };

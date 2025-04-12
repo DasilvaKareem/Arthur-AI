@@ -121,40 +121,77 @@ export async function getUserStories(userId: string): Promise<Story[]> {
         // Parse scenes from the script if they exist
         let scenes: Scene[] = [];
         if (storyData.script) {
-          // Split the script into scenes based on "SCENE" markers
-          const sceneTexts: string[] = storyData.script.split(/SCENE \d+:/);
-          scenes = sceneTexts
-            .filter((text: string) => text.trim()) // Remove empty scenes
-            .map((sceneText: string, index: number) => {
-              // Extract scene details using regex
-              const locationMatch = sceneText.match(/INT\.|EXT\.\s+(.*?)\s+-/);
-              const descriptionMatch = sceneText.match(/Description:\s*(.*?)(?=\n|$)/);
-              const lightingMatch = sceneText.match(/Lighting:\s*(.*?)(?=\n|$)/);
-              const weatherMatch = sceneText.match(/Weather:\s*(.*?)(?=\n|$)/);
-              
-              return {
-                id: `scene-${index + 1}`,
-                title: `Scene ${index + 1}`,
-                location: locationMatch ? locationMatch[1].trim() : "",
-                description: descriptionMatch ? descriptionMatch[1].trim() : "",
-                lighting: lightingMatch ? lightingMatch[1].trim() : "",
-                weather: weatherMatch ? weatherMatch[1].trim() : "",
-                style: "hyperrealistic",
-                shots: [] // We'll handle shots in a separate function if needed
-              };
-            });
+          try {
+            // Split the script into scenes based on "SCENE" markers
+            const sceneTexts: string[] = storyData.script.split(/SCENE \d+:/);
+            scenes = sceneTexts
+              .filter((text: string) => text && typeof text === 'string' && text.trim ? text.trim() : false) // Add null check for text and trim method
+              .map((sceneText: string, index: number) => {
+                // Extract scene details using regex
+                const locationMatch = sceneText.match(/INT\.|EXT\.\s+(.*?)\s+-/);
+                const descriptionMatch = sceneText.match(/Description:\s*(.*?)(?=\n|$)/);
+                const lightingMatch = sceneText.match(/Lighting:\s*(.*?)(?=\n|$)/);
+                const weatherMatch = sceneText.match(/Weather:\s*(.*?)(?=\n|$)/);
+                
+                return {
+                  id: `scene-${index + 1}`,
+                  title: `Scene ${index + 1}`,
+                  location: locationMatch && locationMatch[1] ? locationMatch[1].trim() : "",
+                  description: descriptionMatch && descriptionMatch[1] ? descriptionMatch[1].trim() : "",
+                  lighting: lightingMatch && lightingMatch[1] ? lightingMatch[1].trim() : "",
+                  weather: weatherMatch && weatherMatch[1] ? weatherMatch[1].trim() : "",
+                  style: "hyperrealistic",
+                  shots: [] // We'll handle shots in a separate function if needed
+                };
+              });
+          } catch (parseError) {
+            console.error(`Error parsing script for story ${doc.id}:`, parseError);
+            // Return empty scenes if parsing fails
+            scenes = [];
+          }
+        }
+        
+        // Handle different date formats and ensure all required fields
+        let createdAt = new Date();
+        let updatedAt = new Date();
+        
+        // Safely handle Firestore timestamps
+        if (storyData.createdAt) {
+          if (typeof storyData.createdAt.toDate === 'function') {
+            // It's a Firestore timestamp
+            createdAt = storyData.createdAt.toDate();
+          } else if (storyData.createdAt instanceof Date) {
+            // It's already a Date object
+            createdAt = storyData.createdAt;
+          } else if (storyData.createdAt._seconds) {
+            // It's a serialized timestamp
+            createdAt = new Date(storyData.createdAt._seconds * 1000);
+          }
+        }
+        
+        if (storyData.updatedAt) {
+          if (typeof storyData.updatedAt.toDate === 'function') {
+            // It's a Firestore timestamp
+            updatedAt = storyData.updatedAt.toDate();
+          } else if (storyData.updatedAt instanceof Date) {
+            // It's already a Date object
+            updatedAt = storyData.updatedAt;
+          } else if (storyData.updatedAt._seconds) {
+            // It's a serialized timestamp
+            updatedAt = new Date(storyData.updatedAt._seconds * 1000);
+          }
         }
         
         // Convert Firestore Timestamps to Dates and ensure all required fields
         const story: Story = {
           id: doc.id,
           title: storyData.title || "Untitled Story",
-          description: storyData.script?.split('\n')[0] || "", // Use first line of script as description if no description
+          description: storyData.script && typeof storyData.script === 'string' && storyData.script.split ? storyData.script.split('\n')[0] || "" : "", // Add null check for script
           script: storyData.script || "", // Add the script property
           userId: storyData.userId,
           scenes: scenes,
-          createdAt: storyData.createdAt?.toDate() || new Date(),
-          updatedAt: storyData.updatedAt?.toDate() || new Date()
+          createdAt: createdAt,
+          updatedAt: updatedAt
         };
         
         stories.push(story);

@@ -53,6 +53,7 @@ function ProjectContent() {
   // Add state for image and video loading states
   const [imageLoadingStates, setImageLoadingStates] = useState<Record<string, boolean>>({});
   const [videoLoadingStates, setVideoLoadingStates] = useState<Record<string, boolean>>({});
+  const [videoStatusMessages, setVideoStatusMessages] = useState<Record<string, string>>({});
   const [isEmbedded, setIsEmbedded] = useState(false);
   const [shotDescriptions, setShotDescriptions] = useState<Record<string, string>>({});
 
@@ -801,6 +802,13 @@ function ProjectContent() {
     if (!currentScene) return;
     
     try {
+      // Validate the prompt first
+      const cleanedPrompt = description?.trim();
+      if (!cleanedPrompt || cleanedPrompt.length < 3) {
+        toast.error("Description must be at least 3 characters");
+        return;
+      }
+      
       setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: true }));
       
       // Call the image generation API
@@ -810,14 +818,15 @@ function ProjectContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt: description,
+          prompt: cleanedPrompt,
           aspectRatio: "16:9",
           model: "photon-1"
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start image generation");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start image generation");
       }
 
       const data = await response.json();
@@ -883,109 +892,92 @@ function ProjectContent() {
       toast.success("Shot image generated successfully");
     } catch (error) {
       console.error("Error generating shot:", error);
-      toast.error("Failed to generate shot image");
+      toast.error("Failed to generate shot image: " + (error as Error).message);
     } finally {
       setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
     }
   };
 
-  const generateShotVideo = async (index: number) => {
-    if (!currentScene) return;
-    
+  const generateShotVideo = async (shotId: string) => {
     try {
-      setVideoLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: true }));
+      // Set loading state for this specific shot to true
+      setVideoLoadingStates((prev) => ({ ...prev, [shotId]: true }));
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Initializing video generation..." }));
       
-      // Ensure we have an image to use for video generation
-      if (!currentScene.shots[index].generatedImage) {
-        throw new Error("Shot needs an image before generating video");
+      const currentShot = currentScene?.shots.find((s) => s.id === shotId);
+
+      if (!currentShot) {
+        console.error(`Shot with id ${shotId} not found`);
+        setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
+        return;
       }
-      
-      // Call the video generation API
+
+      console.log("Generating video for shot:", currentShot);
+
+      // Start the video generation process
       const response = await fetch("/api/video", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          shots: [{
-            imageUrl: currentScene.shots[index].generatedImage,
-            prompt: currentScene.shots[index].description || "Create a cinematic video"
-          }],
-          prompt: "Create a cinematic video",
-          duration: "5s"
+          shotId,
+          storyId,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start video generation");
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log("Video generation started:", data);
       
-      // Poll for the generated video using the ID returned from the API
-      let videoUrl = null;
-      let retries = 60; // 60 retries with 3 second delay = 3 minute timeout
-      
-      while (retries > 0 && !videoUrl) {
-        // Wait for 3 seconds between polling attempts
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        try {
-          const statusResponse = await fetch(`/api/video/status?id=${data.id}`);
-          
-          if (!statusResponse.ok) {
-            console.error("Status check failed:", await statusResponse.text());
-            retries--;
-            continue;
-          }
-          
-          const statusData = await statusResponse.json();
-          console.log("Video status check:", statusData);
-          
-          if (statusData.status === "completed" && statusData.videoUrl) {
-            videoUrl = statusData.videoUrl;
-            break;
-          }
-          
-          if (statusData.status === "failed") {
-            throw new Error(statusData.error || "Video generation failed");
-          }
-        } catch (pollError) {
-          console.error("Error polling for video status:", pollError);
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Video generation started..." }));
+
+      // Poll for video generation status
+      let isComplete = false;
+      while (!isComplete) {
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for 5 seconds
+
+        const statusResponse = await fetch(
+          `/api/video/status?shotId=${shotId}&storyId=${storyId}`
+        );
+
+        if (!statusResponse.ok) {
+          throw new Error(`HTTP error! status: ${statusResponse.status}`);
         }
-        
-        retries--;
+
+        const statusData = await statusResponse.json();
+        console.log("Video generation status:", statusData);
+
+        // Update status message based on the current status
+        if (statusData.status) {
+          setVideoStatusMessages((prev) => ({ 
+            ...prev, 
+            [shotId]: `Status: ${statusData.status}${statusData.progress ? ` (${statusData.progress}%)` : ''}` 
+          }));
+        }
+
+        if (statusData.status === "completed") {
+          isComplete = true;
+        }
+      }
+
+      console.log("Video generation complete for shot:", shotId);
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Video generation complete!" }));
+      
+      // Reload the story to get the updated video URL
+      if (storyId) {
+        await loadStory(storyId);
       }
       
-      if (!videoUrl) {
-        throw new Error("Video generation timed out or failed");
-      }
-      
-      // Update the shot with the generated video URL
-      const updatedShots = [...currentScene.shots];
-      updatedShots[index] = {
-        ...updatedShots[index],
-        generatedVideo: videoUrl
-      };
-      
-      // Update Firebase with the new video URL
-      await updateShotDetails(currentScene.id, currentScene.shots[index].id, { 
-        generatedVideo: videoUrl 
-      });
-      
-      // Update the UI
-      setScenes(prev => prev.map(scene => 
-        scene.id === currentScene.id 
-          ? { ...scene, shots: updatedShots }
-          : scene
-      ));
-      
-      toast.success("Shot video generated successfully");
+      // Set loading state for this specific shot back to false
+      setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
     } catch (error) {
       console.error("Error generating video:", error);
-      toast.error("Failed to generate shot video");
-    } finally {
-      setVideoLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Error generating video" }));
+      setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
     }
   };
 
@@ -1078,7 +1070,7 @@ function ProjectContent() {
     
     try {
       for (let i = 0; i < currentScene.shots.length; i++) {
-        await generateShotVideo(i);
+        await generateShotVideo(currentScene.shots[i].id);
       }
       toast.success("Scene video generation complete");
     } catch (error) {
@@ -1133,6 +1125,12 @@ function ProjectContent() {
                           </Button>
                         </div>
                       )}
+                      {videoLoadingStates[shot.id] && (
+                        <div className="absolute inset-0 flex flex-col justify-center items-center bg-black/75 text-white">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-2"></div>
+                          <p className="text-sm font-medium">{videoStatusMessages[shot.id] || "Generating video..."}</p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="w-full h-full flex flex-col justify-center items-center text-muted-foreground">
@@ -1168,22 +1166,40 @@ function ProjectContent() {
                 />
                 
                 {/* Action buttons */}
-                <div className="flex gap-2 mt-2">
-                  {shot.generatedImage && !videoLoadingStates[shot.id] && (
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => generateShotVideo(index)}
-                      className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm h-8 rounded-md px-3 text-xs flex-1 text-foreground hover:bg-primary/10 hover:text-primary dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+                <div className="shot-actions flex gap-2 mt-2">
+                  {shot.generatedImage && (
+                    <button
+                      className={`flex items-center px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded ${
+                        videoLoadingStates[shot.id] ? 'opacity-90 cursor-not-allowed' : ''
+                      }`}
+                      onClick={() => generateShotVideo(shot.id)}
                       disabled={videoLoadingStates[shot.id]}
                     >
                       {videoLoadingStates[shot.id] ? (
-                        <div className="animate-spin h-4 w-4 border-2 border-primary border-opacity-30 border-t-primary rounded-full mr-2 dark:border-slate-200 dark:border-t-slate-200 dark:border-opacity-80"></div>
+                        <>
+                          <span className="animate-spin h-4 w-4 mr-2 border-t-2 border-b-2 border-white rounded-full"></span>
+                          <span>{videoStatusMessages[shot.id] || "Generating..."}</span>
+                        </>
                       ) : (
-                        <Film className="h-3 w-3 mr-1" />
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 mr-1"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                          Generate Video
+                        </>
                       )}
-                      Generate Video
-                    </Button>
+                    </button>
                   )}
                 </div>
               </div>
