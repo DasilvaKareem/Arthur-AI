@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/button";
 import { Check, X } from "lucide-react";
 import { Logo } from "../../components/ui/logo";
 import { useScrollDirection } from "../hooks/useScrollDirection";
+import Particles from "../../components/Particle";
 
 export default function Page() {
   const isScrollingUp = useScrollDirection();
@@ -82,7 +83,8 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-background relative">
-      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a]" />
+      <Particles />
+      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff]/50 via-[#f5f7ff]/30 to-white/20 dark:bg-gradient-to-b dark:from-[#5f7fc5]/50 dark:via-[#0a0e2a]/30 dark:to-[#0a0e2a]/20" />
       
       {/* Navigation */}
       <header className={`fixed w-full transition-transform duration-300 ${
@@ -93,6 +95,12 @@ export default function Page() {
             <Link href="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
               <Logo className="w-8 h-8" />
               <span className="font-bold text-2xl">Arthur AI</span>
+            </Link>
+            <Link 
+              href="/features" 
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Features
             </Link>
             <Link 
               href="/pricing" 
