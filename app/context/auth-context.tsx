@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { 
   User, 
   signInWithEmailAndPassword, 
@@ -14,7 +14,9 @@ import {
   reauthenticateWithCredential,
   updatePassword,
   deleteUser,
-  Auth
+  Auth,
+  browserLocalPersistence,
+  setPersistence
 } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { firebaseAuth } from "../lib/firebase/client";
@@ -32,6 +34,7 @@ export interface AuthContextType {
   updateUserProfile: (displayName?: string, photoURL?: string) => Promise<void>;
   updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   deleteUserAccount: (password: string) => Promise<void>;
+  refreshAuth: () => Promise<void>;
 }
 
 // Create context with default values
@@ -46,6 +49,7 @@ const AuthContext = createContext<AuthContextType>({
   updateUserProfile: async () => {},
   updateUserPassword: async () => {},
   deleteUserAccount: async () => {},
+  refreshAuth: async () => {},
 });
 
 // Auth provider component
@@ -54,6 +58,114 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const tokenRefreshInterval = useRef<NodeJS.Timeout | null>(null);
+  const authRecoveryAttempts = useRef(0);
+  const lastActiveAt = useRef(Date.now());
+
+  // Function to refresh auth
+  const refreshAuth = async (): Promise<void> => {
+    console.log("🔄 Manual auth refresh requested");
+    if (!firebaseAuth) {
+      console.error("❌ Firebase Auth not initialized");
+      return;
+    }
+
+    try {
+      const currentUser = firebaseAuth.currentUser;
+      
+      if (currentUser) {
+        console.log("🔐 Refreshing token for:", currentUser.email);
+        await currentUser.getIdToken(true);
+        console.log("✅ Token refreshed successfully");
+        
+        // Reset recovery attempts after successful refresh
+        authRecoveryAttempts.current = 0;
+        
+        // Update the user state to trigger UI refresh
+        setUser({ ...currentUser });
+      } else {
+        console.log("⚠️ No user found during manual refresh");
+        
+        // Check local storage for any saved auth data
+        const savedUserEmail = localStorage.getItem('userEmail');
+        if (savedUserEmail) {
+          console.log("🔍 Found saved user email:", savedUserEmail);
+          toast.info("Session expired. Please sign in again.");
+          
+          // Clear saved data
+          localStorage.removeItem('userEmail');
+          
+          // Redirect to sign in if we found saved data but no current user
+          if (!pathname?.includes('/auth/')) {
+            router.push('/auth/signin');
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error refreshing auth:", error);
+      authRecoveryAttempts.current += 1;
+      
+      if (authRecoveryAttempts.current > 3) {
+        console.log("⚠️ Multiple auth recovery failures, redirecting to signin");
+        toast.error("Authentication error. Please sign in again.");
+        
+        if (!pathname?.includes('/auth/')) {
+          router.push('/auth/signin');
+        }
+      }
+    }
+  };
+
+  // Set up persistence
+  useEffect(() => {
+    const setupPersistence = async () => {
+      if (firebaseAuth) {
+        try {
+          await setPersistence(firebaseAuth, browserLocalPersistence);
+          console.log("✅ Auth persistence set to LOCAL");
+        } catch (error) {
+          console.error("❌ Error setting auth persistence:", error);
+        }
+      } else {
+        console.warn("⚠️ Firebase Auth not available for persistence setup");
+      }
+    };
+    
+    setupPersistence();
+  }, []);
+
+  // Set up user activity tracking
+  useEffect(() => {
+    const updateActivity = () => {
+      lastActiveAt.current = Date.now();
+    };
+    
+    // Track user activity
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keydown', updateActivity);
+    window.addEventListener('click', updateActivity);
+    window.addEventListener('scroll', updateActivity);
+    
+    // Check if user is active and refresh token if needed
+    const activityInterval = setInterval(() => {
+      const now = Date.now();
+      const inactiveTime = now - lastActiveAt.current;
+      
+      // If user becomes active after being inactive for more than 10 minutes
+      if (inactiveTime < 5000 && inactiveTime > 10 * 60 * 1000) {
+        console.log("👋 User returned after inactivity, refreshing auth");
+        refreshAuth();
+      }
+    }, 60 * 1000); // Check once per minute
+    
+    return () => {
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keydown', updateActivity);
+      window.removeEventListener('click', updateActivity);
+      window.removeEventListener('scroll', updateActivity);
+      clearInterval(activityInterval);
+    };
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -66,34 +178,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     // Listen for auth state changes
-    const unsubscribeAuthState = onAuthStateChanged(firebaseAuth, (user) => {
-      console.log("🔄 Auth state changed:", user?.email);
-      setUser(user);
+    const unsubscribeAuthState = onAuthStateChanged(firebaseAuth, (currentUser) => {
+      console.log("🔄 Auth state changed:", currentUser?.email);
+      
+      if (currentUser) {
+        // Save email in local storage for recovery purposes
+        localStorage.setItem('userEmail', currentUser.email || '');
+      } else {
+        // Clear stored email if signed out
+        localStorage.removeItem('userEmail');
+      }
+      
+      setUser(currentUser);
       setLoading(false);
     });
 
     // Listen for token changes
-    const unsubscribeToken = onIdTokenChanged(firebaseAuth, async (user) => {
-      console.log("🎫 Token changed:", user?.email);
-      if (user) {
+    const unsubscribeToken = onIdTokenChanged(firebaseAuth, async (currentUser) => {
+      console.log("🎫 Token changed:", currentUser?.email);
+      
+      if (currentUser) {
         try {
           // Get fresh token
-          const token = await user.getIdToken();
+          const token = await currentUser.getIdToken();
           console.log("✅ Fresh token obtained:", token.substring(0, 10) + "...");
           
-          // Set up token refresh
-          const tokenRefreshInterval = setInterval(async () => {
+          // Clear any existing interval
+          if (tokenRefreshInterval.current) {
+            clearInterval(tokenRefreshInterval.current);
+          }
+          
+          // Set up token refresh (every 10 minutes)
+          tokenRefreshInterval.current = setInterval(async () => {
             try {
-              const newToken = await user.getIdToken(true);
-              console.log("🔄 Token refreshed:", new Date().toISOString());
+              // Safely check if firebaseAuth and currentUser exist
+              const auth = firebaseAuth;
+              if (auth && auth.currentUser) {
+                const newToken = await auth.currentUser.getIdToken(true);
+                console.log("🔄 Token refreshed:", new Date().toISOString());
+              } else {
+                console.warn("⚠️ Attempted to refresh token but no user is logged in");
+                if (tokenRefreshInterval.current) {
+                  clearInterval(tokenRefreshInterval.current);
+                  tokenRefreshInterval.current = null;
+                }
+              }
             } catch (error) {
               console.error("❌ Token refresh failed:", error);
+              await refreshAuth();
             }
           }, 10 * 60 * 1000); // Refresh every 10 minutes
-          
-          return () => clearInterval(tokenRefreshInterval);
         } catch (error) {
           console.error("❌ Error handling token:", error);
+        }
+      } else {
+        // Clear refresh interval if user is null
+        if (tokenRefreshInterval.current) {
+          clearInterval(tokenRefreshInterval.current);
+          tokenRefreshInterval.current = null;
         }
       }
     });
@@ -107,6 +249,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         try {
           const token = await currentUser.getIdToken(true);
           console.log("✅ Initial token refreshed");
+          
+          // Save email for recovery
+          localStorage.setItem('userEmail', currentUser.email || '');
         } catch (error) {
           console.error("❌ Error refreshing initial token:", error);
         }
@@ -114,9 +259,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
     checkInitialAuth();
 
+    // Handle online/offline status
+    const handleOnline = () => {
+      console.log("🌐 Browser went online, refreshing auth...");
+      refreshAuth();
+    };
+    
+    const handleOffline = () => {
+      console.log("📴 Browser went offline");
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       unsubscribeAuthState();
       unsubscribeToken();
+      
+      if (tokenRefreshInterval.current) {
+        clearInterval(tokenRefreshInterval.current);
+      }
+      
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
@@ -138,8 +303,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setLoading(true);
       console.log("🔑 Attempting sign in:", email);
+      
+      // Ensure LOCAL persistence is set
+      if (firebaseAuth) {
+        await setPersistence(firebaseAuth, browserLocalPersistence);
+      }
+      
       const result = await signInWithEmailAndPassword(firebaseAuth, email, password);
       console.log("✅ Sign in successful:", result.user.email);
+      
+      // Save email for recovery
+      localStorage.setItem('userEmail', result.user.email || '');
+      
+      // Get fresh token
+      await result.user.getIdToken(true);
+      
       toast.success('Signed in successfully');
       router.push('/create-story');
     } catch (error: any) {
@@ -295,6 +473,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     updateUserProfile,
     updateUserPassword,
     deleteUserAccount,
+    refreshAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

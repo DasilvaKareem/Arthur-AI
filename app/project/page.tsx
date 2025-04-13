@@ -10,7 +10,7 @@ import rehypeHighlight from "rehype-highlight";
 import { ArrowLeft, Download, Copy, Share, ChevronDown, Plus, Edit, Trash, Pencil, Camera, Film, Music, Volume2, Loader2, Save, RefreshCw, Play } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { createStory, updateStory, getStory, updateScene, updateShot, deleteScene, deleteShot, uploadShotImage, validateSceneData, validateShotData, cleanupShotDescriptions } from '../lib/firebase/stories';
+import { createStory, updateStory, getStoryWithSubcollections, updateSceneSubcollection, updateShotSubcollection, deleteSceneSubcollection, deleteShotSubcollection, uploadShotImage, validateSceneData, validateShotData, cleanupShotDescriptions, ensureStoryHasScene, createSceneSubcollection, createShotSubcollection, analyzeStoryStructure, migrateStoryToSubcollections, removeNestedScenes } from '../lib/firebase/stories';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ import SceneSidebar from "../../components/project/SceneSidebar"; // Import the 
 import SceneTimeline from "../../components/project/SceneTimeline"; // Import the new timeline component
 import ProjectHeader from "../../components/project/ProjectHeader"; // Import the new header component
 import { debounce } from 'lodash';
+import { SoundEffectsEditor } from "../../components/SoundEffectsEditor";
 
 interface VideoGenerationShot {
   imageUrl: string | null;
@@ -36,10 +37,21 @@ interface VideoGenerationRequest {
   duration: number;
 }
 
+// Add themeColors mapping for button styling
+const themeColors = {
+  neutral: "bg-primary hover:bg-primary/90",
+  red: "bg-red-500 hover:bg-red-600",
+  violet: "bg-violet-500 hover:bg-violet-600",
+  blue: "bg-blue-500 hover:bg-blue-600",
+  tangerine: "bg-orange-500 hover:bg-orange-600",
+  emerald: "bg-emerald-500 hover:bg-emerald-600",
+  amber: "bg-amber-500 hover:bg-amber-600"
+};
+
 function ProjectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, refreshAuth } = useAuth();
   const [script, setScript] = useState<string>("");
   const [title, setTitle] = useState<string>("My Script Project");
   const [expandedScript, setExpandedScript] = useState(false);
@@ -55,7 +67,18 @@ function ProjectContent() {
   const [videoLoadingStates, setVideoLoadingStates] = useState<Record<string, boolean>>({});
   const [videoStatusMessages, setVideoStatusMessages] = useState<Record<string, string>>({});
   const [isEmbedded, setIsEmbedded] = useState(false);
+  const [forceShowTimeline, setForceShowTimeline] = useState(false);
   const [shotDescriptions, setShotDescriptions] = useState<Record<string, string>>({});
+  const [showingSoundEffects, setShowingSoundEffects] = useState<Record<string, boolean>>({});
+  const [userThemeColor, setUserThemeColor] = useState<string>("neutral");
+
+  // Add effect to get user's theme color from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedColorTheme = localStorage.getItem("color-theme") || "neutral";
+      setUserThemeColor(savedColorTheme);
+    }
+  }, []);
 
   useEffect(() => {
     const scriptParam = searchParams.get("script");
@@ -116,29 +139,86 @@ function ProjectContent() {
 
   useEffect(() => {
     // Check if this page is inside an iframe
-    const isInsideIframe = window !== window.parent;
-    setIsEmbedded(isInsideIframe);
-    console.log("Project page is embedded in iframe:", isInsideIframe);
+    const checkEmbedding = () => {
+      try {
+        const isInsideIframe = window !== window.parent;
+        console.log("Project page is embedded in iframe:", isInsideIframe);
+        setIsEmbedded(isInsideIframe);
+      } catch (e) {
+        // If we can't access window.parent due to cross-origin issues,
+        // assume we're in an iframe
+        console.log("Error checking iframe status, assuming embedded:", e);
+        setIsEmbedded(true);
+      }
+    };
+    
+    checkEmbedding();
+    
+    // Use a timeout to ensure the check happens after the page is fully loaded
+    const timeoutId = setTimeout(checkEmbedding, 1000);
+    
+    // Add a keyboard shortcut (Alt+T) to toggle timeline visibility
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 't') {
+        setForceShowTimeline(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Log that the project page was loaded
+    console.log("📜 Script Project Page Loaded!");
+    
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const loadStory = useCallback(async (id: string) => {
     try {
-      const story = await getStory(id);
-      if (story) {
-        // Clean up any "Describe your shot..." values
-        await cleanupShotDescriptions(id);
+      console.log("Loading story with ID:", id);
+      setIsLoading(true);
+      
+      // First, ensure the story has at least one scene
+      await ensureStoryHasScene(id);
+      
+      // Clean up any nested scenes array
+      await removeNestedScenes(id);
+      
+      // Use the new subcollection-based function
+      const story = await getStoryWithSubcollections(id);
+      console.log("Story loaded using subcollections:", story);
+      
+      if (!story) {
+        toast.error("Story not found");
+        return;
+      }
+      
+      // Set basic story properties
+      setTitle(story.title || "Untitled Story");
+      setScript(story.description || "");
+      
+      // Check if scenes array exists and has items
+      if (story.scenes && Array.isArray(story.scenes) && story.scenes.length > 0) {
+        console.log(`Setting ${story.scenes.length} scenes`);
+        setScenes(story.scenes);
         
-        // Reload the story after cleanup
-        const cleanedStory = await getStory(id);
-        if (cleanedStory) {
-          setTitle(cleanedStory.title || "Untitled Story");
-          setScript(cleanedStory.description || "");
-          setScenes(cleanedStory.scenes || []);
-          setCurrentScene(cleanedStory.scenes[0] || null);
-        }
+        // Set current scene to the first scene
+        const firstScene = story.scenes[0];
+        console.log("Setting current scene:", firstScene);
+        setCurrentScene(firstScene);
+      } else {
+        console.log("No scenes found in story, setting empty array");
+        setScenes([]);
+        setCurrentScene(null);
+        toast.warning("This story has no scenes. Create your first scene below.");
       }
     } catch (error) {
       console.error("Error loading story:", error);
+      toast.error(`Failed to load story: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -239,6 +319,34 @@ function ProjectContent() {
       toast.error(errorMessage);
     }
   }, [user, storyId, title, script, scenes, router]);
+
+  // Add a function to rename the story
+  const handleRenameStory = useCallback(async (newTitle: string) => {
+    if (!storyId) {
+      toast.error("No story ID found");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Update state immediately for responsive UI
+      setTitle(newTitle);
+      
+      // Update in Firebase
+      await updateStory(storyId, {
+        title: newTitle,
+        updatedAt: new Date()
+      });
+      
+      toast.success("Story renamed successfully");
+    } catch (error) {
+      console.error("Error renaming story:", error);
+      toast.error("Failed to rename story");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [storyId]);
 
   // Parse the script into scenes and shots
   const parseScriptIntoScenes = useCallback((scriptText: string) => {
@@ -370,77 +478,63 @@ function ProjectContent() {
     if (!storyId) return;
     
     try {
-      // Get the full story first
-      const story = await getStory(storyId);
-      if (!story) {
-        throw new Error("Story not found");
-      }
-      
-      // Update the specific scene in the story
-      const updatedScenes = story.scenes.map(scene => 
-        scene.id === sceneId ? { ...scene, ...updates } : scene
-      );
-      
-      // Update the entire story
-      await updateStory(storyId, {
-        ...story,
-        scenes: updatedScenes,
-        title: story.title || "Untitled Story",
-        description: story.description || "No description",
-        script: story.script || "", // Explicitly include script with fallback
-        userId: story.userId || user?.uid || "",
-        updatedAt: new Date()
-      });
+      // Use the new function for updating scenes
+      await updateSceneSubcollection(storyId, sceneId, updates);
       
       // Update local state
-      setScenes(updatedScenes);
+      setScenes(prevScenes => 
+        prevScenes.map(scene => 
+          scene.id === sceneId ? { ...scene, ...updates } : scene
+        )
+      );
+      
       if (currentScene?.id === sceneId) {
         setCurrentScene({ ...currentScene, ...updates });
       }
+      
+      toast.success("Scene updated successfully");
     } catch (error) {
       console.error("Error updating scene:", error);
-      alert("Failed to update scene. Please try again.");
+      toast.error("Failed to update scene. Please try again.");
     }
-  }, [storyId, user, currentScene, setScenes, setCurrentScene]);
+  }, [storyId, currentScene, setScenes, setCurrentScene]);
 
   // Update shot details
   const updateShotDetails = useCallback(async (sceneId: string, shotId: string, updates: Partial<Shot>) => {
     if (!storyId) return;
     
     try {
-      const story = await getStory(storyId);
-      if (!story) {
-        throw new Error("Story not found");
+      // Use the new function for updating shots
+      await updateShotSubcollection(storyId, sceneId, shotId, updates);
+      
+      // Update local state
+      setScenes(prevScenes => 
+        prevScenes.map(scene => {
+          if (scene.id !== sceneId) return scene;
+          
+          return {
+            ...scene,
+            shots: scene.shots.map(shot => 
+              shot.id !== shotId ? shot : { ...shot, ...updates }
+            )
+          };
+        })
+      );
+      
+      // Also update currentScene if needed
+      if (currentScene?.id === sceneId) {
+        setCurrentScene({
+          ...currentScene,
+          shots: currentScene.shots.map(shot => 
+            shot.id !== shotId ? shot : { ...shot, ...updates }
+          )
+        });
       }
-
-      const updatedScenes = story.scenes.map(scene => {
-        if (scene.id !== sceneId) return scene;
-        return {
-          ...scene,
-          shots: scene.shots.map(shot => {
-            if (shot.id !== shotId) return shot;
-            return {
-              ...shot,
-              ...updates
-            };
-          })
-        };
-      });
-
-      await updateStory(storyId, {
-        ...story,
-        scenes: updatedScenes,
-        updatedAt: new Date()
-      });
-
-      setScenes(updatedScenes);
-      const foundScene = updatedScenes.find(scene => scene.id === sceneId);
-      setCurrentScene(foundScene || null);
     } catch (error) {
       console.error("Error updating shot details:", error);
       toast.error("Failed to update shot details");
     }
-  }, [storyId, setScenes, setCurrentScene]);
+  }, [storyId, setScenes, setCurrentScene, currentScene]);
 
   // Update shot description handler
   const handleShotDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
@@ -506,11 +600,50 @@ function ProjectContent() {
     updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
   }, [currentScene, storyId, updateShotDetails]);
 
-  // Update sound effects handler
-  const handleSoundEffectsChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>, index: number) => {
-    if (!currentScene?.id || !storyId || !currentScene.shots[index]?.id) return;
-    const updates = { soundEffects: e.target.value, hasSoundEffects: !!e.target.value };
-    updateShotDetails(currentScene.id, currentScene.shots[index].id, updates);
+  // Replace the existing sound effects handlers with a single manual save handler
+  const handleSoundEffectsSave = useCallback(async (shotId: string, hasSoundEffects: boolean, soundEffects: string) => {
+    if (!currentScene?.id || !storyId) return;
+    
+    try {
+      toast.loading("Saving sound effects...", { id: `sound-effects-${shotId}` });
+      
+      // Update Firebase
+      await updateShotDetails(currentScene.id, shotId, { 
+        soundEffects, 
+        hasSoundEffects 
+      });
+      
+      // Update UI
+      setScenes(prevScenes => 
+        prevScenes.map(scene => {
+          if (scene.id !== currentScene.id) return scene;
+          return {
+            ...scene,
+            shots: scene.shots.map(shot => {
+              if (shot.id !== shotId) return shot;
+              return {
+                ...shot,
+                soundEffects,
+                hasSoundEffects
+              };
+            })
+          };
+        })
+      );
+      
+      // Also update currentScene if needed
+      setCurrentScene({
+        ...currentScene,
+        shots: currentScene.shots.map(shot => 
+          shot.id !== shotId ? shot : { ...shot, soundEffects, hasSoundEffects }
+        )
+      });
+      
+      toast.success("Sound effects saved", { id: `sound-effects-${shotId}` });
+    } catch (error) {
+      console.error("Error saving sound effects:", error);
+      toast.error("Failed to save sound effects", { id: `sound-effects-${shotId}` });
+    }
   }, [currentScene, storyId, updateShotDetails]);
 
   // Add voice selection handler
@@ -560,7 +693,7 @@ function ProjectContent() {
       return;
     }
       try {
-          const story = await getStory(storyId);
+          const story = await getStoryWithSubcollections(storyId);
           if (story) {
               setScenes(story.scenes || []);
               setCurrentScene(story.scenes[0] || null);
@@ -904,15 +1037,51 @@ function ProjectContent() {
       setVideoLoadingStates((prev) => ({ ...prev, [shotId]: true }));
       setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Initializing video generation..." }));
       
+      // Show starting toast
+      toast.loading("Starting video generation...", { id: `video-${shotId}` });
+      
       const currentShot = currentScene?.shots.find((s) => s.id === shotId);
 
       if (!currentShot) {
         console.error(`Shot with id ${shotId} not found`);
         setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
+        toast.error("Shot not found", { id: `video-${shotId}` });
         return;
       }
 
       console.log("Generating video for shot:", currentShot);
+
+      // Validate shot has an image before sending
+      if (!currentShot.generatedImage) {
+        const errorMessage = "Shot has no generated image. Please generate an image first.";
+        console.error(errorMessage);
+        setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
+        setVideoStatusMessages((prev) => ({ ...prev, [shotId]: `Error: ${errorMessage}` }));
+        toast.error(errorMessage, { id: `video-${shotId}` });
+        return;
+      }
+
+      if (!currentShot.description && !currentShot.prompt) {
+        const errorMessage = "Shot has no description or prompt. Please add a description.";
+        console.error(errorMessage);
+        setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
+        setVideoStatusMessages((prev) => ({ ...prev, [shotId]: `Error: ${errorMessage}` }));
+        toast.error(errorMessage, { id: `video-${shotId}` });
+        return;
+      }
+
+      // Log what we're sending to the API for debugging
+      const requestBody = {
+        shotId,
+        storyId,
+        shots: [{
+          imageUrl: currentShot.generatedImage,
+          prompt: currentShot.description || currentShot.prompt,
+          duration: 5 // Default duration in seconds
+        }],
+        style: currentScene?.style || "hyperrealistic"
+      };
+      console.log("Sending video generation request:", requestBody);
 
       // Start the video generation process
       const response = await fetch("/api/video", {
@@ -920,52 +1089,121 @@ function ProjectContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          shotId,
-          storyId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      // Log entire response for debugging
+      console.log("API Response status:", response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorMessage = "Unknown error";
+        try {
+          const errorData = await response.json();
+          console.error("Video API error response:", errorData);
+          errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError);
+          errorMessage = `HTTP error! status: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log("Video generation started:", data);
+      console.log("Video generation started - full response:", data);
       
+      // Log all available properties in the response to identify the correct ID field
+      console.log("Response keys:", Object.keys(data));
+      if (data.id) console.log("Found id:", data.id);
+      if (data.generationId) console.log("Found generationId:", data.generationId);
+      if (data.generation_id) console.log("Found generation_id:", data.generation_id);
+      if (data.videoId) console.log("Found videoId:", data.videoId);
+      
+      // Extract the generation ID from the response
+      // Try multiple possible field names
+      const generationId = data.id || data.generationId || data.generation_id || data.videoId;
+      console.log("Using generation ID for status checks:", generationId);
+      
+      if (!generationId) {
+        throw new Error("No generation ID returned from API");
+      }
+      
+      toast.loading("Video generation in progress...", { id: `video-${shotId}` });
       setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Video generation started..." }));
 
       // Poll for video generation status
       let isComplete = false;
-      while (!isComplete) {
+      let retries = 0;
+      const maxRetries = 60; // 5 minutes with 5-second intervals
+      
+      while (!isComplete && retries < maxRetries) {
         await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for 5 seconds
+        retries++;
 
-        const statusResponse = await fetch(
-          `/api/video/status?shotId=${shotId}&storyId=${storyId}`
-        );
+        try {
+          // Try with different parameter formats in case the API expects a different name
+          // Include both generationId and the original shotId/storyId parameters
+          const statusUrl = `/api/video/status?id=${generationId}&shotId=${shotId}&storyId=${storyId}`;
+          console.log(`Checking status with URL: ${statusUrl}`);
+          
+          const statusResponse = await fetch(statusUrl);
 
-        if (!statusResponse.ok) {
-          throw new Error(`HTTP error! status: ${statusResponse.status}`);
-        }
+          if (!statusResponse.ok) {
+            const errorText = await statusResponse.text();
+            console.error(`Status check failed (attempt ${retries}):`, errorText);
+            
+            // Only update toast after several failures to avoid flickering
+            if (retries % 3 === 0) {
+              toast.loading(`Status check failed, retrying (${retries})...`, { id: `video-${shotId}` });
+            }
+            
+            continue;
+          }
 
-        const statusData = await statusResponse.json();
-        console.log("Video generation status:", statusData);
+          const statusData = await statusResponse.json();
+          console.log("Video generation status (attempt " + retries + "):", statusData);
+          console.log("Status data keys:", Object.keys(statusData));
 
-        // Update status message based on the current status
-        if (statusData.status) {
-          setVideoStatusMessages((prev) => ({ 
-            ...prev, 
-            [shotId]: `Status: ${statusData.status}${statusData.progress ? ` (${statusData.progress}%)` : ''}` 
-          }));
-        }
+          // Update status message based on the current status
+          if (statusData.status) {
+            const statusMessage = `${statusData.status}${statusData.progress ? ` (${statusData.progress}%)` : ''}`;
+            setVideoStatusMessages((prev) => ({ ...prev, [shotId]: statusMessage }));
+            
+            // Update toast with current status
+            toast.loading(`Video: ${statusMessage}`, { id: `video-${shotId}` });
+          }
 
-        if (statusData.status === "completed") {
-          isComplete = true;
+          // Check for completion - try various possible field names
+          const videoUrl = statusData.video || statusData.videoUrl || statusData.url || 
+            (statusData.assets && statusData.assets.video);
+            
+          if (statusData.status === "completed" && videoUrl) {
+            console.log("Video generation completed with URL:", videoUrl);
+            
+            // Store the video URL for the shot
+            if (currentScene) {
+              await updateShotDetails(currentScene.id, shotId, {
+                generatedVideo: videoUrl
+              });
+            }
+            
+            isComplete = true;
+            break;
+          } else if (statusData.status === "failed" || statusData.error) {
+            throw new Error(statusData.error || "Video generation failed");
+          }
+        } catch (pollError) {
+          console.error("Error during status polling:", pollError);
+          // Continue polling despite errors
         }
       }
 
+      if (!isComplete) {
+        throw new Error("Video generation timed out after 5 minutes");
+      }
+
       console.log("Video generation complete for shot:", shotId);
-      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Video generation complete!" }));
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Complete!" }));
+      toast.success("Video generation complete!", { id: `video-${shotId}` });
       
       // Reload the story to get the updated video URL
       if (storyId) {
@@ -976,46 +1214,70 @@ function ProjectContent() {
       setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
     } catch (error) {
       console.error("Error generating video:", error);
-      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: "Error generating video" }));
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: `Error: ${errorMessage}` }));
       setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
+      
+      toast.error(`Video generation failed: ${errorMessage}`, { id: `video-${shotId}` });
     }
   };
 
-  const addNewShot = () => {
+  const addNewShot = async () => {
     if (!currentScene) return;
     
-    const newShot: Shot = {
-      id: crypto.randomUUID(),
-      type: "WIDE",
-      description: "",
-      generatedImage: null,
-      generatedVideo: null,
-      hasNarration: false,
-      hasDialogue: false,
-      hasSoundEffects: false,
-      prompt: "",
-      narration: "",
-      dialogue: "",
-      soundEffects: ""
-    };
-    
-    setScenes(prev => prev.map(scene => 
-      scene.id === currentScene.id 
-        ? { ...scene, shots: [...scene.shots, newShot] }
-        : scene
-    ));
+    try {
+      // Create a new shot with subcollection approach
+      const newShot = {
+        type: "WIDE",
+        description: "",
+        prompt: "",
+        hasDialogue: false,
+        hasNarration: false,
+        hasSoundEffects: false
+      };
+      
+      await createShotSubcollection(storyId as string, currentScene.id, newShot);
+      
+      // Reload the story to get the updated scene structure
+      await loadStory(storyId as string);
+      
+      toast.success("New shot added successfully");
+    } catch (error) {
+      console.error("Error adding new shot:", error);
+      toast.error("Failed to add new shot");
+    }
   };
 
   const handleSceneSelect = (scene: Scene) => {
     setCurrentScene(scene);
   };
 
-  const handleSceneRename = (sceneId: string, newTitle: string) => {
+  const handleSceneRename = async (sceneId: string, newTitle: string) => {
+    // Update local state
     setScenes(prev => prev.map(scene => 
       scene.id === sceneId 
         ? { ...scene, title: newTitle }
         : scene
     ));
+    
+    // Persist changes to the database
+    try {
+      if (storyId) {
+        // Find the updated scene
+        const updatedScene = scenes.find(scene => scene.id === sceneId);
+        if (updatedScene) {
+          // Create a new scene object with the updated title
+          const sceneWithNewTitle = { ...updatedScene, title: newTitle };
+          // Update the scene in the database
+          await updateSceneSubcollection(storyId, sceneId, sceneWithNewTitle);
+          console.log("Scene title updated successfully:", newTitle);
+        }
+      }
+    } catch (error) {
+      console.error("Error updating scene title:", error);
+      toast.error("Failed to save scene title change");
+    }
   };
 
   const handleSceneDelete = async (sceneId: string) => {
@@ -1023,33 +1285,58 @@ function ProjectContent() {
     
     try {
       if (storyId) {
-        await deleteScene(storyId, sceneId);
+        // Use subcollection delete function
+        await deleteSceneSubcollection(storyId, sceneId);
+        
+        setScenes(prev => prev.filter(scene => scene.id !== sceneId));
+        if (currentScene?.id === sceneId) {
+          // Set current scene to the first remaining scene or null
+          const remainingScenes = scenes.filter(scene => scene.id !== sceneId);
+          setCurrentScene(remainingScenes.length > 0 ? remainingScenes[0] : null);
+        }
+        
+        toast.success("Scene deleted successfully");
       }
-      setScenes(prev => prev.filter(scene => scene.id !== sceneId));
-      if (currentScene?.id === sceneId) {
-        setCurrentScene(null);
-      }
-      toast.success("Scene deleted successfully");
     } catch (error) {
       console.error("Error deleting scene:", error);
       toast.error("Failed to delete scene");
     }
   };
 
-  const addNewScene = () => {
-    const newScene: Scene = {
-      id: crypto.randomUUID(),
-      title: `Scene ${scenes.length + 1}`,
-      location: "",
-      description: "",
-      lighting: "NATURAL",
-      weather: "CLEAR",
-      style: "CINEMATIC",
-      shots: []
-    };
+  const addNewScene = async () => {
+    if (!storyId) return;
     
-    setScenes(prev => [...prev, newScene]);
-    setCurrentScene(newScene);
+    try {
+      // Create a new scene with subcollection approach
+      const newScene = {
+        title: `Scene ${scenes.length + 1}`,
+        location: "New Location",
+        description: "New scene description",
+        lighting: "NATURAL",
+        weather: "CLEAR",
+        style: "CINEMATIC"
+      };
+      
+      const sceneId = await createSceneSubcollection(storyId, newScene);
+      
+      // Create a default shot for the scene
+      await createShotSubcollection(storyId, sceneId, {
+        type: "WIDE",
+        description: "",
+        prompt: "",
+        hasDialogue: false,
+        hasNarration: false,
+        hasSoundEffects: false
+      });
+      
+      // Reload the story to get the updated scene structure
+      await loadStory(storyId);
+      
+      toast.success("New scene added successfully");
+    } catch (error) {
+      console.error("Error adding new scene:", error);
+      toast.error("Failed to add new scene");
+    }
   };
 
   const generateAllShotImages = async () => {
@@ -1079,17 +1366,141 @@ function ProjectContent() {
     }
   };
 
+  // Toggle sound effects popup for a specific shot
+  const toggleSoundEffectsPopup = (shotId: string) => {
+    setShowingSoundEffects(prev => ({
+      ...prev,
+      [shotId]: !prev[shotId]
+    }));
+  };
+
+  // Add authentication recovery logic
+  useEffect(() => {
+    // Check if refreshAuth function exists in auth context
+    if (!refreshAuth) {
+      console.warn("Auth refresh function not available");
+      return;
+    }
+    
+    // Set up auth recovery listener to handle token loss
+    const handleAuthError = () => {
+      console.log("🔄 Detecting potential auth error, attempting recovery...");
+      refreshAuth().catch((err: Error) => {
+        console.error("Failed to refresh authentication:", err);
+      });
+    };
+    
+    // Listen for auth errors which might be indicated by Firebase errors in console
+    window.addEventListener('error', (event) => {
+      if (event.error?.message?.includes('auth') || 
+          event.error?.message?.includes('token') ||
+          event.error?.message?.includes('permission')) {
+        handleAuthError();
+      }
+    });
+    
+    // Set up periodic auth check
+    const authCheckInterval = setInterval(() => {
+      if (storyId && !user) {
+        handleAuthError();
+      }
+    }, 60 * 1000); // Check once per minute
+    
+    return () => {
+      clearInterval(authCheckInterval);
+    };
+  }, [refreshAuth, user, storyId]);
+
+  // Update debug story function
+  const debugStoryStructure = async () => {
+    if (!storyId) {
+      toast.error("No story ID found");
+      return;
+    }
+    
+    try {
+      toast.loading("Analyzing story structure...", { id: "analyze-story" });
+      
+      // Analyze the story structure
+      const analysis = await analyzeStoryStructure(storyId);
+      console.log("Story analysis:", analysis);
+      
+      if (analysis.structure.hasNestedScenes) {
+        // Ask user if they want to migrate
+        const confirmMigration = window.confirm(
+          `Found ${analysis.structure.nestedSceneCount} scenes in array format and ${analysis.structure.subcollectionSceneCount} scenes in subcollections.\n\n` +
+          `Would you like to migrate all scenes to subcollections?`
+        );
+        
+        if (confirmMigration) {
+          toast.loading("Migrating scenes to subcollections...", { id: "migrate-story" });
+          
+          // Perform the migration
+          const success = await migrateStoryToSubcollections(storyId);
+          
+          if (success) {
+            toast.success("Successfully migrated story to subcollections", { id: "migrate-story" });
+            
+            // Always clean up the nested scenes array
+            await removeNestedScenes(storyId);
+            
+            // Reload the story to get the updated structure
+            await loadStory(storyId);
+          } else {
+            toast.error("Failed to migrate story", { id: "migrate-story" });
+          }
+        } else {
+          // If user doesn't want to migrate, still clear the nested array
+          const confirmCleanup = window.confirm(
+            "Would you like to clear the nested scenes array to prevent confusion?"
+          );
+          
+          if (confirmCleanup) {
+            await removeNestedScenes(storyId);
+            toast.success("Cleared nested scenes array", { id: "analyze-story" });
+          }
+        }
+      } else if (!analysis.structure.hasSubcollectionScenes) {
+        // No scenes found anywhere
+        const confirmCreateScene = window.confirm(
+          "No scenes found in this story. Would you like to create a default scene?"
+        );
+        
+        if (confirmCreateScene) {
+          await ensureStoryHasScene(storyId);
+          // Also clean up any potential empty scenes array
+          await removeNestedScenes(storyId);
+          await loadStory(storyId);
+          toast.success("Created default scene for story");
+        }
+      } else {
+        // Story has subcollection scenes, still clean up any potential nested array
+        await removeNestedScenes(storyId);
+        toast.success(`Story has ${analysis.structure.subcollectionSceneCount} scenes in subcollections`, { id: "analyze-story" });
+        
+        // Reload the story to get the updated structure
+        await loadStory(storyId);
+      }
+    } catch (error) {
+      console.error("Error debugging story:", error);
+      toast.error(`Failed to debug story: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Use the ProjectHeader component */}
       <ProjectHeader
         isSaving={isSaving}
-        isLoadingAuth={loading} // Pass the auth loading state
+        isLoadingAuth={loading}
+        storyTitle={title}
         onSaveStory={saveStory}
         onSyncScenes={handleSyncScenes}
         onExportScene={handleExportScene}
         onCopyToClipboard={handleCopyToClipboard}
         onDownloadScript={handleDownload}
+        onRenameStory={handleRenameStory}
+        onDebugStory={debugStoryStructure}
       />
       
       <div className="flex flex-col flex-1">
@@ -1100,7 +1511,7 @@ function ProjectContent() {
             {currentScene?.shots.map((shot, index) => (
               <div key={shot.id} className="flex-none w-[350px] min-w-[350px] snap-center flex flex-col">
                 {/* Shot frame */}
-                <div className="aspect-video bg-black/10 border border-border rounded-lg overflow-hidden relative">
+                <div className="aspect-video bg-muted/10 dark:bg-muted/20 border border-border rounded-lg overflow-hidden relative">
                   {shot.generatedImage ? (
                     <div className="w-full h-full relative">
                       <Image 
@@ -1128,7 +1539,17 @@ function ProjectContent() {
                       {videoLoadingStates[shot.id] && (
                         <div className="absolute inset-0 flex flex-col justify-center items-center bg-black/75 text-white">
                           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-2"></div>
-                          <p className="text-sm font-medium">{videoStatusMessages[shot.id] || "Generating video..."}</p>
+                          <p className="text-sm font-medium max-w-xs text-center px-4">{videoStatusMessages[shot.id] || "Generating video..."}</p>
+                          {videoStatusMessages[shot.id]?.includes("Error") && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="mt-2 bg-red-500 text-white hover:bg-red-600 border-0"
+                              onClick={() => generateShotVideo(shot.id)}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" /> Retry
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1152,6 +1573,44 @@ function ProjectContent() {
                   <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
                     {index + 1} - {shot.type}
                   </div>
+                  
+                  {/* Add sound effects icon */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="absolute top-2 right-2 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white rounded-full"
+                    onClick={() => toggleSoundEffectsPopup(shot.id)}
+                    title={shot.hasSoundEffects ? "Edit sound effects" : "Add sound effects"}
+                  >
+                    <Music className={`h-4 w-4 ${shot.hasSoundEffects ? "text-green-500" : ""}`} />
+                  </Button>
+                  
+                  {/* Sound Effects Popup */}
+                  {showingSoundEffects[shot.id] && (
+                    <div className="absolute top-10 right-2 z-20 bg-background border border-border rounded-lg shadow-lg p-2 w-52 max-w-[95%]">
+                      <h3 className="text-xs font-medium mb-1 flex justify-between items-center">
+                        Sound Effects
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-5 w-5 p-0" 
+                          onClick={() => toggleSoundEffectsPopup(shot.id)}
+                        >
+                          ✕
+                        </Button>
+                      </h3>
+                      <SoundEffectsEditor
+                        shotId={shot.id}
+                        initialHasSoundEffects={shot.hasSoundEffects || false}
+                        initialSoundEffects={shot.soundEffects || ""}
+                        onSave={handleSoundEffectsSave}
+                        onClose={() => toggleSoundEffectsPopup(shot.id)}
+                      />
+                      <div className="text-xs text-blue-500 mt-1">
+                        Click "Save" to update.
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Shot description input */}
@@ -1209,7 +1668,7 @@ function ProjectContent() {
             <div className="flex-none w-[350px] min-w-[350px] snap-center flex items-center justify-center">
               <Button 
                 onClick={addNewShot} 
-                className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 dark:from-purple-700 dark:to-purple-900 dark:hover:from-purple-600 dark:hover:to-purple-800 text-white h-40 w-full flex flex-col items-center justify-center shadow-md"
+                className={`${themeColors[userThemeColor as keyof typeof themeColors]} text-white h-40 w-full flex flex-col items-center justify-center shadow-md`}
               >
                 <Plus className="h-12 w-12 mb-2" />
                 <span>Add Shot</span>
@@ -1218,19 +1677,33 @@ function ProjectContent() {
           </div>
         </div>
 
-        {/* Timeline at the bottom - only show if not embedded in workspace */}
-        {!isEmbedded && (
-          <SceneTimeline
-            scenes={scenes}
-            currentScene={currentScene}
-            script={script}
-            onSceneSelect={handleSceneSelect}
-            onSceneRename={handleSceneRename}
-            onSceneDelete={handleSceneDelete}
-            onAddNewScene={addNewScene}
-            onGenerateAllImages={generateAllShotImages}
-            onGenerateSceneVideo={generateSceneVideo}
-          />
+        {/* Timeline at the bottom - more reliable display logic */}
+        {(!isEmbedded || forceShowTimeline) && (
+          <div className="border-t border-border bg-background">
+            <SceneTimeline
+              scenes={scenes}
+              currentScene={currentScene}
+              script={script}
+              onSceneSelect={handleSceneSelect}
+              onSceneRename={handleSceneRename}
+              onSceneDelete={handleSceneDelete}
+              onAddNewScene={addNewScene}
+              onGenerateAllImages={generateAllShotImages}
+              onGenerateSceneVideo={generateSceneVideo}
+            />
+            
+            {/* Show toggle button when in embedded mode */}
+            {isEmbedded && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="absolute right-2 top-2 bg-background text-xs"
+                onClick={() => setForceShowTimeline(prev => !prev)}
+              >
+                {forceShowTimeline ? "Hide Timeline" : "Show Timeline"}
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

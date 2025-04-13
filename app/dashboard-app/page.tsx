@@ -12,7 +12,7 @@ import ProtectedRoute from "../components/auth/protected-route";
 import { cn } from "../../lib/utils";
 import ProjectsSidebar from "../../components/ProjectsSidebar";
 import { toast } from "sonner";
-import { getStory, updateStory } from "../lib/firebase/stories";
+import { getStory, updateStory, getStoryWithSubcollections, migrateStoryToSubcollections, removeNestedScenes, ensureStoryHasScene } from "../lib/firebase/stories";
 import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
 import type { Shot, Scene } from "../../types/shared";
@@ -377,6 +377,7 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [currentScene, setCurrentScene] = useState<Scene | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const isMounted = useRef(false);
   
   // Effect to load scenes when projectId changes
@@ -386,19 +387,49 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
     const loadSceneData = async () => {
       try {
         setIsLoading(true);
-        const story = await getStory(projectId);
-        if (story && story.scenes && story.scenes.length > 0) {
+        setLoadError(null);
+        
+        // Use getStoryWithSubcollections to ensure we get data from subcollections
+        const story = await getStoryWithSubcollections(projectId);
+        console.log("Dashboard Timeline: Story data loaded:", story);
+        
+        if (story && story.scenes && Array.isArray(story.scenes) && story.scenes.length > 0) {
           setScenes(story.scenes);
           setCurrentScene(story.scenes[0]);
-          console.log('Loaded scenes from Firebase:', story.scenes.length);
+          console.log('Dashboard Timeline: Loaded scenes from subcollections:', story.scenes.length);
         } else {
-          // If no scenes in story data, try to extract from DOM
-          extractScenesFromDOM();
+          console.log('Dashboard Timeline: No scenes found in subcollections, trying to migrate data structure...');
+          
+          // Try to migrate if needed
+          await migrateStoryToSubcollections(projectId);
+          await removeNestedScenes(projectId);
+          
+          // Try again with subcollections
+          const updatedStory = await getStoryWithSubcollections(projectId);
+          
+          if (updatedStory && updatedStory.scenes && updatedStory.scenes.length > 0) {
+            setScenes(updatedStory.scenes);
+            setCurrentScene(updatedStory.scenes[0]);
+            console.log('Dashboard Timeline: Loaded scenes after migration:', updatedStory.scenes.length);
+          } else {
+            // As a last resort, create a default scene
+            await ensureStoryHasScene(projectId);
+            const finalStory = await getStoryWithSubcollections(projectId);
+            
+            if (finalStory && finalStory.scenes && finalStory.scenes.length > 0) {
+              setScenes(finalStory.scenes);
+              setCurrentScene(finalStory.scenes[0]);
+              console.log('Dashboard Timeline: Created and loaded default scene');
+            } else {
+              setLoadError("Could not load or create scenes for this story");
+              console.error("Dashboard Timeline: Failed to load or create scenes for story:", projectId);
+            }
+          }
         }
       } catch (error) {
-        console.error('Error loading scene data:', error);
-        // On error, try to extract from DOM
-        extractScenesFromDOM();
+        console.error('Dashboard Timeline: Error loading scene data:', error);
+        setLoadError("Error loading timeline data");
+        // Don't try to extract from DOM - focus on fixing the data instead
       } finally {
         setIsLoading(false);
       }
@@ -489,6 +520,7 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
   
   if (!projectId) return null;
   
+  // Show loading state
   if (isLoading) {
     return (
       <div className="absolute left-0 right-0 bottom-0 bg-background border-t border-border h-16 flex items-center justify-center">
@@ -498,112 +530,21 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
     );
   }
   
-  if (scenes.length === 0) return null;
+  // Don't show the timeline if there are no scenes and no error
+  if (scenes.length === 0 && !loadError) return null;
   
   return (
-    <SceneTimeline 
-      scenes={scenes}
-      currentScene={currentScene}
-      script=""
-      onSceneSelect={handleSceneSelect}
-      onSceneRename={(id, title) => console.log('Rename scene', id, title)}
-      onSceneDelete={(id) => console.log('Delete scene', id)}
-      onAddNewScene={() => {
-        const addButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Plus"])');
-        if (addButton) {
-          (addButton as HTMLElement).click();
-        }
-      }}
-      onGenerateAllImages={() => {
-        const generateButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Camera"])');
-        if (generateButton) {
-          (generateButton as HTMLElement).click();
-        }
-      }}
-      onGenerateSceneVideo={(sceneId: string) => {
-        // Find and click the generate video button
-        const generateButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Film"])');
-        if (generateButton) {
-          // Instead of clicking the button, call our MCP endpoint
-          const scene = scenes.find(s => s.id === sceneId);
-          if (!scene) {
-            toast.error("Scene not found");
-            return;
-          }
-
-          // Check if all shots have generated images
-          const missingImages = scene.shots.filter((shot: Shot) => !shot.generatedImage);
-          if (missingImages.length > 0) {
-            toast.error(`Please generate images for all shots first (${missingImages.length} missing)`);
-            return;
-          }
-
-          // Set generating flag
-          const updatedScene = { ...scene, isGeneratingVideo: true };
-          setCurrentScene(updatedScene);
-          setScenes(prevScenes => 
-            prevScenes.map(s => 
-              s.id === sceneId ? updatedScene : s
-            )
-          );
-
-          // Format shots data for the API
-          const shots = (scene as Scene).shots.map((shot: Shot) => ({
-            imageUrl: shot.generatedImage,
-            prompt: shot.description,
-            duration: 5
-          }));
-
-          // Call the MCP endpoint
-          fetch("/api/mcp-video", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              shots,
-              style: scene.style || "cinematic",
-              prompt: "Create a cinematic video",
-              duration: 5
-            }),
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.error) {
-              throw new Error(data.error);
-            }
-            
-            // Update the scene with the generated video
-            if (data.assets?.video) {
-              const finalScene = {
-                ...scene,
-                isGeneratingVideo: false,
-                generatedVideo: data.assets.video
-              };
-              setCurrentScene(finalScene);
-              setScenes(prevScenes => 
-                prevScenes.map(s => 
-                  s.id === sceneId ? finalScene : s
-                )
-              );
-              toast.success("Video generated successfully!");
-            }
-          })
-          .catch(error => {
-            console.error("Error generating video:", error);
-            toast.error(error.message || "Failed to generate video");
-            
-            // Clear generating flag
-            const finalScene = { ...scene, isGeneratingVideo: false };
-            setCurrentScene(finalScene);
-            setScenes(prevScenes => 
-              prevScenes.map(s => 
-                s.id === sceneId ? finalScene : s
-              )
-            );
-          });
-        }
-      }}
-    />
+    <div className="absolute left-0 right-0 bottom-0 bg-background border-t border-border">
+      <SceneTimeline 
+        scenes={scenes}
+        currentScene={currentScene}
+        script=""
+        onSceneSelect={handleSceneSelect}
+        onSceneRename={() => {}} // Not implemented in dashboard
+        onSceneDelete={() => {}} // Not implemented in dashboard
+        onAddNewScene={() => {}} // Not implemented in dashboard
+        loadError={loadError}
+      />
+    </div>
   );
 } 

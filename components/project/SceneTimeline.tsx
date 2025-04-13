@@ -15,6 +15,7 @@ interface SceneTimelineProps {
   onAddNewScene: () => void;
   onGenerateAllImages?: () => void;
   onGenerateSceneVideo?: (sceneId: string) => void;
+  loadError?: string | null;
 }
 
 const SceneTimeline: React.FC<SceneTimelineProps> = ({
@@ -27,7 +28,50 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
   onAddNewScene,
   onGenerateAllImages,
   onGenerateSceneVideo,
+  loadError
 }) => {
+  // Add console log for debugging
+  console.log("SceneTimeline rendering:", { 
+    sceneCount: scenes?.length || 0, 
+    currentScene: currentScene?.id || 'none',
+    loadError: loadError || 'none' 
+  });
+
+  // If there's an error, display it
+  if (loadError) {
+    return (
+      <div className="w-full bg-muted/30 border-t border-border p-4 text-center">
+        <div className="text-sm text-destructive">
+          {loadError}
+        </div>
+        <button 
+          onClick={onAddNewScene}
+          className="mt-2 text-xs text-primary hover:text-primary/80 underline"
+        >
+          Try adding a new scene
+        </button>
+      </div>
+    );
+  }
+
+  // If there are no scenes, show a helpful message
+  if (!scenes || scenes.length === 0) {
+    return (
+      <div className="w-full bg-muted/30 border-t border-border p-4 text-center">
+        <div className="text-sm text-muted-foreground">
+          No scenes found. Create your first scene to see it in the timeline.
+        </div>
+        <button 
+          onClick={onAddNewScene}
+          className="mt-2 inline-flex items-center px-3 py-1 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md"
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add Scene
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full bg-muted/30 border-t border-border p-2">
       {/* Scene Timeline */}
@@ -76,11 +120,11 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
           {scenes.map((scene, index) => (
             <div
               key={scene.id}
-              className={`flex-none min-w-[100px] flex flex-col items-center cursor-pointer transition-all ${
+              className={`flex-none min-w-[100px] flex flex-col items-center cursor-pointer ${
                 currentScene?.id === scene.id
                   ? "scale-110 z-10"
                   : "hover:scale-105"
-              }`}
+              } transition-all`}
               onClick={() => onSceneSelect(scene)}
             >
               <div className={`w-full rounded-md p-2 mb-2 transition-colors ${

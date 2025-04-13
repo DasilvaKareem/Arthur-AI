@@ -12,7 +12,7 @@ import ProtectedRoute from "../components/auth/protected-route";
 import { cn } from "../../lib/utils";
 import ProjectsSidebar from "../../components/ProjectsSidebar";
 import { toast } from "sonner";
-import { getStory, updateStory } from "../lib/firebase/stories";
+import { getStory, updateStory, getStoryWithSubcollections, migrateStoryToSubcollections, removeNestedScenes, ensureStoryHasScene } from "../lib/firebase/stories";
 import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
 import { useRouter } from "next/navigation";
@@ -508,6 +508,7 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
   const [scenes, setScenes] = useState<any[]>([]);
   const [currentScene, setCurrentScene] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   // Use a ref to track mounted state
   const isMounted = useRef(false);
@@ -519,16 +520,49 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
     const loadSceneData = async () => {
       try {
         setIsLoading(true);
-        // Try to load the story data directly using the same function used elsewhere
-        const story = await getStory(projectId);
-        if (story && story.scenes && story.scenes.length > 0) {
+        setLoadError(null);
+        
+        // Try to load the story data using subcollections
+        const story = await getStoryWithSubcollections(projectId);
+        console.log("Timeline loading story data:", story);
+        
+        if (story && story.scenes && Array.isArray(story.scenes) && story.scenes.length > 0) {
           // Use the actual scenes from the story data
           setScenes(story.scenes);
           setCurrentScene(story.scenes[0]);
-          console.log('Loaded scenes directly from Firebase:', story.scenes.length);
+          console.log('Loaded scenes from subcollections:', story.scenes.length);
+        } else {
+          console.log('No scenes found in subcollections, trying to migrate data structure...');
+          
+          // Try to migrate if needed
+          await migrateStoryToSubcollections(projectId);
+          await removeNestedScenes(projectId);
+          
+          // Try again with subcollections
+          const updatedStory = await getStoryWithSubcollections(projectId);
+          
+          if (updatedStory && updatedStory.scenes && updatedStory.scenes.length > 0) {
+            setScenes(updatedStory.scenes);
+            setCurrentScene(updatedStory.scenes[0]);
+            console.log('Loaded scenes after migration:', updatedStory.scenes.length);
+          } else {
+            // As a last resort, create a default scene
+            await ensureStoryHasScene(projectId);
+            const finalStory = await getStoryWithSubcollections(projectId);
+            
+            if (finalStory && finalStory.scenes && finalStory.scenes.length > 0) {
+              setScenes(finalStory.scenes);
+              setCurrentScene(finalStory.scenes[0]);
+              console.log('Created and loaded default scene');
+            } else {
+              setLoadError("Could not load or create scenes for this story");
+              console.error("Failed to load or create scenes for story:", projectId);
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading scene data:', error);
+        setLoadError("Error loading timeline data");
       } finally {
         setIsLoading(false);
       }
@@ -536,65 +570,6 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
     
     loadSceneData();
   }, [projectId]);
-  
-  // Setup the observer for when direct loading didn't work or to sync with the UI
-  useEffect(() => {
-    isMounted.current = true;
-    
-    // Create a MutationObserver to detect when scenes are rendered
-    const observer = new MutationObserver(() => {
-      if (!isMounted.current || scenes.length > 0) return;
-      
-      try {
-        // Look for scene data in the DOM - more specific selector
-        const sceneElements = document.querySelectorAll('.workspace-view [class*="p-2"][class*="rounded-lg"], .workspace-view [class*="cursor-pointer"]');
-        
-        if (sceneElements.length > 0) {
-          console.log('Found scene elements in DOM:', sceneElements.length);
-          
-          const extractedScenes = Array.from(sceneElements).map((el) => {
-            const titleEl = el.querySelector('span');
-            const title = titleEl?.textContent?.trim() || 'Untitled Scene';
-            // Try to get ID from data attribute or element ID
-            const id = el.getAttribute('data-scene-id') || el.id || Math.random().toString(36).substr(2, 9);
-            return { 
-              id, 
-              title, 
-              shots: [],
-              // Add empty placeholders for other scene properties
-              location: '',
-              description: '',
-              lighting: '',
-              weather: '',
-              style: '',
-            };
-          });
-          
-          if (extractedScenes.length > 0) {
-            console.log('Extracted scenes from DOM:', extractedScenes.length);
-            setScenes(extractedScenes);
-            
-            // Set first scene as current if none is selected
-            if (!currentScene) {
-              setCurrentScene(extractedScenes[0]);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error extracting scene data:', error);
-      }
-    });
-    
-    observer.observe(document.body, { 
-      childList: true, 
-      subtree: true 
-    });
-    
-    return () => {
-      isMounted.current = false;
-      observer.disconnect();
-    };
-  }, [currentScene, scenes.length]);
   
   const handleSceneSelect = (scene: any) => {
     setCurrentScene(scene);
@@ -629,38 +604,21 @@ function SceneTimelineWrapper({ projectId }: { projectId: string | null }) {
     );
   }
   
-  // Don't show the timeline if there are no scenes
-  if (scenes.length === 0) return null;
+  // Don't show the timeline if there are no scenes and no error
+  if (scenes.length === 0 && !loadError) return null;
   
   return (
-    <SceneTimeline 
-      scenes={scenes}
-      currentScene={currentScene}
-      script=""
-      onSceneSelect={handleSceneSelect}
-      onSceneRename={(id, title) => console.log('Rename scene', id, title)}
-      onSceneDelete={(id) => console.log('Delete scene', id)}
-      onAddNewScene={() => {
-        // Find and click the add scene button
-        const addButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Plus"])');
-        if (addButton) {
-          (addButton as HTMLElement).click();
-        }
-      }}
-      onGenerateAllImages={() => {
-        // Find and click the generate images button
-        const generateButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Camera"])');
-        if (generateButton) {
-          (generateButton as HTMLElement).click();
-        }
-      }}
-      onGenerateSceneVideo={(sceneId: string) => {
-        // Find and click the generate video button
-        const generateButton = document.querySelector('.workspace-view button:has(svg[data-lucide="Film"])');
-        if (generateButton) {
-          (generateButton as HTMLElement).click();
-        }
-      }}
-    />
+    <div className="absolute left-0 right-0 bottom-0 bg-background border-t border-border">
+      <SceneTimeline 
+        scenes={scenes}
+        currentScene={currentScene}
+        script=""
+        onSceneSelect={handleSceneSelect}
+        onSceneRename={() => {}} // Not implemented in workspace
+        onSceneDelete={() => {}} // Not implemented in workspace
+        onAddNewScene={() => {}} // Not implemented in workspace
+        loadError={loadError}
+      />
+    </div>
   );
 } 

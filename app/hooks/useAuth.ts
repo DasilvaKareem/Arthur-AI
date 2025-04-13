@@ -21,5 +21,20 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  return { user, loading };
+  const refreshAuth = async () => {
+    if (!firebaseAuth?.currentUser) {
+      console.warn('No current user to refresh');
+      return;
+    }
+    
+    try {
+      await firebaseAuth.currentUser.getIdToken(true);
+      return true;
+    } catch (error) {
+      console.error('Error refreshing auth token:', error);
+      return false;
+    }
+  };
+
+  return { user, loading, refreshAuth };
 } 

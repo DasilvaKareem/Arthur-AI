@@ -207,18 +207,17 @@ const MessageContent = ({
         shots: []
       };
 
-      // Create a new story in Firebase
-      const story = {
-        id: crypto.randomUUID(),
-        title: parsed.response.split('\n')[0].replace('📝 Title: ', ''), // Extract title from response
-        description: parsed.response,
-        userId: user.uid,
-        scenes: [blankScene],
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      const storyId = await createStory(story.title, story.description, story.userId, story.scenes);
+      // Extract title from response
+      const title = parsed.response.split('\n')[0].replace('📝 Title: ', '');
+      const description = parsed.response;
+      
+      // Create a new story in Firebase - scenes will be created as subcollections
+      const storyId = await createStory(
+        title,
+        description,
+        user.uid,
+        [blankScene] // This will be stored as a subcollection
+      );
       
       if (!storyId) {
         throw new Error("Failed to create story");

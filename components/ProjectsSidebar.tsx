@@ -84,14 +84,14 @@ const ProjectsSidebar: React.FC<ProjectsSidebarProps> = ({ onProjectSelect }) =>
           <>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-md font-bold">
-                Projects
+                Stories
               </CardTitle>
               <Button 
                 variant="ghost" 
                 size="sm" 
                 className="h-8 w-8 p-0"
                 onClick={handleCreateNewProject}
-                title="Create New Project"
+                title="Create New Story"
               >
                 <FolderPlus className="h-4 w-4" />
               </Button>

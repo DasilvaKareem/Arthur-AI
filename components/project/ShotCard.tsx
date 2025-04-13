@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from "../../components/ui/button";
-import { Edit, RefreshCw, Film, Camera } from "lucide-react";
+import { Edit, RefreshCw, Film, Camera, Music } from "lucide-react";
 import type { Shot } from '../../types/shared';
 
 interface ShotCardProps {
@@ -35,6 +35,9 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
   onVoiceSelect
 }) => {
   
+  // Add state to control sound effects popup
+  const [showSoundEffects, setShowSoundEffects] = useState(false);
+  
   // --- DEBUG LOGGING START ---
   console.log(`ShotCard #${index + 1} (ID: ${shot.id}) rendering. Video URL: ${shot.generatedVideo}, Loading: ${isVideoLoading}`);
 
@@ -48,7 +51,45 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
   // --- DEBUG LOGGING END ---
 
   return (
-    <div className="bg-card rounded-lg p-4 border border-border shadow-sm flex flex-col">
+    <div className="bg-card rounded-lg p-4 border border-border shadow-sm flex flex-col relative">
+      {/* Add sound effects icon button */}
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        className="h-8 w-8 p-0 absolute top-2 right-2 z-10 bg-black/30 hover:bg-black/50 text-white rounded-full"
+        onClick={() => setShowSoundEffects(!showSoundEffects)}
+        title={shot.hasSoundEffects ? "Edit sound effects" : "Add sound effects"}
+      >
+        <Music className={`h-4 w-4 ${shot.hasSoundEffects ? "text-green-500" : ""}`} />
+      </Button>
+
+      {/* Sound Effects Popup */}
+      {showSoundEffects && (
+        <div className="absolute top-10 right-2 z-20 bg-background border border-border rounded-lg shadow-lg p-2 w-52 max-w-[90%]">
+          <h3 className="text-xs font-medium mb-1 flex justify-between items-center">
+            Sound Effects
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-5 w-5 p-0" 
+              onClick={() => setShowSoundEffects(false)}
+            >
+              ✕
+            </Button>
+          </h3>
+          <textarea
+            className="w-full bg-background border border-input rounded p-1.5 text-xs text-foreground"
+            rows={2}
+            placeholder="Describe sound effects..."
+            value={shot.soundEffects || ""}
+            onChange={(e) => onSoundEffectsChange(e, index)}
+          />
+          <div className="mt-1 text-xs text-muted-foreground opacity-75">
+            Ex: "birds chirping", "door creaking"
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-3">
         <span className="text-sm text-muted-foreground">#{index + 1}</span>
         <div className="flex items-center space-x-2">
@@ -170,16 +211,19 @@ const ShotCard: React.FC<ShotCardProps> = React.memo(({
           />
         </div>
         
-        <div>
-          <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-1">Sound Effects</h3>
-          <textarea
-            className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
-            rows={2}
-            placeholder="Add sound effects..."
-            defaultValue={shot.soundEffects || ""}
-            onChange={(e) => onSoundEffectsChange(e, index)}
-          />
-        </div>
+        {/* Hide the original sound effects section if we're showing the popup */}
+        {!showSoundEffects && (
+          <div>
+            <h3 className="uppercase text-xs tracking-wide text-muted-foreground mb-1">Sound Effects</h3>
+            <textarea
+              className="w-full bg-background border border-input rounded p-2 text-sm text-foreground"
+              rows={2}
+              placeholder="Add sound effects..."
+              defaultValue={shot.soundEffects || ""}
+              onChange={(e) => onSoundEffectsChange(e, index)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Add voice selection dropdown */}

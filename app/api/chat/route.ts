@@ -127,11 +127,13 @@ function formatStoryToJson(script: string, userId: string): Story {
     };
   });
 
+  // We structure the story without scenes since they will be stored in subcollections
   return {
     id: crypto.randomUUID(),
     title: script.split('\n')[0].trim() || "Untitled Story",
     description: script.split('\n')[0].trim() || "Untitled Story",
     script: script,
+    // We'll pass scenes separately to createStory instead of embedding them in the document
     scenes: scenes,
     userId: userId,
     createdAt: new Date(),
