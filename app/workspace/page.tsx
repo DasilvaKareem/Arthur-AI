@@ -7,7 +7,7 @@ import ChatArea from "../../components/ChatArea";
 import ProjectContent from "../project/page";
 import DocEditor from "../../components/DocEditor";
 import { Button } from "../../components/ui/button";
-import { FileText, Layers, PanelLeft, Save } from "lucide-react";
+import { FileText, Layers, PanelLeft, Save, Video } from "lucide-react";
 import ProtectedRoute from "../components/auth/protected-route";
 import { cn } from "../../lib/utils";
 import ProjectsSidebar from "../../components/ProjectsSidebar";
@@ -121,6 +121,19 @@ function ChatPanel() {
   );
 }
 
+// Dynamically import the DirectorEditor to avoid SSR issues with Remotion
+const DirectorEditor = dynamic(() => import('../../components/director/DirectorEditor').then(mod => mod.DirectorEditor), {
+  ssr: false,
+  loading: () => (
+    <div className="flex justify-center items-center h-full">
+      <div className="flex flex-col items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+        <p className="text-muted-foreground">Loading director...</p>
+      </div>
+    </div>
+  )
+});
+
 export default function WorkspacePage() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [activeTab, setActiveTab] = useState("storyboard");
@@ -130,6 +143,7 @@ export default function WorkspacePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showChat, setShowChat] = useState(true);
+  const [currentProjectScene, setCurrentProjectScene] = useState<any>(null);
   const { user } = useAuth();
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const router = useRouter();
@@ -241,6 +255,19 @@ export default function WorkspacePage() {
               : `<p>${contentToUse}</p>` // Otherwise wrap in paragraph tags
           );
           
+          // Try to load the first scene for the director tab
+          const storyWithScenes = await getStoryWithSubcollections(currentProjectId);
+          if (storyWithScenes && storyWithScenes.scenes && storyWithScenes.scenes.length > 0) {
+            setCurrentProjectScene(storyWithScenes.scenes[0]);
+          } else {
+            // Create a default scene if none exists
+            await ensureStoryHasScene(currentProjectId);
+            const updatedStory = await getStoryWithSubcollections(currentProjectId);
+            if (updatedStory && updatedStory.scenes && updatedStory.scenes.length > 0) {
+              setCurrentProjectScene(updatedStory.scenes[0]);
+            }
+          }
+          
           toast.success("Project loaded successfully");
         }
       } catch (error) {
@@ -332,6 +359,14 @@ export default function WorkspacePage() {
                   <FileText className="h-4 w-4" />
                   Writer
                 </Button>
+                <Button
+                  variant={activeTab === "director" ? "default" : "ghost"}
+                  className="flex items-center gap-2"
+                  onClick={() => setActiveTab("director")}
+                >
+                  <Video className="h-4 w-4" />
+                  Director
+                </Button>
               </div>
             </div>
 
@@ -411,6 +446,33 @@ export default function WorkspacePage() {
                           />
                         </div>
                       </>
+                    )}
+                  </div>
+                )}
+                
+                {activeTab === "director" && (
+                  <div className="h-full overflow-hidden">
+                    {!currentProjectId ? (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <div className="text-center max-w-md">
+                          <h2 className="text-2xl font-bold mb-4">No Project Selected</h2>
+                          <p className="text-muted-foreground">
+                            Please select a project from the sidebar to use the director.
+                          </p>
+                        </div>
+                      </div>
+                    ) : isLoading ? (
+                      <div className="flex justify-center items-center h-full">
+                        <div className="flex flex-col items-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                          <p className="text-muted-foreground">Loading project...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <DirectorEditor 
+                        scene={currentProjectScene} 
+                        storyId={currentProjectId} 
+                      />
                     )}
                   </div>
                 )}

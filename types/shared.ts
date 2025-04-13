@@ -8,7 +8,9 @@ export interface Shot {
   prompt: string;
   narration?: string | null;
   dialogue?: string | null;
+  dialogueAudio?: string | null;
   soundEffects?: string | null;
+  soundEffectsAudio?: string | null;
   generatedImage?: string | null;
   generatedVideo?: string | null;
   lipSyncAudio?: string | null;

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from "../ui/button";
-import { Plus, Film, Pencil, Trash, Camera } from "lucide-react";
+import { Plus, Film, Pencil, Trash, Camera, Volume2, Headphones, Video } from "lucide-react";
 import type { Scene } from '../../types/shared';
 
 interface SceneTimelineProps {
@@ -15,6 +15,8 @@ interface SceneTimelineProps {
   onAddNewScene: () => void;
   onGenerateAllImages?: () => void;
   onGenerateSceneVideo?: (sceneId: string) => void;
+  onGenerateSceneSoundEffects?: (sceneId: string) => void;
+  onGenerateSceneTTS?: (sceneId: string) => void;
   loadError?: string | null;
 }
 
@@ -28,14 +30,32 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
   onAddNewScene,
   onGenerateAllImages,
   onGenerateSceneVideo,
+  onGenerateSceneSoundEffects,
+  onGenerateSceneTTS,
   loadError
 }) => {
-  // Add console log for debugging
-  console.log("SceneTimeline rendering:", { 
+  // Enhanced logging for debugging
+  console.log("==========================================");
+  console.log("SceneTimeline component rendering with props:", { 
+    scenesProvided: !!scenes,
     sceneCount: scenes?.length || 0, 
-    currentScene: currentScene?.id || 'none',
+    scenesEmpty: !scenes || scenes.length === 0,
+    currentSceneProvided: !!currentScene,
+    currentSceneId: currentScene?.id || 'none',
+    hasScriptContent: !!script && script.length > 0,
     loadError: loadError || 'none' 
   });
+  
+  if (!scenes) {
+    console.warn("SceneTimeline received null or undefined scenes prop");
+  } else if (scenes.length === 0) {
+    console.warn("SceneTimeline received empty scenes array");
+  }
+  
+  if (!currentScene) {
+    console.warn("SceneTimeline received null or undefined currentScene prop");
+  }
+  console.log("==========================================");
 
   // If there's an error, display it
   if (loadError) {
@@ -99,6 +119,28 @@ const SceneTimeline: React.FC<SceneTimelineProps> = ({
             title="Generate video for the current scene"
           >
             <Film className="h-4 w-4" />
+          </Button>
+        )}
+        {onGenerateSceneSoundEffects && currentScene && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onGenerateSceneSoundEffects(currentScene.id)}
+            className="h-8 px-2 text-primary hover:text-primary/80 hover:bg-primary/10 dark:text-slate-200 dark:hover:text-white dark:hover:bg-slate-700"
+            title="Generate sound effects for the current scene"
+          >
+            <Volume2 className="h-4 w-4" />
+          </Button>
+        )}
+        {onGenerateSceneTTS && currentScene && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onGenerateSceneTTS(currentScene.id)}
+            className="h-8 px-2 text-primary hover:text-primary/80 hover:bg-primary/10 dark:text-slate-200 dark:hover:text-white dark:hover:bg-slate-700"
+            title="Generate Eleven Labs TTS voice for the current scene"
+          >
+            <Headphones className="h-4 w-4" />
           </Button>
         )}
         <Button

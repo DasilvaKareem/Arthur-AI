@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { Plus, Film, Pencil, Trash, Camera } from "lucide-react";
 import type { Scene } from '../../types/shared';
+import ShotVideoPlayer from "./ShotVideoPlayer";
 
 interface SceneSidebarProps {
   scenes: Scene[];
@@ -114,14 +115,15 @@ const SceneSidebar: React.FC<SceneSidebarProps> = ({
           <div className="mt-4 mb-4">
             <h3 className="text-sm font-semibold text-foreground mb-2">Scene Video</h3>
             <div className="relative aspect-video rounded-lg overflow-hidden border border-border">
-              <video
-                src={currentScene.generatedVideo}
-                controls
-                className="w-full h-full object-cover"
+              <ShotVideoPlayer
+                videoUrl={currentScene.generatedVideo}
+                controls={true}
+                autoPlay={false}
+                loop={true}
+                overlayInfo={{
+                  title: "Generated Scene Video"
+                }}
               />
-              <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                Generated Scene Video
-              </div>
             </div>
           </div>
         )}

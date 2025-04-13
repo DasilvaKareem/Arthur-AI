@@ -1087,9 +1087,29 @@ export async function updateShotSubcollection(
   updates: Partial<Omit<Shot, 'id'>>
 ): Promise<void> {
   try {
-    console.log(`Updating shot ${shotId} in scene ${sceneId}`);
+    // Add some extra validation
+    if (!storyId || !sceneId || !shotId) {
+      console.error("Missing required IDs:", { storyId, sceneId, shotId });
+      throw new Error("Missing required IDs for updating shot");
+    }
+    
+    console.log(`Updating shot ${shotId} in scene ${sceneId} with data:`, 
+      // If we have a generatedVideo field, log it specially
+      updates.generatedVideo 
+        ? { ...updates, generatedVideo: `${updates.generatedVideo.substring(0, 30)}...` }
+        : updates
+    );
     
     const shotRef = doc(db, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
+    
+    // Verify the shot exists first
+    const shotDoc = await getDoc(shotRef);
+    if (!shotDoc.exists()) {
+      console.error(`Shot ${shotId} not found in scene ${sceneId}`);
+      throw new Error(`Shot not found: ${shotId}`);
+    }
+    
+    // Update the doc
     await updateDoc(shotRef, {
       ...updates,
       updatedAt: serverTimestamp()

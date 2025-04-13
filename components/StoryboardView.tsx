@@ -6,9 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Play, ChevronRight, ChevronLeft } from "lucide-react";
+import { Play, ChevronRight, ChevronLeft, X } from "lucide-react";
 import type { Story, Scene, Shot } from "@/types/shared";
 import { cn } from "@/lib/utils";
+import ShotVideoPlayer from "./project/ShotVideoPlayer";
 
 interface StoryboardViewProps {
   projectId: string | null;
@@ -19,6 +20,7 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
   const [loading, setLoading] = useState(false);
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [playingShotId, setPlayingShotId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -43,6 +45,9 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
   const navigateScene = (direction: 'next' | 'prev') => {
     if (!story || !story.scenes || story.scenes.length === 0) return;
     
+    // Reset playing video when changing scenes
+    setPlayingShotId(null);
+    
     if (direction === 'next') {
       setCurrentSceneIndex(prev => 
         prev < story.scenes.length - 1 ? prev + 1 : prev
@@ -50,6 +55,28 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
     } else {
       setCurrentSceneIndex(prev => prev > 0 ? prev - 1 : prev);
     }
+  };
+
+  const handlePlayVideo = (shotId: string) => {
+    console.log("Playing video for shot:", shotId);
+    
+    // Find the shot and log its video URL
+    if (story && story.scenes) {
+      const currentScene = story.scenes[currentSceneIndex];
+      if (currentScene && currentScene.shots) {
+        const shot = currentScene.shots.find(s => s.id === shotId);
+        if (shot) {
+          console.log("Shot video URL:", shot.generatedVideo);
+        }
+      }
+    }
+    
+    setPlayingShotId(shotId);
+  };
+
+  const handleCloseVideo = () => {
+    console.log("Closing video");
+    setPlayingShotId(null);
   };
 
   if (!projectId) {
@@ -162,24 +189,95 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
         {currentScene.shots && currentScene.shots.map((shot, index) => (
           <Card key={shot.id} className="overflow-hidden border border-border hover:border-primary/50 transition-colors">
             <div className="relative aspect-video bg-muted">
-              {shot.generatedImage ? (
-                <Image
-                  src={shot.generatedImage}
-                  alt={`Shot ${index + 1}`}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <p className="text-xs text-muted-foreground">No image generated</p>
-                </div>
-              )}
-              {shot.generatedVideo && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <Button size="icon" className="w-10 h-10 rounded-full">
-                    <Play className="h-5 w-5" />
+              {playingShotId === shot.id && shot.generatedVideo ? (
+                // Show ShotVideoPlayer when this shot is playing
+                <div className="absolute inset-0">
+                  <ShotVideoPlayer
+                    videoUrl={shot.generatedVideo}
+                    className="w-full h-full"
+                    controls={true}
+                    autoPlay={true}
+                    loop={true}
+                    overlayInfo={{
+                      title: `Shot ${index + 1}: ${shot.type}`,
+                      description: shot.description.substring(0, 100) + (shot.description.length > 100 ? '...' : '')
+                    }}
+                  />
+                  <div className="absolute bottom-2 left-2 text-white text-xs px-2 py-1 rounded bg-black/60">
+                    <a 
+                      href={shot.generatedVideo} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="underline text-blue-300 hover:text-blue-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Direct link
+                    </a>
+                  </div>
+                  <Button 
+                    size="icon" 
+                    variant="secondary"
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseVideo();
+                    }}
+                  >
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
+              ) : (
+                // Show the image or placeholder when not playing
+                <>
+                  {shot.generatedImage ? (
+                    <Image
+                      src={shot.generatedImage}
+                      alt={`Shot ${index + 1}`}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <p className="text-xs text-muted-foreground">No image generated</p>
+                    </div>
+                  )}
+                  {shot.generatedVideo ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <div className="flex flex-col items-center gap-2">
+                        <Button 
+                          size="icon" 
+                          className="w-10 h-10 rounded-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayVideo(shot.id);
+                            console.log("Playing video:", shot.generatedVideo);
+                          }}
+                        >
+                          <Play className="h-5 w-5" />
+                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            className="h-6 py-0 px-2 bg-black/60 hover:bg-black/80 text-white text-[10px] border-none"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (shot.generatedVideo) {
+                                window.open(shot.generatedVideo, '_blank');
+                              }
+                            }}
+                          >
+                            Direct link
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                      {shot.generatedVideo === undefined ? "No video data" : (shot.generatedVideo === null ? "Video is null" : `Video URL: ${shot.generatedVideo.substring(0, 20)}...`)}
+                    </div>
+                  )}
+                </>
               )}
               <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
                 {shot.type}
