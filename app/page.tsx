@@ -10,12 +10,14 @@ import { Features } from "../registry/magicui/features";
 import { FAQ } from "../registry/magicui/faq";
 import { Logo } from "../components/ui/logo";
 import { useScrollDirection } from "./hooks/useScrollDirection";
+import { Menu, X } from "lucide-react";
 
 export default function RootPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const isScrollingUp = useScrollDirection();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,20 +94,24 @@ export default function RootPage() {
               <Logo className="w-8 h-8" />
               <span className="font-bold text-2xl">Arthur AI</span>
             </Link>
-            <Link 
-              href="/features" 
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Features
-            </Link>
-            <Link 
-              href="/pricing" 
-              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Pricing
-            </Link>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-6">
+              <Link 
+                href="/features" 
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Features
+              </Link>
+              <Link 
+                href="/pricing" 
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Pricing
+              </Link>
+            </div>
           </div>
-          <nav className="flex items-center gap-4">
+          {/* Desktop Navigation Buttons */}
+          <nav className="hidden md:flex items-center gap-4">
             <Link 
               href="/auth/signin" 
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -116,7 +122,53 @@ export default function RootPage() {
               <Button>Request Access</Button>
             </Link>
           </nav>
+          
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden p-2 rounded-md hover:bg-accent"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden absolute top-16 left-0 right-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="container py-4 flex flex-col gap-4">
+              <Link 
+                href="/auth/signin" 
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
+              >
+                Sign In
+              </Link>
+              <Link 
+                href="/features" 
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
+              >
+                Features
+              </Link>
+              <Link 
+                href="/pricing" 
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
+              >
+                Pricing
+              </Link>
+              <div className="border-t pt-4 mt-2">
+                <div className="px-4 flex justify-center">
+                  <Link href="#request-access" className="w-full max-w-[200px]">
+                    <Button className="w-full">Request Access</Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero Section */}
