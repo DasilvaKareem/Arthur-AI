@@ -113,10 +113,14 @@ const hideProjectHeaderStyle = `
   }
 `;
 
-function ChatPanel() {
+function ChatPanel({ projectId, onShotCreated }: { projectId: string | null, onShotCreated?: () => void }) {
   return (
     <div className="h-full flex flex-col overflow-hidden chat-panel-container">
-      <ChatArea />
+      <ChatArea 
+        initialMessage={projectId ? "How can I help with your project?" : undefined} 
+        projectId={projectId} 
+        onShotCreated={onShotCreated}
+      />
     </div>
   );
 }
@@ -147,6 +151,7 @@ export default function WorkspacePage() {
   const { user } = useAuth();
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const router = useRouter();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load story from URL query parameter
   useEffect(() => {
@@ -203,7 +208,7 @@ export default function WorkspacePage() {
       if (iframe) {
         try {
           const iframeDocument = (iframe as HTMLIFrameElement).contentDocument || 
-                                (iframe as HTMLIFrameElement).contentWindow?.document;
+                               (iframe as HTMLIFrameElement).contentWindow?.document;
           if (iframeDocument) {
             const sceneTimelines = iframeDocument.querySelectorAll('[class*="SceneTimeline"], div[class*="border-t"][class*="bg-muted"]');
             sceneTimelines.forEach(timeline => {
@@ -319,6 +324,12 @@ export default function WorkspacePage() {
     }
   };
 
+  // Function to refresh the storyboard content
+  const refreshStoryboard = useCallback(() => {
+    console.log('Refreshing storyboard content');
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
   return (
     <ProtectedRoute>
       <div className="flex flex-col h-screen w-full">
@@ -381,7 +392,7 @@ export default function WorkspacePage() {
                   <div className="h-full overflow-auto workspace-view relative">
                     {currentProjectId ? (
                       // Project selected - show the project content directly
-                      <StoryboardWrapper projectId={currentProjectId} />
+                      <StoryboardWrapper projectId={currentProjectId} refreshTrigger={refreshTrigger} />
                     ) : (
                       // No project selected - show a message to select a project
                       <div className="flex flex-col items-center justify-center h-full">
@@ -509,7 +520,10 @@ export default function WorkspacePage() {
                       </Button>
                     </div>
                     <div className="flex-1 overflow-hidden">
-                      <ChatPanel />
+                      <ChatPanel 
+                        projectId={currentProjectId} 
+                        onShotCreated={refreshStoryboard}
+                      />
                     </div>
                   </>
                 )}
@@ -522,7 +536,7 @@ export default function WorkspacePage() {
   );
 }
 
-function StoryboardWrapper({ projectId }: { projectId: string | null }) {
+function StoryboardWrapper({ projectId, refreshTrigger }: { projectId: string | null, refreshTrigger?: number }) {
   const [isLoading, setIsLoading] = useState(true);
   const projectRef = useRef<HTMLIFrameElement>(null);
   
@@ -534,8 +548,156 @@ function StoryboardWrapper({ projectId }: { projectId: string | null }) {
       setIsLoading(false);
     }, 1500);
     
+    // Set up iframe load handlers
+    if (projectRef.current) {
+      projectRef.current.onload = () => {
+        console.log('Iframe loaded, setting up dialogue fix');
+        
+        // Wait a bit for React to render content in the iframe
+        setTimeout(injectDialogueFix, 2000);
+        
+        // Set up periodic check to ensure the fix is applied
+        const checkInterval = setInterval(injectDialogueFix, 5000);
+        
+        // Clean up interval on unmount
+        return () => clearInterval(checkInterval);
+      };
+    }
+    
     return () => clearTimeout(timer);
-  }, [projectId]);
+  }, [projectId, refreshTrigger]);
+  
+  // Function to inject our dialogue fix into the iframe
+  const injectDialogueFix = () => {
+    try {
+      if (!projectRef.current) return;
+      
+      const iframeDocument = projectRef.current.contentDocument || 
+                           projectRef.current.contentWindow?.document;
+      
+      if (!iframeDocument) return;
+      
+      // Check if our script has already been injected
+      if (iframeDocument.getElementById('dialogue-fix-script')) return;
+      
+      console.log('Injecting dialogue fix into iframe');
+      
+      // Create and inject our script
+      const script = iframeDocument.createElement('script');
+      script.id = 'dialogue-fix-script';
+      script.textContent = `
+        // Store temporary dialogue values
+        const tempDialogueValues = {};
+        
+        // Function to handle dialogue textarea changes
+        function handleDialogueTextareaChanges() {
+          const textareas = document.querySelectorAll('.absolute textarea[placeholder="Add character dialogue..."]');
+          console.log('Found', textareas.length, 'dialogue textareas');
+          
+          textareas.forEach(textarea => {
+            // Skip if already handled
+            if (textarea.dataset.handled) return;
+            
+            // Mark as handled
+            textarea.dataset.handled = 'true';
+            console.log('Patching dialogue textarea to prevent auto-save');
+            
+            // Create a unique ID for this textarea if it doesn't have one
+            const textareaId = textarea.id || 'textarea-' + Math.random().toString(36).substring(2, 9);
+            if (!textarea.id) textarea.id = textareaId;
+            
+            // Store the initial value
+            tempDialogueValues[textareaId] = textarea.value;
+            
+            // Replace the textarea with a cloned version to remove all event listeners
+            const clone = textarea.cloneNode(true);
+            textarea.parentNode.replaceChild(clone, textarea);
+            
+            // Add our own input handler that will only update the visual UI
+            clone.addEventListener('input', function(e) {
+              // Store the value in our temp object
+              tempDialogueValues[textareaId] = e.target.value;
+            });
+            
+            // Find the save button in the same container
+            const container = clone.closest('.absolute');
+            if (container) {
+              const saveButton = container.querySelector('button:last-child');
+              if (saveButton && saveButton.textContent.trim() === 'Save') {
+                console.log('Found Save button, attaching custom handler');
+                
+                // Clone the save button to remove existing handlers
+                const newSaveButton = saveButton.cloneNode(true);
+                saveButton.parentNode.replaceChild(newSaveButton, saveButton);
+                
+                // Add our own click handler
+                newSaveButton.addEventListener('click', function(e) {
+                  // Find the voice select dropdown
+                  const voiceSelect = container.querySelector('select');
+                  const voiceValue = voiceSelect ? voiceSelect.value : '';
+                  
+                  // Get the temp value
+                  const dialogueValue = tempDialogueValues[textareaId];
+                  
+                  console.log('Saving dialogue with value:', dialogueValue);
+                  
+                  // Now we need to find the original button in the DOM and trigger a click on it
+                  // This is because our clone doesn't have the React event handlers
+                  // But we'll first update the textarea's value to match our temp value
+                  clone.value = dialogueValue;
+                  
+                  // Dispatch an input event so React knows the value changed
+                  const inputEvent = new Event('input', { bubbles: true });
+                  clone.dispatchEvent(inputEvent);
+                  
+                  // Also dispatch a change event for good measure
+                  const changeEvent = new Event('change', { bubbles: true });
+                  clone.dispatchEvent(changeEvent);
+                  
+                  // Small delay to let React update its state
+                  setTimeout(() => {
+                    // Find all buttons in the container and click the Save one
+                    const buttons = container.querySelectorAll('button');
+                    const saveBtn = Array.from(buttons).find(b => b.textContent.trim() === 'Save');
+                    if (saveBtn) {
+                      console.log('Clicking real save button');
+                      saveBtn.click();
+                    }
+                  }, 100);
+                });
+              }
+            }
+          });
+        }
+        
+        // Initial run
+        setTimeout(handleDialogueTextareaChanges, 1000);
+        
+        // Set up observer to catch new textareas
+        const textareaObserver = new MutationObserver((mutations) => {
+          // Check if any new textareas were added
+          for (const mutation of mutations) {
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+              setTimeout(handleDialogueTextareaChanges, 200);
+              break;
+            }
+          }
+        });
+        
+        textareaObserver.observe(document.body, { 
+          childList: true, 
+          subtree: true
+        });
+        
+        console.log('Dialogue fix script loaded');
+      `;
+      
+      // Append the script
+      iframeDocument.head.appendChild(script);
+    } catch (e) {
+      console.error('Error injecting dialogue fix:', e);
+    }
+  };
 
   if (!projectId) return null;
 

@@ -18,6 +18,8 @@ interface SceneCompositionProps {
   shots: Shot[];
   title: string;
   shotDurations?: Record<string, number>;
+  audioVolume?: number; // Volume for dialogue audio (0-1)
+  musicVolume?: number; // Volume for background music (0-1)
 }
 
 // Scene title component
@@ -59,10 +61,15 @@ const SceneTitle: React.FC<{ title: string }> = ({ title }) => {
 export const SceneComposition: React.FC<SceneCompositionProps> = ({ 
   shots, 
   title,
-  shotDurations = {} 
+  shotDurations = {},
+  audioVolume = 0.8, // Default to 80%
+  musicVolume = 0.5  // Default to 50%
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   const frame = useCurrentFrame();
+  
+  // Log audio volume settings from props
+  console.log("SceneComposition audio settings:", { audioVolume, musicVolume });
   
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
@@ -84,7 +91,7 @@ export const SceneComposition: React.FC<SceneCompositionProps> = ({
         
         return (
           <Sequence from={startFrame} durationInFrames={shotDuration} key={shot.id}>
-            <ShotSequence shot={shot} index={index} />
+            <ShotSequence shot={shot} index={index} audioVolume={audioVolume} musicVolume={musicVolume} />
           </Sequence>
         );
       })}
@@ -93,7 +100,17 @@ export const SceneComposition: React.FC<SceneCompositionProps> = ({
 };
 
 // Component for rendering a single shot
-const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) => {
+const ShotSequence: React.FC<{ 
+  shot: Shot; 
+  index: number;
+  audioVolume?: number;
+  musicVolume?: number;
+}> = ({ 
+  shot, 
+  index,
+  audioVolume = 0.8,
+  musicVolume = 0.5
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   
@@ -109,11 +126,22 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
   // Use the generated image if available or a placeholder
   const imageUrl = shot.generatedImage || 'https://via.placeholder.com/1920x1080?text=No+Image';
   
-  console.log('Shot data:', {
-    id: shot.id,
-    videoUrl: shot.videoUrl,
-    generatedVideo: shot.generatedVideo,
-    imageUrl
+  // ENHANCED AUDIO DEBUGGING
+  console.log(`SHOT ${index + 1} (${shot.id}) FULL DATA:`, JSON.stringify(shot, null, 2));
+  
+  // Fix potential null/undefined issues with audio sources
+  const audioSource = shot.lipSyncAudio || shot.dialogueAudio || null;
+  const hasSoundEffects = shot.hasSoundEffects && !!shot.soundEffectsAudio;
+  
+  // Log audio info
+  console.log(`Shot ${index + 1} audio details:`, {
+    hasDialogue: shot.hasDialogue,
+    dialogueAudio: shot.dialogueAudio,
+    lipSyncAudio: shot.lipSyncAudio,
+    finalAudioSource: audioSource,
+    hasSoundEffects: shot.hasSoundEffects,
+    soundEffectsAudio: shot.soundEffectsAudio,
+    willPlaySoundEffects: hasSoundEffects
   });
   
   // Check for video in this priority: videoUrl > generatedVideo > image
@@ -121,8 +149,50 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
     const videoSource = shot.videoUrl || shot.generatedVideo || '';
     console.log('Using video source:', videoSource);
     
+    // Create audio components based on what's available
+    const DialogueAudioComponent = audioSource ? (
+      <React.Fragment>
+        {/* Wrap Audio component in try-catch fallback */}
+        {(() => {
+          try {
+            console.log(`Attempting to load audio from: ${audioSource} with volume: ${audioVolume}`);
+            return (
+              <Audio 
+                src={audioSource} 
+                volume={audioVolume}
+              />
+            );
+          } catch (error) {
+            console.error(`Error loading audio for shot ${index + 1}:`, error);
+            return null;
+          }
+        })()}
+      </React.Fragment>
+    ) : null;
+    
+    const SoundEffectsComponent = hasSoundEffects && shot.soundEffectsAudio ? (
+      <React.Fragment>
+        {/* Wrap Audio component in try-catch fallback */}
+        {(() => {
+          try {
+            console.log(`Attempting to load sound effects from: ${shot.soundEffectsAudio} with volume: ${audioVolume * 0.7}`);
+            return (
+              <Audio 
+                src={shot.soundEffectsAudio || ''} 
+                volume={audioVolume * 0.7} // Sound effects slightly quieter than dialogue
+              />
+            );
+          } catch (error) {
+            console.error(`Error loading sound effects for shot ${index + 1}:`, error);
+            return null;
+          }
+        })()}
+      </React.Fragment>
+    ) : null;
+    
     return (
       <AbsoluteFill style={{ opacity }}>
+        {/* Video component */}
         <video
           src={videoSource}
           style={{
@@ -130,24 +200,15 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
             height: '100%',
             objectFit: 'cover',
           }}
-          muted
+          muted={true} // Always mute the video since we're providing audio separately
           autoPlay
           playsInline
           loop
         />
         
-        {/* Add dialogue audio if available - check lipSyncAudio first then fall back to dialogueAudio */}
-        {(shot.lipSyncAudio || shot.dialogueAudio) && (
-          <Audio src={shot.lipSyncAudio || shot.dialogueAudio || ''} />
-        )}
-        
-        {/* Add sound effects if available */}
-        {shot.hasSoundEffects && shot.soundEffectsAudio && (
-          <Audio 
-            src={shot.soundEffectsAudio} 
-            volume={0.7} // Keep sound effects a bit quieter than dialogue
-          />
-        )}
+        {/* Audio components */}
+        {DialogueAudioComponent}
+        {SoundEffectsComponent}
         
         {/* Shot info overlay */}
         <div style={{
@@ -164,12 +225,60 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
           <p style={{ color: 'white', margin: '5px 0 0 0', fontSize: 18, maxWidth: 600 }}>
             {shot.description}
           </p>
+          {audioSource && (
+            <p style={{ color: 'lightblue', margin: '5px 0 0 0', fontSize: 14 }}>
+              🔊 Audio: {shot.dialogue || "No dialogue text"}
+              {audioSource ? ` (${audioSource.substring(0, 40)}...)` : " (missing URL)"}
+            </p>
+          )}
         </div>
       </AbsoluteFill>
     );
   }
   
   console.log('Falling back to image:', imageUrl);
+  
+  // Create audio components based on what's available
+  const DialogueAudioComponent = audioSource ? (
+    <React.Fragment>
+      {/* Wrap Audio component in try-catch fallback */}
+      {(() => {
+        try {
+          console.log(`Attempting to load audio from: ${audioSource} with volume: ${audioVolume}`);
+          return (
+            <Audio 
+              src={audioSource} 
+              volume={audioVolume}
+            />
+          );
+        } catch (error) {
+          console.error(`Error loading audio for shot ${index + 1}:`, error);
+          return null;
+        }
+      })()}
+    </React.Fragment>
+  ) : null;
+  
+  const SoundEffectsComponent = hasSoundEffects && shot.soundEffectsAudio ? (
+    <React.Fragment>
+      {/* Wrap Audio component in try-catch fallback */}
+      {(() => {
+        try {
+          console.log(`Attempting to load sound effects from: ${shot.soundEffectsAudio} with volume: ${audioVolume * 0.7}`);
+          return (
+            <Audio 
+              src={shot.soundEffectsAudio || ''} 
+              volume={audioVolume * 0.7} // Sound effects slightly quieter than dialogue
+            />
+          );
+        } catch (error) {
+          console.error(`Error loading sound effects for shot ${index + 1}:`, error);
+          return null;
+        }
+      })()}
+    </React.Fragment>
+  ) : null;
+  
   // Fallback to static image if no video
   return (
     <AbsoluteFill style={{ opacity }}>
@@ -182,18 +291,9 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
         }}
       />
       
-      {/* Add dialogue audio if available - check lipSyncAudio first then fall back to dialogueAudio */}
-      {(shot.lipSyncAudio || shot.dialogueAudio) && (
-        <Audio src={shot.lipSyncAudio || shot.dialogueAudio || ''} />
-      )}
-      
-      {/* Add sound effects if available */}
-      {shot.hasSoundEffects && shot.soundEffectsAudio && (
-        <Audio 
-          src={shot.soundEffectsAudio} 
-          volume={0.7} // Keep sound effects a bit quieter than dialogue
-        />
-      )}
+      {/* Audio components */}
+      {DialogueAudioComponent}
+      {SoundEffectsComponent}
       
       {/* Shot info overlay */}
       <div style={{
@@ -210,6 +310,12 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
         <p style={{ color: 'white', margin: '5px 0 0 0', fontSize: 18, maxWidth: 600 }}>
           {shot.description}
         </p>
+        {audioSource && (
+          <p style={{ color: 'lightblue', margin: '5px 0 0 0', fontSize: 14 }}>
+            🔊 Audio: {shot.dialogue || "No dialogue text"}
+            {audioSource ? ` (${audioSource.substring(0, 40)}...)` : " (missing URL)"}
+          </p>
+        )}
       </div>
     </AbsoluteFill>
   );

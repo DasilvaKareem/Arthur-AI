@@ -9,7 +9,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { SceneComposition } from '../remotion/SceneComposition';
-import { Settings, Music, Subtitles, Languages, Download, Play, Pause, SkipBack, SkipForward, Save, Trash2 } from 'lucide-react';
+import { Settings, Subtitles, Languages, Download, Play, Pause, SkipBack, SkipForward, Save, Trash2 } from 'lucide-react';
 import type { Scene, Shot } from '../../types/shared';
 import { useTheme } from 'next-themes';
 
@@ -22,14 +22,32 @@ const VideoPreview: React.FC<{
   shots: Shot[];
   title: string;
   shotDurations: Record<string, number>;
+  audioVolume?: number;
 }> = (props) => {
   console.log("VideoPreview props:", {
     shots: props.shots.map(shot => ({
       id: shot.id,
       videoUrl: shot.videoUrl,
-      generatedVideo: shot.generatedVideo
+      generatedVideo: shot.generatedVideo,
+      dialogueAudio: shot.dialogueAudio,
+      lipSyncAudio: shot.lipSyncAudio,
+      soundEffectsAudio: shot.soundEffectsAudio,
+      hasDialogue: shot.hasDialogue,
+      hasSoundEffects: shot.hasSoundEffects
     }))
   });
+  
+  // Check if any shots have audio
+  const hasAudioSources = props.shots.some(shot => 
+    shot.dialogueAudio || shot.lipSyncAudio || (shot.hasSoundEffects && shot.soundEffectsAudio)
+  );
+  
+  if (hasAudioSources) {
+    console.log("Found audio sources in shots - audio should play!");
+  } else {
+    console.warn("No audio sources found in any shots");
+  }
+  
   return <SceneComposition {...props} />;
 };
 
@@ -41,10 +59,8 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
   const [currentFrame, setCurrentFrame] = useState(0);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [audioVolume, setAudioVolume] = useState(80);
-  const [musicVolume, setMusicVolume] = useState(50);
   const [language, setLanguage] = useState('en');
   const [playerError, setPlayerError] = useState<string | null>(null);
-  const [backgroundMusic, setBackgroundMusic] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [subtitle, setSubtitle] = useState<Record<string, string[]>>({
@@ -67,11 +83,20 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
     
   // Update shots when scene changes
   useEffect(() => {
-    const updatedShots = (scene.shots || []).map(shot => ({
-      ...shot,
-      // If videoUrl is not set but generatedVideo is available, use generatedVideo
-      videoUrl: shot.videoUrl || shot.generatedVideo || null
-    }));
+    const updatedShots = (scene.shots || []).map(shot => {
+      // Check if shot has dialogue but no dialogueAudio
+      const needsAudioURL = shot.hasDialogue && !shot.dialogueAudio && shot.dialogue;
+      
+      return {
+        ...shot,
+        // If videoUrl is not set but generatedVideo is available, use generatedVideo
+        videoUrl: shot.videoUrl || shot.generatedVideo || null,
+        // Add a test audio URL for debugging if needed
+        dialogueAudio: shot.dialogueAudio || (needsAudioURL 
+          ? "https://firebasestorage.googleapis.com/v0/b/arthurai-12fda.appspot.com/o/temp%2F1744600708741.wav?alt=media&token=a1cc3071-2268-438b-9eb7-9f87e2517c88" 
+          : null)
+      };
+    });
     
     setCustomShots(updatedShots);
     setShotDurations(
@@ -81,7 +106,16 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
       en: updatedShots.map(shot => shot.dialogue || ''),
     });
     
-    console.log("Updated shots with video URLs:", updatedShots);
+    console.log("Updated shots with media URLs:", updatedShots.map(shot => ({
+      id: shot.id,
+      videoUrl: shot.videoUrl || shot.generatedVideo,
+      dialogueAudio: shot.dialogueAudio,
+      lipSyncAudio: shot.lipSyncAudio,
+      soundEffectsAudio: shot.soundEffectsAudio,
+      hasDialogue: shot.hasDialogue,
+      hasSoundEffects: shot.hasSoundEffects,
+      dialogue: shot.dialogue
+    })));
   }, [scene]);
   
   // Refresh player when a video URL changes
@@ -96,7 +130,18 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
         }
       }, 100);
     }
-  }, [JSON.stringify(customShots.map(shot => shot.videoUrl || shot.generatedVideo)), currentFrame]);
+    
+  }, [
+    JSON.stringify(customShots.map(shot => 
+      shot.id + 
+      (shot.videoUrl || shot.generatedVideo || '') + 
+      (shot.dialogueAudio || '') +
+      (shot.lipSyncAudio || '') +
+      (shot.soundEffectsAudio || '')
+    )), 
+    currentFrame,
+    audioVolume
+  ]);
   
   // Add support for video URLs
   const updateShotVideoUrl = (shotId: string, videoUrl: string) => {
@@ -287,9 +332,16 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                 shots: customShots,
                 title: scene.title,
                 shotDurations: shotDurations,
+                audioVolume: audioVolume / 100,
               }}
               controls
-              key={JSON.stringify(customShots.map(shot => shot.videoUrl || shot.generatedVideo))}
+              key={JSON.stringify(customShots.map(shot => 
+                shot.id + 
+                (shot.videoUrl || shot.generatedVideo || '') + 
+                (shot.dialogueAudio || '') +
+                (shot.lipSyncAudio || '') +
+                (shot.soundEffectsAudio || '')
+              ))}
             />
             
             {/* Video controls overlay */}
@@ -335,7 +387,6 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
           <Tabs defaultValue="shots" className="w-full">
             <TabsList>
               <TabsTrigger value="shots">Shots</TabsTrigger>
-              <TabsTrigger value="audio">Audio</TabsTrigger>
               <TabsTrigger value="subtitles">Subtitles</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
@@ -398,77 +449,6 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                     </div>
                   </div>
                 ))}
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="audio" className="p-4 border rounded-md mt-2">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Audio Settings</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-4">
-                      <Label className="w-32">Dialogue Volume</Label>
-                      <div className="flex-1">
-                        <Slider
-                          value={[audioVolume]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          onValueChange={(value: number[]) => setAudioVolume(value[0])}
-                        />
-                      </div>
-                      <span className="w-10 text-right">{audioVolume}%</span>
-                    </div>
-                    
-                    <div className="flex items-center space-x-4">
-                      <Label className="w-32">Music Volume</Label>
-                      <div className="flex-1">
-                        <Slider
-                          value={[musicVolume]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          onValueChange={(value: number[]) => setMusicVolume(value[0])}
-                        />
-                      </div>
-                      <span className="w-10 text-right">{musicVolume}%</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Background Music</h3>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {['Dramatic', 'Upbeat', 'Suspense', 'Romance', 'Action', 'Sci-Fi'].map((genre) => (
-                      <Button 
-                        key={genre}
-                        variant={backgroundMusic === genre ? "default" : "outline"}
-                        className="justify-start"
-                        onClick={() => setBackgroundMusic(genre)}
-                      >
-                        <Music className="h-4 w-4 mr-2" />
-                        {genre}
-                      </Button>
-                    ))}
-                  </div>
-                  
-                  <div className="mt-4">
-                    <Label className="mb-2 block">Custom Music URL</Label>
-                    <div className="flex space-x-2">
-                      <Input 
-                        placeholder="https://example.com/music.mp3" 
-                        onChange={(e) => setBackgroundMusic(e.target.value)}
-                        value={backgroundMusic || ''}
-                        className="flex-1"
-                      />
-                      <Button variant="outline">
-                        Upload
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </TabsContent>
             

@@ -134,9 +134,19 @@ const SuggestedQuestions = ({
 const MessageContent = ({
   content,
   role,
+  projectId,
+  createShotFromDescription,
+  onShotCreated,
+  setMessages,
+  user,
 }: {
   content: string;
   role: string;
+  projectId: string | null;
+  createShotFromDescription: (description: string, shotType?: string) => Promise<string | null>;
+  onShotCreated?: () => void;
+  setMessages: (update: React.SetStateAction<Message[]>) => void;
+  user: any;
 }) => {
   const [thinking, setThinking] = useState(true);
   const [parsed, setParsed] = useState<{
@@ -152,7 +162,6 @@ const MessageContent = ({
   }>({});
   const [error, setError] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
 
   useEffect(() => {
     if (!content || role !== "assistant") return;
@@ -185,50 +194,110 @@ const MessageContent = ({
     return () => clearTimeout(timer);
   }, [content, role]);
 
-  const handleGenerateProject = async () => {
+  const handleGenerateShots = async () => {
     if (!parsed.response || !user) {
-      toast.error("Please sign in to create a project");
+      toast.error("Please sign in to create shots");
       return;
     }
 
     try {
-      console.log("🎬 Generating project from story!");
-      toast.loading("Preparing your story...");
-
-      // Create a blank scene with the story content
-      const blankScene = {
-        id: crypto.randomUUID(),
-        title: "Scene 1",
-        location: "",
-        description: parsed.response.split('\n\n')[0], // Use the first paragraph as scene description
-        lighting: "",
-        weather: "",
-        style: "hyperrealistic",
-        shots: []
-      };
-
-      // Extract title from response
-      const title = parsed.response.split('\n')[0].replace('📝 Title: ', '');
-      const description = parsed.response;
+      console.log("🎬 Generating shots from story!");
+      toast.loading("Preparing shots...");
       
-      // Create a new story in Firebase - scenes will be created as subcollections
-      const storyId = await createStory(
-        title,
-        description,
-        user.uid,
-        [blankScene] // This will be stored as a subcollection
-      );
-      
-      if (!storyId) {
-        throw new Error("Failed to create story");
+      if (!projectId) {
+        throw new Error("No project selected");
       }
-
-      // Redirect to workspace with the story ID
-      router.push(`/workspace?story=${storyId}`);
-      toast.success("Story created successfully!");
+      
+      // Parse the story into potential shots
+      const paragraphs = parsed.response.split('\n\n');
+      
+      // Extract shot descriptions from paragraphs
+      const shotDescriptions = [];
+      
+      // Try to extract some logical shots from the content
+      if (paragraphs.length > 1) {
+        // Look for character descriptions, dialogue, or action sequences
+        for (let i = 0; i < Math.min(paragraphs.length, 6); i++) {
+          if (paragraphs[i] && paragraphs[i].length > 20) {
+            shotDescriptions.push(paragraphs[i].substring(0, 150)); // Limit description length
+          }
+        }
+      }
+      
+      // If we couldn't find good shots, create some generic ones
+      if (shotDescriptions.length === 0) {
+        shotDescriptions.push("Establishing shot of the main location");
+        shotDescriptions.push("Medium shot of the main character");
+        shotDescriptions.push("Wide shot showing the environment and characters");
+      }
+      
+      // Limit the number of shots to create at once to avoid overwhelming the API
+      const shotsToCreate = shotDescriptions.slice(0, 3);
+      
+      // Create each shot sequentially, not in parallel
+      const createdShotIds = [];
+      for (const description of shotsToCreate) {
+        try {
+          // Add a small delay between shot creation attempts
+          if (createdShotIds.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+          const shotId = await createShotFromDescription(description);
+          if (shotId) {
+            createdShotIds.push(shotId);
+          }
+        } catch (shotError) {
+          console.error("Error creating individual shot:", shotError);
+          // If we have at least one error, stop trying to create more shots
+          if (createdShotIds.length === 0) {
+            throw shotError; // Re-throw the error if we haven't created any shots
+          } else {
+            break; // Stop creating more shots but don't throw an error
+          }
+        }
+      }
+      
+      // Add a message about shot creation
+      const message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: JSON.stringify({
+          thinking: "Explaining shots that were created",
+          response: `Created ${createdShotIds.length} new shots based on the story! ${
+            createdShotIds.length > 0 ? "You can now see them in your storyboard." : 
+            "There was an issue creating the shots. Please make sure your project is set up correctly."
+          }`,
+          suggested_questions: [
+            ...(createdShotIds.length > 0 ? [
+              "Generate images for these shots",
+              "Add another shot",
+              "What shot types can I use?"
+            ] : [
+              "How do I set up my project?",
+              "Create a new scene",
+              "Help me troubleshoot"
+            ])
+          ]
+        })
+      };
+      
+      setMessages(prev => [...prev, message]);
+      
+      if (onShotCreated && createdShotIds.length > 0) {
+        onShotCreated();
+      }
+      
+      if (createdShotIds.length > 0) {
+        toast.success(`${createdShotIds.length} shots created successfully!`);
+      } else {
+        toast.error("No shots could be created. There might be an issue with the project setup.");
+      }
     } catch (error) {
-      console.error("Error creating project:", error);
-      toast.error("Failed to create project. Please try again.");
+      console.error("Error creating shots:", error);
+      toast.error("Failed to create shots: " + (error instanceof Error ? error.message : "Please try again."));
+    } finally {
+      toast.dismiss();
     }
   };
 
@@ -288,11 +357,11 @@ const MessageContent = ({
       {parsed.can_generate_project && parsed.response && (
         <div className="mt-4 flex justify-center">
           <Button
-            onClick={handleGenerateProject}
+            onClick={handleGenerateShots}
             className="w-[200px]"
-            disabled={!user}
+            disabled={!user || !projectId}
           >
-            {user ? "Create Story" : "Sign in to Create Story"}
+            {user ? "Create Shots" : "Sign in to Create Shots"}
           </Button>
         </div>
       )}
@@ -433,13 +502,16 @@ const ConversationHeader: React.FC<ConversationHeaderProps> = ({
   );
 };
 
+// Extend the ChatAreaProps interface to include projectId
 interface ChatAreaProps {
   initialMessage?: string;
   onMessageSubmit?: (message: string) => void;
   isCreating?: boolean;
+  projectId?: string | null;
+  onShotCreated?: () => void;
 }
 
-function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps) {
+function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onShotCreated }: ChatAreaProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -447,6 +519,7 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps
   const [selectedModel, setSelectedModel] = useState("llama3-8b-8192");
   const [showAvatar, setShowAvatar] = useState(false);
   const { preferences } = usePreferences();
+  const { user } = useAuth();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState(
@@ -550,11 +623,147 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps
     console.log(`⏱️ ${label}: ${duration.toFixed(2)}ms`);
   };
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement> | string,
-  ) => {
-    if (typeof event !== "string") {
-      event.preventDefault();
+  // Add a ref to the current project ID
+  const projectIdRef = useRef<string | null>(null);
+  
+  // Update the ref when projectId changes
+  useEffect(() => {
+    projectIdRef.current = projectId || null;
+  }, [projectId]);
+
+  // Add a function to create a new shot
+  const createShotFromDescription = async (description: string, shotType: string = "MEDIUM SHOT") => {
+    if (!projectIdRef.current) {
+      console.error("No project ID available");
+      toast.error("Cannot create shot: No project selected");
+      return null;
+    }
+    
+    const MAX_RETRIES = 2;
+    let retryCount = 0;
+    
+    while (retryCount <= MAX_RETRIES) {
+      try {
+        if (retryCount > 0) {
+          console.log(`Retrying shot creation (attempt ${retryCount} of ${MAX_RETRIES})...`);
+          toast.loading(`Retrying shot creation (attempt ${retryCount} of ${MAX_RETRIES})...`);
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        } else {
+          toast.loading("Creating new shot...");
+        }
+        
+        console.log("Creating shot for project:", projectIdRef.current);
+        console.log("Shot description:", description);
+        console.log("Current user:", user?.uid || "Not logged in");
+        
+        // Create the shot directly in the first scene (or create a new one if needed)
+        const shotResponse = await fetch(`/api/shot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            storyId: projectIdRef.current,
+            type: shotType,
+            description: description,
+            prompt: description,
+            hasDialogue: false,
+            hasNarration: false,
+            hasSoundEffects: false,
+            userId: user?.uid // Use the user from component level scope
+          })
+        });
+        
+        // Log the response status for debugging
+        console.log(`Shot creation API response status: ${shotResponse.status}`);
+        
+        // Check for specific HTTP status codes
+        if (shotResponse.status === 404) {
+          throw new Error("API endpoint not found. The server might need to be restarted.");
+        } else if (shotResponse.status === 401) {
+          throw new Error("Please sign in to create shots.");
+        } else if (!shotResponse.ok) {
+          // Try to get more details about the error
+          let errorDetails = "";
+          try {
+            const errorData = await shotResponse.json();
+            errorDetails = errorData.error || shotResponse.statusText;
+            console.error("Shot creation API error details:", errorData);
+            
+            // Check for Firebase initialization error and retry
+            if (errorDetails.includes("Expected first argument to collection()") ||
+                errorDetails.includes("Firebase") ||
+                errorDetails.includes("Firestore") ||
+                errorDetails.includes("not initialized")) {
+              if (retryCount < MAX_RETRIES) {
+                console.log("Firebase initialization error detected, will retry");
+                retryCount++;
+                continue;
+              }
+            }
+          } catch (parseError) {
+            errorDetails = shotResponse.statusText;
+          }
+          
+          throw new Error(`Failed to create shot: ${errorDetails}`);
+        }
+        
+        // If we get here, the response was successful
+        const shotData = await shotResponse.json();
+        console.log("Shot created successfully:", shotData);
+        toast.success("New shot created successfully!");
+        
+        // Call the onShotCreated callback if provided
+        if (onShotCreated) {
+          onShotCreated();
+        }
+        
+        return shotData.id;
+      } catch (error) {
+        console.error("Error creating shot:", error);
+        
+        // Check if we should retry based on the error
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const shouldRetry = 
+          errorMessage.includes("Firebase") || 
+          errorMessage.includes("Firestore") ||
+          errorMessage.includes("initialization") ||
+          errorMessage.includes("Expected first argument to collection()");
+          
+        if (shouldRetry && retryCount < MAX_RETRIES) {
+          console.log(`Will retry shot creation due to error: ${errorMessage}`);
+          retryCount++;
+          continue;
+        }
+        
+        // Provide more specific error messages
+        if (error instanceof Error) {
+          // Handle specific error cases
+          if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+            toast.error("Network error: Please make sure the app server is running");
+          } else if (error.message.includes("invalid-argument") || error.message.includes("Expected first argument")) {
+            toast.error("Firebase initialization error. Please try again in a moment.");
+          } else {
+            toast.error("Failed to create shot: " + error.message);
+          }
+        } else {
+          toast.error("Failed to create shot: Unknown error");
+        }
+        
+        return null;
+      } finally {
+        toast.dismiss();
+      }
+    }
+    
+    return null;
+  };
+  
+  // Modify the handleSubmit function to check for shot creation requests
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement> | string) => {
+    if (typeof e !== "string") {
+      e.preventDefault();
     }
     if (!showHeader) setShowHeader(true);
     if (!showAvatar) setShowAvatar(true);
@@ -566,7 +775,7 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps
     const userMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: typeof event === "string" ? event : input,
+      content: typeof e === "string" ? e : input,
     };
 
     const placeholderMessage = {
@@ -678,6 +887,52 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps
             detail: data.redirect_to_agent,
           }),
         );
+      }
+
+      // Check if the message is a shot creation request
+      if (userMessage.content.toLowerCase().includes("create shot") && projectIdRef.current) {
+        // Extract description from the user message
+        const description = userMessage.content.replace(/create shot/i, "").trim();
+        
+        // Add an AI response that we're creating a shot
+        setMessages(prev => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: JSON.stringify({
+              thinking: `Creating a new shot with description: "${description}"`,
+              response: `I'll create a new shot with that description. One moment...`,
+              suggested_questions: []
+            })
+          }
+        ]);
+        
+        // Create the shot (user is already available at the component level)
+        const shotId = await createShotFromDescription(description);
+        
+        if (shotId) {
+          // Add confirmation message
+          setMessages(prev => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: JSON.stringify({
+                thinking: `Successfully created a new shot with ID: ${shotId}`,
+                response: `I've created a new shot with that description. You may need to refresh the storyboard to see it.`,
+                suggested_questions: [
+                  "Generate an image for this shot",
+                  "Create another shot",
+                  "What shot types can I use?"
+                ]
+              })
+            }
+          ]);
+        }
+        
+        setIsLoading(false);
+        return;
       }
     } catch (error) {
       console.error("Error fetching chat response:", error);
@@ -795,6 +1050,11 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating }: ChatAreaProps
                       <MessageContent
                         content={message.content}
                         role={message.role}
+                        projectId={projectId || null}
+                        createShotFromDescription={createShotFromDescription}
+                        onShotCreated={onShotCreated}
+                        setMessages={setMessages}
+                        user={user}
                       />
                     </div>
                   </div>

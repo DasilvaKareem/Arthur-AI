@@ -76,6 +76,8 @@ function ProjectContent() {
   const [userThemeColor, setUserThemeColor] = useState<string>("neutral");
   // Add view mode state
   const [viewMode, setViewMode] = useState<'editor' | 'storyboard'>('editor');
+  // Add state for temporary dialogue values
+  const [tempDialogueValues, setTempDialogueValues] = useState<Record<string, string>>({});
 
   // Add effect to get user's theme color from localStorage
   useEffect(() => {
@@ -723,11 +725,15 @@ function ProjectContent() {
   }, [currentScene, storyId, updateShotDetails]);
   
   // Add dialogue save handler
-  const handleDialogueSave = useCallback(async (shotId: string, dialogueText: string, voiceId: string) => {
+  const handleDialogueSave = useCallback(async (shotId: string, voiceId: string) => {
     if (!currentScene?.id || !storyId) return;
     
     try {
       toast.loading("Saving dialogue...", { id: `dialogue-${shotId}` });
+      
+      // Get the dialogue text from our temporary state or fallback to shot.dialogue
+      const dialogueText = tempDialogueValues[shotId] ?? 
+        (currentScene.shots.find(s => s.id === shotId)?.dialogue || "");
       
       // Update Firebase
       await updateShotDetails(currentScene.id, shotId, { 
@@ -776,7 +782,7 @@ function ProjectContent() {
       console.error("Error saving dialogue:", error);
       toast.error("Failed to save dialogue", { id: `dialogue-${shotId}` });
     }
-  }, [currentScene, storyId, updateShotDetails]);
+  }, [currentScene, storyId, updateShotDetails, tempDialogueValues]);
 
   // Update scene description handler
   const handleSceneDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -2002,8 +2008,14 @@ function ProjectContent() {
                         className="w-full bg-background border border-input rounded p-1.5 text-xs text-foreground"
                         rows={2}
                         placeholder="Add character dialogue..."
-                        value={shot.dialogue || ""}
-                        onChange={(e) => handleDialogueChange(e, index)}
+                        value={tempDialogueValues[shot.id] !== undefined ? tempDialogueValues[shot.id] : (shot.dialogue || "")}
+                        onChange={(e) => {
+                          // Just update our temporary state
+                          setTempDialogueValues(prev => ({
+                            ...prev,
+                            [shot.id]: e.target.value
+                          }));
+                        }}
                       />
                       <div className="mt-1 text-xs font-medium">Voice</div>
                       <select
@@ -2073,7 +2085,7 @@ function ProjectContent() {
                       
                       <Button 
                         className="w-full mt-2 text-xs"
-                        onClick={() => handleDialogueSave(shot.id, shot.dialogue || "", shot.voiceId || "")}
+                        onClick={() => handleDialogueSave(shot.id, shot.voiceId || "")}
                       >
                         Save
                       </Button>
@@ -2096,7 +2108,7 @@ function ProjectContent() {
                 <div className="shot-actions flex gap-2 mt-2">
                   {shot.generatedImage && (
                     <button
-                      className={`flex items-center px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded ${
+                      className={`flex items-center px-3 py-1 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md ${
                         videoLoadingStates[shot.id] ? 'opacity-90 cursor-not-allowed' : ''
                       }`}
                       onClick={() => generateShotVideo(shot.id)}
