@@ -520,6 +520,7 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onSh
   const [showAvatar, setShowAvatar] = useState(false);
   const { preferences } = usePreferences();
   const { user } = useAuth();
+  const router = useRouter();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState(
@@ -890,8 +891,32 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onSh
       }
 
       // Check if the message is a shot creation request
-      if (userMessage.content.toLowerCase().includes("create shot") && projectIdRef.current) {
-        // Extract description from the user message
+      if (userMessage.content.toLowerCase().includes("create shot")) {
+        // If there's no project ID, we should create a story instead of a shot
+        if (!projectIdRef.current) {
+          // Add a response explaining that we need to create a story first
+          setMessages(prev => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: JSON.stringify({
+                thinking: "No active project found - redirecting to story creation",
+                response: "It looks like you want to create shots, but you don't have an active project. Let's create a story first! Please describe the story you'd like to create, and I'll help you set it up.",
+                suggested_questions: [
+                  "Create a story about ninjas and pirates",
+                  "Create a sci-fi adventure story",
+                  "Create a romantic comedy story"
+                ]
+              })
+            }
+          ]);
+          
+          setIsLoading(false);
+          return;
+        }
+        
+        // If we have a project ID, proceed with shot creation as normal
         const description = userMessage.content.replace(/create shot/i, "").trim();
         
         // Add an AI response that we're creating a shot
@@ -931,6 +956,98 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onSh
           ]);
         }
         
+        setIsLoading(false);
+        return;
+      }
+      
+      // Direct story creation handler - similar to how shot creation works
+      if (userMessage.content.toLowerCase().includes("create story")) {
+        try {
+          // Extract the story description from the message
+          const storyContent = userMessage.content.replace(/create story/i, "").trim();
+          
+          // Show a loading message
+          setMessages(prev => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: JSON.stringify({
+                thinking: "Creating a new story...",
+                response: "I'm creating a new story based on your description. This will just take a moment...",
+                suggested_questions: []
+              })
+            }
+          ]);
+          
+          if (!user) {
+            setMessages(prev => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: JSON.stringify({
+                  thinking: "Authentication required",
+                  response: "You need to be signed in to create a story. Please sign in and try again.",
+                  suggested_questions: []
+                })
+              }
+            ]);
+            setIsLoading(false);
+            return;
+          }
+          
+          // Create the story directly using Firebase
+          const storyId = await createStory(
+            storyContent.substring(0, 50) || "New Story", // Use first 50 chars as title, or default
+            storyContent, // Full message as description
+            user.uid
+          );
+          
+          if (storyId) {
+            // Success message
+            setMessages(prev => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: JSON.stringify({
+                  thinking: `Story created successfully with ID: ${storyId}`,
+                  response: "Your story has been created! I'll redirect you to your workspace.",
+                  suggested_questions: []
+                })
+              }
+            ]);
+            
+            // Redirect to the workspace page with the story ID
+            router.push(`/workspace?projectId=${storyId}`);
+          } else {
+            throw new Error("Failed to create story - no story ID returned");
+          }
+        } catch (error) {
+          console.error("Error creating story:", error);
+          setMessages(prev => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: JSON.stringify({
+                thinking: "Error creating story",
+                response: `There was an error creating your story: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
+                suggested_questions: []
+              })
+            }
+          ]);
+        }
+        
+        setIsLoading(false);
+        return;
+      }
+      
+      // If the user is on the create-story page and explicitly asks to create a story
+      if (userMessage.content.toLowerCase().includes("create story") && onMessageSubmit) {
+        // Route this to the onMessageSubmit handler for story creation
+        onMessageSubmit(userMessage.content);
         setIsLoading(false);
         return;
       }
@@ -1017,6 +1134,17 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onSh
                   </p>
                 </div>
               </div>
+              
+              {/* Add prominent Create Story button */}
+              <Button 
+                className="mt-8 bg-primary hover:bg-primary/90 text-primary-foreground font-mono"
+                onClick={() => {
+                  handleSubmit("Create story about a ninja clan who discovers a hidden pirate treasure");
+                }}
+              >
+                <WandSparkles className="mr-2 h-4 w-4" />
+                Create a New Story
+              </Button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -1115,6 +1243,21 @@ function ChatArea({ initialMessage, onMessageSubmit, isCreating, projectId, onSh
                   />
                 </DialogContent>
               </Dialog>
+              
+              {/* Create Story button in chat footer */}
+              {!projectId && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="ml-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    handleSubmit("Create story about a ninja clan who discovers a hidden pirate treasure");
+                  }}
+                >
+                  <WandSparkles className="mr-1 h-3 w-3" />
+                  Create Story
+                </Button>
+              )}
             </div>
             <Button
               type="submit"
