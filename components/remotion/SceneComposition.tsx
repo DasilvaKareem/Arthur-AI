@@ -136,9 +136,9 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
           loop
         />
         
-        {/* Add dialogue audio if available */}
-        {shot.lipSyncAudio && (
-          <Audio src={shot.lipSyncAudio} />
+        {/* Add dialogue audio if available - check lipSyncAudio first then fall back to dialogueAudio */}
+        {(shot.lipSyncAudio || shot.dialogueAudio) && (
+          <Audio src={shot.lipSyncAudio || shot.dialogueAudio || ''} />
         )}
         
         {/* Add sound effects if available */}
@@ -182,9 +182,9 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
         }}
       />
       
-      {/* Add dialogue audio if available */}
-      {shot.lipSyncAudio && (
-        <Audio src={shot.lipSyncAudio} />
+      {/* Add dialogue audio if available - check lipSyncAudio first then fall back to dialogueAudio */}
+      {(shot.lipSyncAudio || shot.dialogueAudio) && (
+        <Audio src={shot.lipSyncAudio || shot.dialogueAudio || ''} />
       )}
       
       {/* Add sound effects if available */}

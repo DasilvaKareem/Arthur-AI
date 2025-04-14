@@ -523,25 +523,45 @@ export default function WorkspacePage() {
 }
 
 function StoryboardWrapper({ projectId }: { projectId: string | null }) {
-  // Import StoryboardView component
-  const StoryboardView = dynamic(() => import('../../components/StoryboardView'), {
-    ssr: false,
-    loading: () => (
-      <div className="flex justify-center items-center h-full">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-          <p className="text-muted-foreground">Loading storyboard...</p>
-        </div>
-      </div>
-    )
-  });
+  const [isLoading, setIsLoading] = useState(true);
+  const projectRef = useRef<HTMLIFrameElement>(null);
   
-  // Don't render anything if no projectId
+  useEffect(() => {
+    if (!projectId) return;
+    
+    // Give the iframe some time to load, then hide the loading indicator
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, [projectId]);
+
   if (!projectId) return null;
 
   return (
-    <div className="h-full w-full storyboard-wrapper">
-      <StoryboardView projectId={projectId} />
+    <div className="h-full w-full flex flex-col">
+      <div className="flex-1 relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+              <p className="text-muted-foreground">Loading project...</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Use an iframe to load the actual project page */}
+        <iframe 
+          ref={projectRef}
+          src={`/project?id=${projectId}`} 
+          className="w-full h-full border-none"
+          title="Project Content"
+        />
+      </div>
+      
+      {/* Scene timeline at the bottom */}
+      <SceneTimelineWrapper projectId={projectId} />
     </div>
   );
 }

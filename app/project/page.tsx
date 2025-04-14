@@ -24,6 +24,7 @@ import ProjectHeader from "../../components/project/ProjectHeader"; // Import th
 import { debounce } from 'lodash';
 import { SoundEffectsEditor } from "../../components/SoundEffectsEditor";
 import ShotVideoPlayer from "../../components/project/ShotVideoPlayer";
+import StoryboardView from "../../components/StoryboardView";
 
 interface VideoGenerationShot {
   imageUrl: string | null;
@@ -73,6 +74,8 @@ function ProjectContent() {
   const [showingSoundEffects, setShowingSoundEffects] = useState<Record<string, boolean>>({});
   const [showingDialogue, setShowingDialogue] = useState<Record<string, boolean>>({});
   const [userThemeColor, setUserThemeColor] = useState<string>("neutral");
+  // Add view mode state
+  const [viewMode, setViewMode] = useState<'editor' | 'storyboard'>('editor');
 
   // Add effect to get user's theme color from localStorage
   useEffect(() => {
@@ -175,6 +178,16 @@ function ProjectContent() {
       clearTimeout(timeoutId);
       window.removeEventListener('keydown', handleKeyDown);
     };
+  }, []);
+
+  // Detect if this page is embedded in an iframe and adjust accordingly
+  useEffect(() => {
+    // Check if this page is loaded inside an iframe
+    const isInsideIframe = window !== window.parent;
+    if (isInsideIframe) {
+      console.log("Project page is embedded in iframe, switching to storyboard view");
+      setViewMode('storyboard');
+    }
   }, []);
 
   const loadStory = useCallback(async (id: string) => {
@@ -2237,6 +2250,48 @@ function ProjectContent() {
           </div>
         )}
       </div>
+
+      {/* View Mode Selector */}
+      <div className="border-b border-border px-4 py-2 flex items-center">
+        <div className="flex space-x-2">
+          <Button
+            variant={viewMode === 'editor' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('editor')}
+          >
+            Editor View
+          </Button>
+          <Button
+            variant={viewMode === 'storyboard' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('storyboard')}
+          >
+            Storyboard View
+          </Button>
+        </div>
+      </div>
+
+      {/* View Mode Selector - only show when not in an iframe */}
+      {!isEmbedded && (
+        <div className="border-b border-border px-4 py-2 flex items-center">
+          <div className="flex space-x-2">
+            <Button
+              variant={viewMode === 'editor' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('editor')}
+            >
+              Editor View
+            </Button>
+            <Button
+              variant={viewMode === 'storyboard' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('storyboard')}
+            >
+              Storyboard View
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
