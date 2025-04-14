@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Moon, Sun, Check, LogOut, User as UserIcon } from "lucide-react";
+import { Moon, Sun, Check, LogOut, User as UserIcon, CreditCard } from "lucide-react";
 import { useTheme } from "next-themes";
 import { themes } from "@/styles/themes";
 import {
@@ -193,6 +193,39 @@ const TopNavBar = () => {
                  {user.email}
                </DropdownMenuItem>
                <DropdownMenuSeparator />
+               <DropdownMenuItem 
+                 onClick={() => {
+                   const createPortalSession = async () => {
+                     try {
+                       const response = await fetch('/api/stripe/create-portal-session', {
+                         method: 'POST',
+                         headers: {
+                           'Content-Type': 'application/json',
+                         },
+                         body: JSON.stringify({ userId: user.uid }),
+                       });
+                       
+                       if (!response.ok) {
+                         const errorData = await response.json();
+                         throw new Error(errorData.error || 'Failed to create portal session');
+                       }
+                       
+                       const { url } = await response.json();
+                       if (url) {
+                         window.location.href = url;
+                       }
+                     } catch (error) {
+                       console.error('Failed to create portal session:', error);
+                     }
+                   };
+                   
+                   createPortalSession();
+                 }} 
+                 className="cursor-pointer"
+               >
+                 <CreditCard className="mr-2 h-4 w-4" />
+                 <span>Manage Subscription</span>
+               </DropdownMenuItem>
                <DropdownMenuItem onClick={signOut} className="cursor-pointer text-red-500 focus:text-red-600 focus:bg-red-50">
                  <LogOut className="mr-2 h-4 w-4" />
                  <span>Sign Out</span>

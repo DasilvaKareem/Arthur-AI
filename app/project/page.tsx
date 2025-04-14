@@ -10,7 +10,7 @@ import rehypeHighlight from "rehype-highlight";
 import { ArrowLeft, Download, Copy, Share, ChevronDown, Plus, Edit, Trash, Pencil, Camera, Film, Music, Volume2, Loader2, Save, RefreshCw, Play, MessageSquare, X, Video } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { createStory, updateStory, getStoryWithSubcollections, updateSceneSubcollection, updateShotSubcollection, deleteSceneSubcollection, deleteShotSubcollection, uploadShotImage, validateSceneData, validateShotData, cleanupShotDescriptions, ensureStoryHasScene, createSceneSubcollection, createShotSubcollection, analyzeStoryStructure, migrateStoryToSubcollections, removeNestedScenes } from '../lib/firebase/stories';
+import { createStory, updateStory, getStoryWithSubcollections, updateSceneSubcollection, updateShotSubcollection, deleteSceneSubcollection, deleteShotSubcollection, uploadShotImage, validateSceneData, validateShotData, cleanupShotDescriptions, ensureStoryHasScene, createSceneSubcollection, createShotSubcollection, removeNestedScenes } from '../lib/firebase/stories';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -1593,71 +1593,27 @@ function ProjectContent() {
     }
     
     try {
-      toast.loading("Analyzing story structure...", { id: "analyze-story" });
+      toast.loading("Fixing story structure...", { id: "fix-story" });
       
-      // Analyze the story structure
-      const analysis = await analyzeStoryStructure(storyId);
-      console.log("Story analysis:", analysis);
+      // Call the fix-structure API endpoint
+      const response = await fetch(`/api/story/fix-structure?storyId=${storyId}`);
       
-      if (analysis.structure.hasNestedScenes) {
-        // Ask user if they want to migrate
-        const confirmMigration = window.confirm(
-          `Found ${analysis.structure.nestedSceneCount} scenes in array format and ${analysis.structure.subcollectionSceneCount} scenes in subcollections.\n\n` +
-          `Would you like to migrate all scenes to subcollections?`
-        );
-        
-        if (confirmMigration) {
-          toast.loading("Migrating scenes to subcollections...", { id: "migrate-story" });
-          
-          // Perform the migration
-          const success = await migrateStoryToSubcollections(storyId);
-          
-          if (success) {
-            toast.success("Successfully migrated story to subcollections", { id: "migrate-story" });
-            
-            // Always clean up the nested scenes array
-            await removeNestedScenes(storyId);
-            
-            // Reload the story to get the updated structure
-            await loadStory(storyId);
-          } else {
-            toast.error("Failed to migrate story", { id: "migrate-story" });
-          }
-        } else {
-          // If user doesn't want to migrate, still clear the nested array
-          const confirmCleanup = window.confirm(
-            "Would you like to clear the nested scenes array to prevent confusion?"
-          );
-          
-          if (confirmCleanup) {
-            await removeNestedScenes(storyId);
-            toast.success("Cleared nested scenes array", { id: "analyze-story" });
-          }
-        }
-      } else if (!analysis.structure.hasSubcollectionScenes) {
-        // No scenes found anywhere
-        const confirmCreateScene = window.confirm(
-          "No scenes found in this story. Would you like to create a default scene?"
-        );
-        
-        if (confirmCreateScene) {
-          await ensureStoryHasScene(storyId);
-          // Also clean up any potential empty scenes array
-          await removeNestedScenes(storyId);
-          await loadStory(storyId);
-          toast.success("Created default scene for story");
-        }
-      } else {
-        // Story has subcollection scenes, still clean up any potential nested array
-        await removeNestedScenes(storyId);
-        toast.success(`Story has ${analysis.structure.subcollectionSceneCount} scenes in subcollections`, { id: "analyze-story" });
-        
-        // Reload the story to get the updated structure
-        await loadStory(storyId);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fix story structure");
       }
+      
+      const data = await response.json();
+      console.log("Story structure fix result:", data);
+      
+      // Reload the story to get the updated structure
+      await loadStory(storyId);
+      
+      toast.success("Story structure fixed successfully", { id: "fix-story" });
     } catch (error) {
-      console.error("Error debugging story:", error);
-      toast.error(`Failed to debug story: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error("Error fixing story structure:", error);
+      toast.error(`Failed to fix story: ${error instanceof Error ? error.message : "Unknown error"}`, 
+                 { id: "fix-story" });
     }
   };
 

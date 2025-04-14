@@ -67,9 +67,16 @@ export function SubscriptionCard({
         <h3 className="text-2xl font-semibold leading-none tracking-tight mb-4">
           Active Subscription
         </h3>
-        <p className="text-muted-foreground">
+        <p className="text-muted-foreground mb-4">
           You have an active subscription. Enjoy full access to all features.
         </p>
+        <Button
+          variant="outline"
+          onClick={() => window.location.href = '/dashboard-app/account'}
+          className="w-full"
+        >
+          Manage Billing
+        </Button>
       </div>
     );
   }

@@ -19,6 +19,7 @@ export interface Shot {
   location?: string | null;
   lighting?: string | null;
   weather?: string | null;
+  videoUrl?: string | null;
 }
 
 export interface Scene {

@@ -30,7 +30,6 @@ export async function createStory(
       script: description, // Store the description as the script too for backward compatibility
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      // Don't initialize scenes array as we're using subcollections
     };
 
     console.log("Creating story with data:", storyData);
@@ -86,213 +85,23 @@ export async function createStory(
   }
 }
 
-// Initialize scenes from script
-async function initializeScenesFromScript(storyId: string, script: string): Promise<Scene[]> {
-  try {
-    console.log("Initializing scenes from script for story:", storyId);
-    
-    if (!script || typeof script !== 'string') {
-      console.log("No valid script provided, returning empty scenes array");
-      return [];
-    }
-
-    // Split the script into scenes based on "SCENE" markers
-    const sceneTexts = script.split(/SCENE \d+:/).filter(text => text && typeof text === 'string' && text.trim());
-    console.log(`Found ${sceneTexts.length} scenes in script`);
-
-    const scenes: Scene[] = sceneTexts.map((sceneText, index) => {
-      if (!sceneText || typeof sceneText !== 'string') {
-        console.log(`Invalid scene text at index ${index}, skipping`);
-        return {
-          id: `scene-${index + 1}`,
-          title: `Scene ${index + 1}`,
-          location: "Default Location",
-          description: "",
-          lighting: "Natural lighting",
-          weather: "Clear",
-          style: "hyperrealistic",
-          shots: []
-        };
-      }
-
-      // Extract scene details using regex with null checks
-      const locationMatch = sceneText.match(/INT\.|EXT\.\s+(.*?)\s+-/);
-      const descriptionMatch = sceneText.match(/Description:\s*(.*?)(?=\n|$)/);
-      const lightingMatch = sceneText.match(/Lighting:\s*(.*?)(?=\n|$)/);
-      const weatherMatch = sceneText.match(/Weather:\s*(.*?)(?=\n|$)/);
-      
-      // Extract shots from the scene with null checks
-      const shotTexts = sceneText.split(/(?=SHOT:|CLOSE-UP:|MEDIUM SHOT:)/)
-        .filter(text => text && typeof text === 'string' && text.trim());
-      
-      const shots: Shot[] = shotTexts.map((shotText, shotIndex) => {
-        if (!shotText || typeof shotText !== 'string') {
-          console.log(`Invalid shot text at index ${shotIndex}, skipping`);
-          return {
-            id: `shot-${index}-${shotIndex}`,
-            type: "MEDIUM SHOT",
-            description: "",
-            hasDialogue: false,
-            hasNarration: false,
-            hasSoundEffects: false,
-            prompt: "",
-            narration: "",
-            dialogue: "",
-            soundEffects: ""
-          };
-        }
-
-        const typeMatch = shotText.match(/^(SHOT|CLOSE-UP|MEDIUM SHOT):/);
-        const descriptionMatch = shotText.match(/Description:\s*(.*?)(?=\n|$)/);
-        const dialogueMatch = shotText.match(/Dialogue:\s*(.*?)(?=\n|$)/);
-        const narrationMatch = shotText.match(/Narration:\s*(.*?)(?=\n|$)/);
-        const soundMatch = shotText.match(/Sound Effects:\s*(.*?)(?=\n|$)/);
-
-        return {
-          id: `shot-${index}-${shotIndex}`,
-          type: typeMatch && typeMatch[1] ? typeMatch[1] : "MEDIUM SHOT",
-          description: descriptionMatch && descriptionMatch[1] ? descriptionMatch[1].trim() : "",
-          hasDialogue: !!dialogueMatch,
-          hasNarration: !!narrationMatch,
-          hasSoundEffects: !!soundMatch,
-          prompt: descriptionMatch && descriptionMatch[1] ? descriptionMatch[1].trim() : "",
-          narration: narrationMatch && narrationMatch[1] ? narrationMatch[1].trim() : "",
-          dialogue: dialogueMatch && dialogueMatch[1] ? dialogueMatch[1].trim() : "",
-          soundEffects: soundMatch && soundMatch[1] ? soundMatch[1].trim() : ""
-        };
-      });
-
-      return {
-        id: `scene-${index + 1}`,
-        title: `Scene ${index + 1}`,
-        location: locationMatch && locationMatch[1] ? locationMatch[1].trim() : "Default Location",
-        description: descriptionMatch && descriptionMatch[1] ? descriptionMatch[1].trim() : "",
-        lighting: lightingMatch && lightingMatch[1] ? lightingMatch[1].trim() : "Natural lighting",
-        weather: weatherMatch && weatherMatch[1] ? weatherMatch[1].trim() : "Clear",
-        style: "hyperrealistic",
-        shots: shots
-      };
-    });
-
-    // Update the story with the initialized scenes
-    const storyRef = doc(db, 'stories', storyId);
-    await updateDoc(storyRef, {
-      scenes: scenes,
-      updatedAt: new Date()
-    });
-
-    console.log(`Successfully initialized ${scenes.length} scenes for story:`, storyId);
-    return scenes;
-  } catch (error) {
-    console.error("Error initializing scenes from script:", error);
-    // Return empty scenes array instead of throwing to prevent UI from breaking
-    return [];
-  }
-}
-
 // Get a story by ID
 export async function getStory(storyId: string): Promise<(Story & { scenes: (Scene & { shots: Shot[] })[] }) | null> {
   try {
     console.log("Fetching story:", storyId);
     
-    // Try to get the story with subcollections first
+    // Only use subcollection approach
     const storyWithSubcollections = await getStoryWithSubcollections(storyId);
     if (storyWithSubcollections) {
       console.log("Successfully retrieved story using subcollections:", storyId);
       return storyWithSubcollections as Story & { scenes: (Scene & { shots: Shot[] })[] };
     }
     
-    console.log("Fallback to document-based story structure:", storyId);
-    const storyRef = doc(db, 'stories', storyId);
-    const storyDoc = await getDoc(storyRef);
-    
-    if (!storyDoc.exists()) {
-      console.log("Story not found:", storyId);
-      return null;
-    }
-
-    const story = storyDoc.data() as Story;
-    
-    // If we have a script but no scenes, initialize scenes from the script
-    if (story.script && (!story.scenes || story.scenes.length === 0)) {
-      console.log("Initializing scenes from script for story:", storyId);
-      const scenes = await initializeScenesFromScript(storyId, story.script);
-      return {
-        ...story,
-        scenes: scenes
-      };
-    }
-    
-    // Initialize empty scenes array if needed
-    story.scenes = story.scenes || [];
-    
-    // Consider migrating this story to subcollections for future access
-    console.log("Consider migrating this story to subcollections:", storyId);
-    
-    return {
-      ...story,
-      scenes: story.scenes.map(scene => ({
-        ...scene,
-        shots: scene.shots || []
-      }))
-    };
+    console.log("Story not found:", storyId);
+    return null;
   } catch (error) {
     console.error('Error getting story:', error);
     throw error;
-  }
-}
-
-// Get all stories for a user
-export async function getUserStories(userId: string): Promise<Story[]> {
-  try {
-    console.log("📚 Starting getUserStories for userId:", userId);
-    
-    if (!userId) {
-      console.error("❌ No userId provided to getUserStories");
-      return [];
-    }
-
-    const storiesRef = collection(db, 'stories');
-    console.log("🔍 Created stories collection reference");
-    
-    const q = query(storiesRef, where('userId', '==', userId));
-    console.log("🔍 Created query for user's stories");
-    
-    const querySnapshot = await getDocs(q);
-    console.log(`📝 Found ${querySnapshot.size} stories in initial query`);
-    
-    if (querySnapshot.empty) {
-      console.log("ℹ️ No stories found for user");
-      return [];
-    }
-
-    const stories: Story[] = [];
-    
-    // Use Promise.all to fetch all stories with their subcollections in parallel
-    await Promise.all(querySnapshot.docs.map(async (storyDoc) => {
-      try {
-        const storyId = storyDoc.id;
-        console.log(`🎬 Processing story with ID: ${storyId}`);
-        
-        // Get the story with subcollections
-        const story = await getStoryWithSubcollections(storyId);
-        
-        if (story) {
-          stories.push(story);
-          console.log(`✅ Successfully processed story: ${story.title}`);
-        }
-      } catch (storyError) {
-        console.error(`❌ Error processing story ${storyDoc.id}:`, storyError);
-        // Continue with other stories even if one fails
-      }
-    }));
-    
-    console.log(`📚 Returning ${stories.length} stories`);
-    return stories;
-  } catch (error) {
-    console.error('❌ Error in getUserStories:', error);
-    // Return empty array instead of throwing to prevent UI from breaking
-    return [];
   }
 }
 
@@ -314,47 +123,12 @@ export async function updateStory(storyId: string, updates: Partial<Story>): Pro
         throw new Error(`Story with ID ${storyId} not found`);
       }
 
-      // Clean and validate the updates
+      // Only update title, description, script, and updatedAt
       const cleanUpdates = {
-        ...updates,
-        updatedAt: new Date(),
-        scenes: updates.scenes?.map(scene => {
-          // Validate scene data
-          if (!scene.id || !scene.title) {
-            throw new Error('Invalid scene data: missing required fields');
-          }
-
-          return {
-            id: scene.id,
-            title: scene.title,
-            location: scene.location || "",
-            description: scene.description || "",
-            lighting: scene.lighting || "",
-            weather: scene.weather || "",
-            style: scene.style || "hyperrealistic",
-            shots: scene.shots?.map(shot => {
-              // Validate shot data
-              if (!shot.id || !shot.type || !shot.description) {
-                throw new Error('Invalid shot data: missing required fields');
-              }
-
-              return {
-                id: shot.id,
-                type: shot.type,
-                description: shot.description,
-                hasNarration: shot.hasNarration || false,
-                hasDialogue: shot.hasDialogue || false,
-                hasSoundEffects: shot.hasSoundEffects || false,
-                prompt: shot.prompt || "",
-                narration: shot.narration || "",
-                dialogue: shot.dialogue || "",
-                soundEffects: shot.soundEffects || "",
-                generatedImage: shot.generatedImage || null,
-                generatedVideo: shot.generatedVideo || null
-              };
-            }) || []
-          };
-        }) || []
+        title: updates.title,
+        description: updates.description,
+        script: updates.script,
+        updatedAt: new Date()
       };
 
       // Create a batch operation
@@ -413,215 +187,82 @@ export function validateShotData(shot: Shot): void {
 
 // Update a scene with retries
 export async function updateScene(storyId: string, sceneId: string, updates: Partial<Scene>) {
-  const MAX_RETRIES = 3;
-  const INITIAL_RETRY_DELAY = 1000; // 1 second
-  let retryCount = 0;
-  let lastError: Error | null = null;
-
-  while (retryCount < MAX_RETRIES) {
-    try {
-      console.log(`Attempting scene update (attempt ${retryCount + 1}/${MAX_RETRIES}):`, sceneId);
-      
-      // First check if we're dealing with a subcollection scene
-      const sceneRef = doc(db, 'stories', storyId, 'scenes', sceneId);
-      const sceneDoc = await getDoc(sceneRef);
-      
-      if (sceneDoc.exists()) {
-        // If the scene exists as a subcollection, use the subcollection update method
-        console.log(`Scene ${sceneId} exists as subcollection, using updateSceneSubcollection`);
-        
-        // Extract only the scene data (without shots) to update
-        const { shots, id, ...sceneUpdates } = updates;
-        await updateSceneSubcollection(storyId, sceneId, sceneUpdates);
-        
-        // If there are shots to update, handle them separately
-        if (shots && shots.length > 0) {
-          console.log(`Updating ${shots.length} shots in scene ${sceneId}`);
-          
-          // Update each shot individually
-          for (const shot of shots) {
-            if (!shot.id) {
-              console.error("Shot is missing ID, cannot update");
-              continue;
-            }
-            
-            await updateShotSubcollection(storyId, sceneId, shot.id, shot);
-          }
-        }
-        
-        // Get the updated scene to return
-        const updatedSceneDoc = await getDoc(sceneRef);
-        if (updatedSceneDoc.exists()) {
-          const sceneData = updatedSceneDoc.data();
-          
-          // Get all shots for this scene
-          const shotsRef = collection(db, 'stories', storyId, 'scenes', sceneId, 'shots');
-          const shotsSnapshot = await getDocs(shotsRef);
-          
-          // Process shots
-          const shots: Shot[] = shotsSnapshot.docs.map(shotDoc => {
-            const shotData = shotDoc.data();
-            return {
-              id: shotDoc.id,
-              type: shotData.type || "MEDIUM SHOT",
-              description: shotData.description || "",
-              hasDialogue: shotData.hasDialogue || false,
-              hasNarration: shotData.hasNarration || false,
-              hasSoundEffects: shotData.hasSoundEffects || false,
-              prompt: shotData.prompt || shotData.description || "",
-              narration: shotData.narration || "",
-              dialogue: shotData.dialogue || "",
-              soundEffects: shotData.soundEffects || "",
-              generatedImage: shotData.generatedImage || null,
-              generatedVideo: shotData.generatedVideo || null
-            } as Shot;
-          });
-          
-          // Return the scene with its shots
-          return {
-            id: sceneId,
-            title: sceneData.title || "",
-            location: sceneData.location || "",
-            description: sceneData.description || "",
-            lighting: sceneData.lighting || "",
-            weather: sceneData.weather || "",
-            style: sceneData.style || "hyperrealistic",
-            shots: shots
-          } as Scene;
-        }
-        
-        return null;
-      }
-      
-      // Legacy fallback: If the scene doesn't exist as a subcollection, use the old array-based method
-      console.log("Scene doesn't exist as subcollection, using legacy update method");
-      
-      const storyRef = doc(db, 'stories', storyId);
-      const storyDoc = await getDoc(storyRef);
-      
-      if (!storyDoc.exists()) {
-        throw new Error(`Story with ID ${storyId} not found`);
-      }
-
-      const story = storyDoc.data();
-      const existingScene = story.scenes.find((scene: Scene) => scene.id === sceneId);
-      
-      if (!existingScene) {
-        throw new Error(`Scene with ID ${sceneId} not found in story ${storyId}`);
-      }
-
-      // Process and update scenes in the legacy array format
-      // Consider migrating this to subcollections after the update
-      console.warn("Using deprecated array-based scene update. Consider migrating to subcollections.");
-      
-      // Create a map of existing shots for efficient lookup
-      const existingShotsMap = new Map(
-        existingScene.shots.map((shot: Shot) => [shot.id, shot])
-      );
-
-      // Process the updates
-      const scenes = story.scenes.map((scene: Scene) => {
-        if (scene.id === sceneId) {
-          // If updating shots
-          if (updates.shots) {
-            // Validate each shot before merging
-            updates.shots.forEach(validateShotData);
-
-            // Merge existing shots with updated shots
-            const mergedShots = updates.shots.map((updatedShot: Shot) => {
-              const existingShot = existingShotsMap.get(updatedShot.id);
-
-              // If it's an existing shot, merge with updates
-              if (existingShot) {
-                const mergedShot = {
-                  ...existingShot,
-                  ...updatedShot,
-                  narration: updatedShot.narration || null,
-                  dialogue: updatedShot.dialogue || null,
-                  soundEffects: updatedShot.soundEffects || null,
-                  location: updatedShot.location || null,
-                  lighting: updatedShot.lighting || null,
-                  weather: updatedShot.weather || null,
-                  generatedImage: updatedShot.generatedImage || null,
-                  generatedVideo: updatedShot.generatedVideo || null
-                };
-                validateShotData(mergedShot);
-                return mergedShot;
-              }
-
-              // If it's a new shot, ensure all required fields
-              const newShot = {
-                id: updatedShot.id,
-                type: updatedShot.type || "MEDIUM SHOT",
-                description: updatedShot.description || "",
-                hasNarration: !!updatedShot.narration,
-                hasDialogue: !!updatedShot.dialogue,
-                hasSoundEffects: !!updatedShot.soundEffects,
-                prompt: updatedShot.prompt || "",
-                narration: updatedShot.narration || null,
-                dialogue: updatedShot.dialogue || null,
-                soundEffects: updatedShot.soundEffects || null,
-                location: updatedShot.location || null,
-                lighting: updatedShot.lighting || null,
-                weather: updatedShot.weather || null,
-                generatedImage: updatedShot.generatedImage || null,
-                generatedVideo: updatedShot.generatedVideo || null
-              };
-              validateShotData(newShot);
-              return newShot;
-            });
-
-            const updatedScene = {
-              ...scene,
-              ...updates,
-              shots: mergedShots
-            };
-            validateSceneData(updatedScene);
-            return updatedScene;
-          }
-
-          // If no shots update, just merge other updates
-          const updatedScene = {
-            ...scene,
-            ...updates
-          };
-          validateSceneData(updatedScene);
-          return updatedScene;
-        }
-        return scene;
-      });
-
-      // Update the story document
-      await updateDoc(storyRef, {
-        scenes,
-        updatedAt: new Date()
-      });
-      
-      // After updating, consider migrating this story to subcollections
-      console.log("Consider migrating this story to subcollections:", storyId);
-
-      console.log("Scene updated successfully:", sceneId);
-      return scenes.find((scene: Scene) => scene.id === sceneId);
-    } catch (error) {
-      lastError = error as Error;
-      console.error(`Error updating scene (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
-      
-      // If it's not a retryable error, throw immediately
-      if (error instanceof Error && 
-          (error.message.includes('permission-denied') || 
-           error.message.includes('not-found'))) {
-        throw error;
-      }
-
-      // Calculate exponential backoff delay
-      const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      retryCount++;
+  try {
+    console.log(`Updating scene ${sceneId} in story ${storyId}`);
+    
+    // Only use subcollection approach
+    const sceneRef = doc(db, 'stories', storyId, 'scenes', sceneId);
+    const sceneDoc = await getDoc(sceneRef);
+    
+    if (!sceneDoc.exists()) {
+      throw new Error(`Scene with ID ${sceneId} not found in story ${storyId}`);
     }
-  }
 
-  // If we've exhausted all retries, throw the last error
-  throw new Error(`Failed to update scene after ${MAX_RETRIES} attempts. Last error: ${lastError?.message}`);
+    // Extract only the scene data (without shots) to update
+    const { shots, id, ...sceneUpdates } = updates;
+    await updateSceneSubcollection(storyId, sceneId, sceneUpdates);
+    
+    // If there are shots to update, handle them separately
+    if (shots && shots.length > 0) {
+      console.log(`Updating ${shots.length} shots in scene ${sceneId}`);
+      
+      // Update each shot individually
+      for (const shot of shots) {
+        if (!shot.id) {
+          console.error("Shot is missing ID, cannot update");
+          continue;
+        }
+        
+        await updateShotSubcollection(storyId, sceneId, shot.id, shot);
+      }
+    }
+    
+    // Get the updated scene to return
+    const updatedSceneDoc = await getDoc(sceneRef);
+    if (updatedSceneDoc.exists()) {
+      const sceneData = updatedSceneDoc.data();
+      
+      // Get all shots for this scene
+      const shotsRef = collection(db, 'stories', storyId, 'scenes', sceneId, 'shots');
+      const shotsSnapshot = await getDocs(shotsRef);
+      
+      // Process shots
+      const shots: Shot[] = shotsSnapshot.docs.map(shotDoc => {
+        const shotData = shotDoc.data();
+        return {
+          id: shotDoc.id,
+          type: shotData.type || "MEDIUM SHOT",
+          description: shotData.description || "",
+          hasDialogue: shotData.hasDialogue || false,
+          hasNarration: shotData.hasNarration || false,
+          hasSoundEffects: shotData.hasSoundEffects || false,
+          prompt: shotData.prompt || shotData.description || "",
+          narration: shotData.narration || "",
+          dialogue: shotData.dialogue || "",
+          soundEffects: shotData.soundEffects || "",
+          generatedImage: shotData.generatedImage || null,
+          generatedVideo: shotData.generatedVideo || null
+        } as Shot;
+      });
+      
+      // Return the scene with its shots
+      return {
+        id: sceneId,
+        title: sceneData.title || "",
+        location: sceneData.location || "",
+        description: sceneData.description || "",
+        lighting: sceneData.lighting || "",
+        weather: sceneData.weather || "",
+        style: sceneData.style || "hyperrealistic",
+        shots: shots
+      } as Scene;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error updating scene:`, error);
+    throw error;
+  }
 }
 
 // Update a shot
@@ -754,7 +395,7 @@ export async function cleanupShotDescriptions(storyId: string): Promise<void> {
   try {
     console.log("Cleaning up shot descriptions for story:", storyId);
     
-    // First check if the story exists
+    // Check if the story exists
     const storyRef = doc(db, 'stories', storyId);
     const storyDoc = await getDoc(storyRef);
     
@@ -769,31 +410,6 @@ export async function cleanupShotDescriptions(storyId: string): Promise<void> {
     
     if (scenesSnapshot.empty) {
       console.log("No scenes found in subcollections for story:", storyId);
-      
-      // Fall back to array-based structure if needed
-      const story = storyDoc.data() as Story;
-      if (!story.scenes || !Array.isArray(story.scenes) || story.scenes.length === 0) {
-        console.log("No scenes found in story document either:", storyId);
-        return;
-      }
-      
-      // Legacy cleanup for array-based structure
-      console.log("Using legacy cleanup for array-based scenes");
-      const cleanedScenes = story.scenes.map(scene => ({
-        ...scene,
-        shots: scene.shots.map(shot => ({
-          ...shot,
-          description: shot.description === "Describe your shot..." ? "" : shot.description,
-          prompt: shot.prompt === "Describe your shot..." ? "" : shot.prompt
-        }))
-      }));
-      
-      await updateDoc(storyRef, {
-        scenes: cleanedScenes,
-        updatedAt: new Date()
-      });
-      
-      console.log("Shot descriptions cleaned up for story using legacy method:", storyId);
       return;
     }
     
@@ -925,8 +541,21 @@ export async function getStoryWithSubcollections(storyId: string): Promise<Story
         lighting: sceneData.lighting || "Natural lighting",
         weather: sceneData.weather || "Clear",
         style: sceneData.style || "hyperrealistic",
-        shots: shots
+        shots: shots // Ensure shots is always an array
       };
+      
+      console.log(`Processed scene ${scene.id} with ${shots.length} shots`);
+      
+      // Verify scene has all required properties
+      if (!scene.id || !scene.title) {
+        console.warn(`Scene is missing required properties: ID=${scene.id}, Title=${scene.title}`);
+      }
+      
+      // Ensure shots is always an array, even if it's empty
+      if (!Array.isArray(scene.shots)) {
+        console.warn(`Scene ${scene.id} has shots property that is not an array, fixing...`);
+        scene.shots = [];
+      }
       
       scenes.push(scene);
     }));
@@ -1210,9 +839,10 @@ export async function createDefaultScene(storyId: string, storyTitle: string = "
     
     // Create the scene in the subcollection
     const sceneId = await createSceneSubcollection(storyId, defaultScene);
+    console.log(`Created default scene with ID: ${sceneId}`);
     
     // Add a default shot to the scene
-    await createShotSubcollection(storyId, sceneId, {
+    const shotId = await createShotSubcollection(storyId, sceneId, {
       type: "ESTABLISHING SHOT",
       description: "Describe your shot...",
       hasDialogue: false,
@@ -1221,7 +851,9 @@ export async function createDefaultScene(storyId: string, storyTitle: string = "
       prompt: "Describe your shot..."
     });
     
-    console.log(`Successfully created default scene ${sceneId} for story ${storyId}`);
+    console.log(`Added default shot with ID: ${shotId} to scene ${sceneId}`);
+    console.log(`Successfully created default scene with shot for story ${storyId}`);
+    
     return sceneId;
   } catch (error) {
     console.error(`Error creating default scene for story ${storyId}:`, error);
@@ -1266,161 +898,69 @@ export async function ensureStoryHasScene(storyId: string): Promise<string | nul
   }
 }
 
-// Debug function to analyze and fix story data structure
-export async function analyzeStoryStructure(storyId: string): Promise<any> {
+// Debug function to fix scene data problems
+export async function fixSceneStructure(storyId: string): Promise<boolean> {
   try {
-    console.log("Analyzing story structure for:", storyId);
+    console.log(`Attempting to fix scene structure for story: ${storyId}`);
     
-    // 1. Get the base story document
-    const storyRef = doc(db, 'stories', storyId);
-    const storyDoc = await getDoc(storyRef);
-    
-    if (!storyDoc.exists()) {
-      console.log("Story not found:", storyId);
-      return { error: "Story not found" };
-    }
-    
-    const storyData = storyDoc.data();
-    
-    // 2. Check for scenes array in the story document
-    const hasNestedScenes = storyData.scenes && Array.isArray(storyData.scenes);
-    
-    // 3. Check for scenes in subcollection
-    const scenesRef = collection(db, 'stories', storyId, 'scenes');
-    const scenesSnapshot = await getDocs(scenesRef);
-    const hasSubcollectionScenes = !scenesSnapshot.empty;
-    
-    // 4. Count shots in both structures
-    let nestedShotCount = 0;
-    let subcollectionShotCount = 0;
-    
-    if (hasNestedScenes) {
-      // Count shots in nested structure
-      storyData.scenes.forEach((scene: any) => {
-        if (scene.shots && Array.isArray(scene.shots)) {
-          nestedShotCount += scene.shots.length;
-        }
-      });
-    }
-    
-    if (hasSubcollectionScenes) {
-      // Count shots in subcollections
-      for (const sceneDoc of scenesSnapshot.docs) {
-        const shotsRef = collection(db, 'stories', storyId, 'scenes', sceneDoc.id, 'shots');
-        const shotsSnapshot = await getDocs(shotsRef);
-        subcollectionShotCount += shotsSnapshot.size;
-      }
-    }
-    
-    // 5. Prepare report
-    const report = {
-      storyId,
-      storyTitle: storyData.title || "Untitled Story",
-      createdAt: storyData.createdAt ? (storyData.createdAt.toDate ? storyData.createdAt.toDate() : storyData.createdAt) : "Unknown",
-      updatedAt: storyData.updatedAt ? (storyData.updatedAt.toDate ? storyData.updatedAt.toDate() : storyData.updatedAt) : "Unknown",
-      hasScript: !!storyData.script,
-      scriptLength: storyData.script ? storyData.script.length : 0,
-      
-      // Structure analysis
-      structure: {
-        hasNestedScenes,
-        hasSubcollectionScenes,
-        nestedSceneCount: hasNestedScenes ? storyData.scenes.length : 0,
-        subcollectionSceneCount: hasSubcollectionScenes ? scenesSnapshot.size : 0,
-        nestedShotCount,
-        subcollectionShotCount
-      }
-    };
-    
-    console.log("Story structure analysis:", report);
-    
-    // 6. Offer to fix issues if needed
-    return report;
-  } catch (error) {
-    console.error("Error analyzing story structure:", error);
-    return { error: error instanceof Error ? error.message : "Unknown error" };
-  }
-}
-
-// Fix issues with story structure by migrating data to subcollections
-export async function migrateStoryToSubcollections(storyId: string): Promise<boolean> {
-  try {
-    console.log("Migrating story to subcollections:", storyId);
-    
-    // Get the current story data
-    const storyRef = doc(db, 'stories', storyId);
-    const storyDoc = await getDoc(storyRef);
-    
-    if (!storyDoc.exists()) {
-      console.error("Story not found:", storyId);
+    // Get the story with subcollections
+    const story = await getStoryWithSubcollections(storyId);
+    if (!story) {
+      console.error(`Story not found: ${storyId}`);
       return false;
     }
     
-    const storyData = storyDoc.data();
-    
-    // Check if there are nested scenes to migrate
-    if (!storyData.scenes || !Array.isArray(storyData.scenes) || storyData.scenes.length === 0) {
-      console.log("No nested scenes to migrate");
+    // Check if scenes array exists and has valid data
+    if (!story.scenes || !Array.isArray(story.scenes)) {
+      console.error(`Story has no valid scenes array: ${storyId}`);
+      // Create default scene
+      await ensureStoryHasScene(storyId);
       return true;
     }
     
-    console.log(`Found ${storyData.scenes.length} nested scenes to migrate`);
-    
-    // Create subcollection scenes from the nested scenes
-    for (const scene of storyData.scenes) {
-      // Create scene in subcollection
-      const sceneRef = doc(collection(db, 'stories', storyId, 'scenes'));
-      await setDoc(sceneRef, {
-        title: scene.title || "Untitled Scene",
-        location: scene.location || "Default Location",
-        description: scene.description || "",
-        lighting: scene.lighting || "Natural lighting",
-        weather: scene.weather || "Clear",
-        style: scene.style || "hyperrealistic",
-        createdAt: serverTimestamp()
-      });
+    // Check each scene for valid structure
+    let fixedSceneCount = 0;
+    for (const scene of story.scenes) {
+      // Log the full scene structure for debugging
+      console.log(`Checking scene: ${scene.id}`, JSON.stringify(scene));
       
-      console.log(`Migrated scene ${scene.title} with ID ${sceneRef.id}`);
-      
-      // Create shots as subcollection
-      if (scene.shots && Array.isArray(scene.shots)) {
-        for (const shot of scene.shots) {
-          const shotRef = doc(collection(db, 'stories', storyId, 'scenes', sceneRef.id, 'shots'));
-          await setDoc(shotRef, {
-            type: shot.type || "MEDIUM SHOT",
-            description: shot.description || "",
-            hasDialogue: shot.hasDialogue || false,
-            hasNarration: shot.hasNarration || false,
-            hasSoundEffects: shot.hasSoundEffects || false,
-            prompt: shot.prompt || shot.description || "",
-            narration: shot.narration || "",
-            dialogue: shot.dialogue || "",
-            soundEffects: shot.soundEffects || "",
-            generatedImage: shot.generatedImage || null,
-            generatedVideo: shot.generatedVideo || null,
-            lipSyncVideo: shot.lipSyncVideo || null,
-            lipSyncAudio: shot.lipSyncAudio || null,
-            voiceId: shot.voiceId || null,
-            location: shot.location || null,
-            lighting: shot.lighting || null,
-            weather: shot.weather || null,
-            createdAt: serverTimestamp()
-          });
-        }
-        console.log(`Migrated ${scene.shots.length} shots for scene ${scene.title}`);
+      // Verify scene has shots array
+      if (!scene.shots || !Array.isArray(scene.shots)) {
+        console.warn(`Scene ${scene.id} missing shots array, creating default shot`);
+        
+        // Create a default shot for this scene
+        await createShotSubcollection(storyId, scene.id, {
+          type: "ESTABLISHING SHOT",
+          description: "Default shot added during repair",
+          hasDialogue: false,
+          hasNarration: false,
+          hasSoundEffects: false,
+          prompt: "Default shot added during repair"
+        });
+        
+        fixedSceneCount++;
+      } else if (scene.shots.length === 0) {
+        console.warn(`Scene ${scene.id} has empty shots array, creating default shot`);
+        
+        // Create a default shot for this scene
+        await createShotSubcollection(storyId, scene.id, {
+          type: "ESTABLISHING SHOT",
+          description: "Default shot added during repair",
+          hasDialogue: false,
+          hasNarration: false,
+          hasSoundEffects: false,
+          prompt: "Default shot added during repair"
+        });
+        
+        fixedSceneCount++;
       }
     }
     
-    // Clear the nested scenes array
-    await updateDoc(storyRef, {
-      scenes: [],
-      updatedAt: serverTimestamp()
-    });
-    
-    console.log("Successfully migrated story to subcollections");
+    console.log(`Fixed ${fixedSceneCount} scenes for story ${storyId}`);
     return true;
+    
   } catch (error) {
-    console.error("Error migrating story to subcollections:", error);
+    console.error(`Error fixing scene structure: ${error}`);
     return false;
   }
 }
@@ -1449,5 +989,59 @@ export async function removeNestedScenes(storyId: string): Promise<boolean> {
   } catch (error) {
     console.error("Error removing nested scenes array:", error);
     return false;
+  }
+}
+
+// Get all stories for a user
+export async function getUserStories(userId: string): Promise<Story[]> {
+  try {
+    console.log("📚 Starting getUserStories for userId:", userId);
+    
+    if (!userId) {
+      console.error("❌ No userId provided to getUserStories");
+      return [];
+    }
+
+    const storiesRef = collection(db, 'stories');
+    console.log("🔍 Created stories collection reference");
+    
+    const q = query(storiesRef, where('userId', '==', userId));
+    console.log("🔍 Created query for user's stories");
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`📝 Found ${querySnapshot.size} stories in initial query`);
+    
+    if (querySnapshot.empty) {
+      console.log("ℹ️ No stories found for user");
+      return [];
+    }
+
+    const stories: Story[] = [];
+    
+    // Use Promise.all to fetch all stories with their subcollections in parallel
+    await Promise.all(querySnapshot.docs.map(async (storyDoc) => {
+      try {
+        const storyId = storyDoc.id;
+        console.log(`🎬 Processing story with ID: ${storyId}`);
+        
+        // Get the story with subcollections
+        const story = await getStoryWithSubcollections(storyId);
+        
+        if (story) {
+          stories.push(story);
+          console.log(`✅ Successfully processed story: ${story.title}`);
+        }
+      } catch (storyError) {
+        console.error(`❌ Error processing story ${storyDoc.id}:`, storyError);
+        // Continue with other stories even if one fails
+      }
+    }));
+    
+    console.log(`📚 Returning ${stories.length} stories`);
+    return stories;
+  } catch (error) {
+    console.error('❌ Error in getUserStories:', error);
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 } 

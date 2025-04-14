@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, getDoc, doc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase/client';
-import { analyzeStoryStructure, migrateStoryToSubcollections, removeNestedScenes, ensureStoryHasScene } from '../../../lib/firebase/stories';
+import { removeNestedScenes, ensureStoryHasScene } from '../../../lib/firebase/stories';
 
 interface CleanupResult {
   storyId: string;
   title: string;
-  hadNestedScenes: boolean;
-  hadSubcollectionScenes: boolean;
-  migrationStatus: 'success' | 'failed' | 'not_needed';
   nestedArrayRemoved: boolean;
   defaultSceneAdded: boolean;
 }
@@ -18,9 +15,20 @@ export async function GET(request: Request) {
     // Get the user ID from the query parameters
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const storyId = searchParams.get('storyId'); // Optional specific story ID
 
+    // If a specific story ID is provided, only process that one
+    if (storyId) {
+      const result = await cleanupSingleStory(storyId);
+      return NextResponse.json({
+        message: `Processed story ${storyId}`,
+        result
+      });
+    }
+
+    // Otherwise, process all stories for the user
     if (!userId) {
-      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'User ID or story ID is required' }, { status: 400 });
     }
 
     // Get all stories for this user
@@ -37,52 +45,7 @@ export async function GET(request: Request) {
     // Process each story
     for (const storyDoc of querySnapshot.docs) {
       const storyId = storyDoc.id;
-      const storyData = storyDoc.data();
-      const title = storyData.title || 'Untitled Story';
-      
-      try {
-        // Analyze the story structure
-        const analysis = await analyzeStoryStructure(storyId);
-        
-        const result: CleanupResult = {
-          storyId,
-          title,
-          hadNestedScenes: analysis.structure.hasNestedScenes,
-          hadSubcollectionScenes: analysis.structure.hasSubcollectionScenes,
-          migrationStatus: 'not_needed',
-          nestedArrayRemoved: false,
-          defaultSceneAdded: false
-        };
-        
-        // If needed, migrate nested scenes to subcollections
-        if (analysis.structure.hasNestedScenes) {
-          const success = await migrateStoryToSubcollections(storyId);
-          result.migrationStatus = success ? 'success' : 'failed';
-        }
-        
-        // Always clean up nested array
-        const arrayRemoved = await removeNestedScenes(storyId);
-        result.nestedArrayRemoved = arrayRemoved;
-        
-        // Ensure the story has at least one scene
-        if (!analysis.structure.hasSubcollectionScenes) {
-          const sceneId = await ensureStoryHasScene(storyId);
-          result.defaultSceneAdded = !!sceneId;
-        }
-        
-        results.push(result);
-      } catch (error) {
-        console.error(`Error processing story ${storyId}:`, error);
-        results.push({
-          storyId,
-          title,
-          hadNestedScenes: false,
-          hadSubcollectionScenes: false,
-          migrationStatus: 'failed',
-          nestedArrayRemoved: false,
-          defaultSceneAdded: false
-        });
-      }
+      results.push(await cleanupSingleStory(storyId));
     }
 
     return NextResponse.json({
@@ -95,5 +58,41 @@ export async function GET(request: Request) {
       { error: error instanceof Error ? error.message : 'Unknown error' }, 
       { status: 500 }
     );
+  }
+}
+
+async function cleanupSingleStory(storyId: string): Promise<CleanupResult> {
+  try {
+    // Get the story document
+    const storyRef = doc(db, 'stories', storyId);
+    const storyDoc = await getDoc(storyRef);
+    
+    if (!storyDoc.exists()) {
+      throw new Error(`Story with ID ${storyId} not found`);
+    }
+    
+    const storyData = storyDoc.data();
+    const title = storyData.title || 'Untitled Story';
+    
+    // Clean up nested array (if any)
+    const arrayRemoved = await removeNestedScenes(storyId);
+    
+    // Ensure the story has at least one scene
+    const sceneId = await ensureStoryHasScene(storyId);
+    
+    return {
+      storyId,
+      title,
+      nestedArrayRemoved: arrayRemoved,
+      defaultSceneAdded: !!sceneId
+    };
+  } catch (error) {
+    console.error(`Error processing story ${storyId}:`, error);
+    return {
+      storyId,
+      title: 'Error processing story',
+      nestedArrayRemoved: false,
+      defaultSceneAdded: false
+    };
   }
 } 

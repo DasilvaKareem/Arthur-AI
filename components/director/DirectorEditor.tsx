@@ -23,6 +23,13 @@ const VideoPreview: React.FC<{
   title: string;
   shotDurations: Record<string, number>;
 }> = (props) => {
+  console.log("VideoPreview props:", {
+    shots: props.shots.map(shot => ({
+      id: shot.id,
+      videoUrl: shot.videoUrl,
+      generatedVideo: shot.generatedVideo
+    }))
+  });
   return <SceneComposition {...props} />;
 };
 
@@ -60,14 +67,55 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
     
   // Update shots when scene changes
   useEffect(() => {
-    setCustomShots(scene.shots || []);
+    const updatedShots = (scene.shots || []).map(shot => ({
+      ...shot,
+      // If videoUrl is not set but generatedVideo is available, use generatedVideo
+      videoUrl: shot.videoUrl || shot.generatedVideo || null
+    }));
+    
+    setCustomShots(updatedShots);
     setShotDurations(
-      Object.fromEntries((scene.shots || []).map(shot => [shot.id, shotDuration]))
+      Object.fromEntries(updatedShots.map(shot => [shot.id, shotDuration]))
     );
     setSubtitle({
-      en: (scene.shots || []).map(shot => shot.dialogue || ''),
+      en: updatedShots.map(shot => shot.dialogue || ''),
     });
+    
+    console.log("Updated shots with video URLs:", updatedShots);
   }, [scene]);
+  
+  // Refresh player when a video URL changes
+  useEffect(() => {
+    if (playerRef.current) {
+      // Force a seek to current position to refresh the video
+      const currentPosition = currentFrame;
+      playerRef.current.seekTo(0);
+      setTimeout(() => {
+        if (playerRef.current) {
+          playerRef.current.seekTo(currentPosition);
+        }
+      }, 100);
+    }
+  }, [JSON.stringify(customShots.map(shot => shot.videoUrl || shot.generatedVideo)), currentFrame]);
+  
+  // Add support for video URLs
+  const updateShotVideoUrl = (shotId: string, videoUrl: string) => {
+    setCustomShots(prev => 
+      prev.map(shot => {
+        if (shot.id === shotId) {
+          // If videoUrl is empty and generatedVideo exists, use generatedVideo as the source
+          if (!videoUrl && shot.generatedVideo) {
+            return { ...shot, videoUrl: null }; // Clear videoUrl to use generatedVideo
+          } else {
+            return { ...shot, videoUrl };
+          }
+        }
+        return shot;
+      })
+    );
+    
+    console.log(`Updated shot ${shotId} with new videoUrl: ${videoUrl}`);
+  };
   
   // Handle frame change
   const handleFrameChange = (frame: number) => {
@@ -241,6 +289,7 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                 shotDurations: shotDurations,
               }}
               controls
+              key={JSON.stringify(customShots.map(shot => shot.videoUrl || shot.generatedVideo))}
             />
             
             {/* Video controls overlay */}
@@ -316,6 +365,21 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                     <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                       {shot.description}
                     </p>
+                    
+                    <div className="mb-3">
+                      <Label className="mb-2 block">Video URL</Label>
+                      <Input 
+                        placeholder="https://example.com/video.mp4" 
+                        value={shot.videoUrl || ''}
+                        onChange={(e) => updateShotVideoUrl(shot.id, e.target.value)}
+                        className="mb-2"
+                      />
+                      {shot.generatedVideo && !shot.videoUrl && (
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Using generated video: {shot.generatedVideo.substring(0, 50)}...
+                        </p>
+                      )}
+                    </div>
                     
                     <div className="flex items-center space-x-2">
                       <span className="text-sm">Duration:</span>

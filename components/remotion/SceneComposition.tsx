@@ -109,18 +109,31 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
   // Use the generated image if available or a placeholder
   const imageUrl = shot.generatedImage || 'https://via.placeholder.com/1920x1080?text=No+Image';
   
-  // Use the generated video if available
-  if (shot.generatedVideo) {
+  console.log('Shot data:', {
+    id: shot.id,
+    videoUrl: shot.videoUrl,
+    generatedVideo: shot.generatedVideo,
+    imageUrl
+  });
+  
+  // Check for video in this priority: videoUrl > generatedVideo > image
+  if (shot.videoUrl || shot.generatedVideo) {
+    const videoSource = shot.videoUrl || shot.generatedVideo || '';
+    console.log('Using video source:', videoSource);
+    
     return (
       <AbsoluteFill style={{ opacity }}>
         <video
-          src={shot.generatedVideo}
+          src={videoSource}
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
           }}
           muted
+          autoPlay
+          playsInline
+          loop
         />
         
         {/* Add dialogue audio if available */}
@@ -156,6 +169,7 @@ const ShotSequence: React.FC<{ shot: Shot; index: number }> = ({ shot, index }) 
     );
   }
   
+  console.log('Falling back to image:', imageUrl);
   // Fallback to static image if no video
   return (
     <AbsoluteFill style={{ opacity }}>
