@@ -23,6 +23,7 @@ const VideoPreview: React.FC<{
   title: string;
   shotDurations: Record<string, number>;
   audioVolume?: number;
+  musicVolume?: number;
 }> = (props) => {
   console.log("VideoPreview props:", {
     shots: props.shots.map(shot => ({
@@ -84,17 +85,12 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
   // Update shots when scene changes
   useEffect(() => {
     const updatedShots = (scene.shots || []).map(shot => {
-      // Check if shot has dialogue but no dialogueAudio
-      const needsAudioURL = shot.hasDialogue && !shot.dialogueAudio && shot.dialogue;
-      
       return {
         ...shot,
         // If videoUrl is not set but generatedVideo is available, use generatedVideo
         videoUrl: shot.videoUrl || shot.generatedVideo || null,
-        // Add a test audio URL for debugging if needed
-        dialogueAudio: shot.dialogueAudio || (needsAudioURL 
-          ? "https://firebasestorage.googleapis.com/v0/b/arthurai-12fda.appspot.com/o/temp%2F1744600708741.wav?alt=media&token=a1cc3071-2268-438b-9eb7-9f87e2517c88" 
-          : null)
+        // Use the shot's dialogueAudio directly
+        dialogueAudio: shot.dialogueAudio || null
       };
     });
     
@@ -333,6 +329,7 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                 title: scene.title,
                 shotDurations: shotDurations,
                 audioVolume: audioVolume / 100,
+                musicVolume: 0.5,
               }}
               controls
               key={JSON.stringify(customShots.map(shot => 
