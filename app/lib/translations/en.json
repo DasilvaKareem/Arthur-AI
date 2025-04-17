@@ -1,0 +1,133 @@
+{
+  "common": {
+    "title": "Arthur AI",
+    "requestAccess": "Request Access",
+    "signIn": "Sign In",
+    "features": "Features",
+    "pricing": "Pricing",
+    "watchDemo": "Watch Demo"
+  },
+  "home": {
+    "hero": {
+      "title": "Tell Beautiful Stories With Arthur AI",
+      "subtitle": "Experience the magic of AI storytelling with Arthur. Transform any text into beautifully animated videos using Studio Ghibli-inspired visuals and cutting-edge AI."
+    },
+    "requestAccess": {
+      "title": "Request Access",
+      "description": "Be the first to access the future of AI Storytelling. Early beta members get priority support, feedback access, and launch perks.",
+      "accessLabel": "Request access for exclusive early access",
+      "email": "you@example.com"
+    },
+    "storiesSection": {
+      "title": "Turn Your Stories Into Animation",
+      "subtitle": "Discover how Arthur AI helps you bring your imagination to life, from text to animated story.",
+      "cards": [
+        {
+          "title": "AI Storyteller",
+          "description": "Just provide a basic premise, and our AI storyteller will craft a complete narrative with characters, conflict, and resolution."
+        },
+        {
+          "title": "Dynamic Storyboard",
+          "description": "See your story come to life with our automated storyboarding that creates visual scenes from your narrative."
+        },
+        {
+          "title": "Voice & Sound",
+          "description": "Add depth to your animation with AI-generated voices, dialogue, and atmospheric sound effects."
+        },
+        {
+          "title": "One-Click Animation",
+          "description": "Transform your storyboard into a fully animated sequence with just one click."
+        }
+      ]
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "subtitle": "Everything you need to know about Arthur AI's storytelling and animation platform."
+    }
+  },
+  "features": {
+    "hero": {
+      "title": "Create stunning animations in just a few clicks",
+      "subtitle": "Leave complex software and tedious keyframing in the past. Say 'yes' to cloud-based animation tools that automate the process, simplify creation, and help you deliver faster."
+    },
+    "featuresList": {
+      "textToScript": {
+        "title": "Text to Script",
+        "subtitle": "AI-Powered Scriptwriting",
+        "description": "Turn a simple idea into a structured film or animation script. Arthur understands your intent and formats it like a real screenplay — with characters, scenes, and dialogue."
+      },
+      "scriptToStoryboard": {
+        "title": "Script to Storyboard",
+        "subtitle": "Auto Storyboard Visuals",
+        "description": "Arthur converts your script into a visual storyboard with frames, characters, and scene breakdowns. Perfect for planning your shot list or animatic."
+      },
+      "storyboardToAnimation": {
+        "title": "Storyboard to Animation",
+        "subtitle": "One-Click Scene Generation",
+        "description": "Bring your scenes to life with animation generated from your storyboard. Arthur uses top AI tools to turn static visuals into cinematic sequences."
+      }
+    },
+    "whyChoose": {
+      "title": "Why choose Arthur AI?",
+      "subtitle": "Our platform is designed with creators in mind, making animation accessible to everyone.",
+      "bestStoryGeneration": {
+        "title": "Best Story Generation",
+        "description": "Makes the best stories using RAG promoting good script writing."
+      },
+      "advancedAnimation": {
+        "title": "Advanced Animation Features",
+        "description": "Generate sound effects, lipsyncing, customization with videos."
+      },
+      "noTechnicalExperience": {
+        "title": "No technical experience needed",
+        "description": "Our platform is designed for creators of all skill levels. No coding or animation experience needed."
+      }
+    },
+    "cta": {
+      "title": "Ready to start creating?",
+      "description": "Join thousands of creators who are bringing their ideas to life with Arthur AI.",
+      "startFreeTrial": "Start Free Trial",
+      "viewPricing": "View Pricing"
+    }
+  },
+  "pricing": {
+    "hero": {
+      "title": "Unlock unlimited creativity with Arthur AI",
+      "subtitle": "Choose the perfect plan for your storytelling needs."
+    },
+    "plans": {
+      "free": {
+        "name": "Free",
+        "description": "Perfect for individuals just getting started",
+        "price": "0",
+        "cta": "Get Started"
+      },
+      "creator": {
+        "name": "Creator Plan",
+        "description": "For content creators and small businesses",
+        "price": "49",
+        "cta": "Start Free Trial",
+        "mostPopular": "Most Popular"
+      },
+      "pro": {
+        "name": "Pro Plan",
+        "description": "For professional creators and growing teams",
+        "price": "199",
+        "cta": "Start Free Trial"
+      }
+    },
+    "features": {
+      "storiesPerMonth": "stories per month",
+      "videoGenerations": "Video Generations",
+      "imageGenerations": "Image Generations",
+      "scriptEditorAccess": "Script Editor Access",
+      "support": "Community support",
+      "dialogue": "Dialogue / Script Voiceover",
+      "narration": "Narration (Text-to-Speech)",
+      "soundEffects": "Sound Effects & Music",
+      "lipSync": "Lip Sync Animation",
+      "storyboardExport": "Storyboard Export",
+      "projectPrivacy": "Project Privacy"
+    }
+  }
+} 
