@@ -10,6 +10,7 @@ export default function Particles() {
   
   useEffect(() => {
     // Check if it's a mobile device
+    const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
     
