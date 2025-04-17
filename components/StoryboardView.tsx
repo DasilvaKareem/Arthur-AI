@@ -189,11 +189,12 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
         {currentScene.shots && currentScene.shots.map((shot, index) => (
           <Card key={shot.id} className="overflow-hidden border border-border hover:border-primary/50 transition-colors">
             <div className="relative aspect-video bg-muted">
-              {playingShotId === shot.id && shot.generatedVideo ? (
+              {playingShotId === shot.id && (shot.generatedVideo || shot.lipSyncVideo) ? (
                 // Show ShotVideoPlayer when this shot is playing
                 <div className="absolute inset-0">
                   <ShotVideoPlayer
-                    videoUrl={shot.generatedVideo}
+                    videoUrl={shot.generatedVideo || ''}
+                    lipSyncVideo={shot.lipSyncVideo || undefined}
                     className="w-full h-full"
                     controls={true}
                     autoPlay={true}
@@ -205,7 +206,7 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
                   />
                   <div className="absolute bottom-2 left-2 text-white text-xs px-2 py-1 rounded bg-black/60">
                     <a 
-                      href={shot.generatedVideo} 
+                      href={shot.lipSyncVideo || shot.generatedVideo || '#'} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="underline text-blue-300 hover:text-blue-100"
@@ -241,7 +242,7 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
                       <p className="text-xs text-muted-foreground">No image generated</p>
                     </div>
                   )}
-                  {shot.generatedVideo ? (
+                  {(shot.generatedVideo || shot.lipSyncVideo) ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                       <div className="flex flex-col items-center gap-2">
                         <Button 
@@ -250,33 +251,17 @@ const StoryboardView: React.FC<StoryboardViewProps> = ({ projectId }) => {
                           onClick={(e) => {
                             e.stopPropagation();
                             handlePlayVideo(shot.id);
-                            console.log("Playing video:", shot.generatedVideo);
+                            const videoUrl = shot.lipSyncVideo || shot.generatedVideo;
+                            if (videoUrl) {
+                              console.log("Playing video:", videoUrl);
+                            }
                           }}
                         >
                           <Play className="h-5 w-5" />
                         </Button>
-                        <div className="flex gap-1">
-                          <Button 
-                            size="sm"
-                            variant="outline"
-                            className="h-6 py-0 px-2 bg-black/60 hover:bg-black/80 text-white text-[10px] border-none"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (shot.generatedVideo) {
-                                window.open(shot.generatedVideo, '_blank');
-                              }
-                            }}
-                          >
-                            Direct link
-                          </Button>
-                        </div>
                       </div>
                     </div>
-                  ) : (
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                      {shot.generatedVideo === undefined ? "No video data" : (shot.generatedVideo === null ? "Video is null" : `Video URL: ${shot.generatedVideo.substring(0, 20)}...`)}
-                    </div>
-                  )}
+                  ) : null}
                 </>
               )}
               <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">

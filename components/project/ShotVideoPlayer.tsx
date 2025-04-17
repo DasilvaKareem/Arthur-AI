@@ -1,7 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Player } from '@remotion/player';
+import { Video } from 'remotion';
 
 interface ShotVideoPlayerProps {
   videoUrl: string;
+  lipSyncVideo?: string;
   className?: string;
   autoPlay?: boolean;
   loop?: boolean;
@@ -15,6 +18,7 @@ interface ShotVideoPlayerProps {
 
 const ShotVideoPlayer: React.FC<ShotVideoPlayerProps> = ({
   videoUrl,
+  lipSyncVideo,
   className = '',
   autoPlay = false,
   loop = true,
@@ -22,31 +26,20 @@ const ShotVideoPlayer: React.FC<ShotVideoPlayerProps> = ({
   overlayInfo,
   clickToPlay = true
 }) => {
-  const [isPlaying, setIsPlaying] = useState(autoPlay);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [isValidUrl, setIsValidUrl] = useState<boolean>(true);
+  
+  const effectiveVideoUrl = lipSyncVideo || videoUrl;
   
   useEffect(() => {
     // Log the video URL for debugging
-    console.log("ShotVideoPlayer received URL:", videoUrl);
+    console.log("ShotVideoPlayer using URL:", effectiveVideoUrl);
     
     // Basic URL validation
-    const isValidVideoUrl = videoUrl && 
-      (videoUrl.startsWith('http://') || videoUrl.startsWith('https://'));
+    const isValidVideoUrl = effectiveVideoUrl && 
+      (effectiveVideoUrl.startsWith('http://') || effectiveVideoUrl.startsWith('https://'));
     
     setIsValidUrl(!!isValidVideoUrl);
-  }, [videoUrl]);
-  
-  const handleVideoClick = () => {
-    if (clickToPlay && videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
+  }, [effectiveVideoUrl]);
   
   // Don't try to render video if URL is invalid
   if (!isValidUrl) {
@@ -54,7 +47,7 @@ const ShotVideoPlayer: React.FC<ShotVideoPlayerProps> = ({
       <div className={`relative overflow-hidden ${className} bg-black/90 flex flex-col items-center justify-center text-white`}>
         <div className="p-4 text-center">
           <p className="text-red-400 mb-2">⚠️ Video URL Invalid</p>
-          <p className="text-xs opacity-70 mb-1">{videoUrl || "No URL provided"}</p>
+          <p className="text-xs opacity-70 mb-1">{effectiveVideoUrl || "No URL provided"}</p>
           <p className="text-xs opacity-70">Please check console for details</p>
         </div>
       </div>
@@ -62,18 +55,31 @@ const ShotVideoPlayer: React.FC<ShotVideoPlayerProps> = ({
   }
   
   return (
-    <div 
-      className={`relative overflow-hidden ${className}`}
-    >
-      <video 
-        ref={videoRef}
-        src={videoUrl}
-        className="w-full h-full object-cover"
+    <div className={`relative overflow-hidden ${className}`}>
+      <Player
+        component={() => (
+          <Video
+            src={effectiveVideoUrl}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              backgroundColor: 'black'
+            }}
+          />
+        )}
+        durationInFrames={300} // 10 seconds at 30fps
+        fps={30}
+        compositionWidth={1920}
+        compositionHeight={1080}
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+        controls={controls}
         autoPlay={autoPlay}
         loop={loop}
-        controls={controls}
-        onClick={handleVideoClick}
-        playsInline
+        clickToPlay={clickToPlay}
       />
       
       {overlayInfo && (

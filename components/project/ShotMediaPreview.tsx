@@ -7,6 +7,7 @@ import ShotVideoPlayer from './ShotVideoPlayer';
 interface ShotMediaPreviewProps {
   image?: string | null;
   video?: string | null;
+  lipSyncVideo?: string | null;
   type: string;
   isLoading: boolean;
   isPlaying: boolean;
@@ -16,6 +17,7 @@ interface ShotMediaPreviewProps {
 export const ShotMediaPreview: React.FC<ShotMediaPreviewProps> = ({
   image,
   video,
+  lipSyncVideo,
   type,
   isLoading,
   isPlaying,
@@ -38,7 +40,7 @@ export const ShotMediaPreview: React.FC<ShotMediaPreviewProps> = ({
             fill
             className="object-cover"
           />
-          {video && (
+          {(video || lipSyncVideo) && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
               <Button 
                 size="icon" 
@@ -62,10 +64,11 @@ export const ShotMediaPreview: React.FC<ShotMediaPreviewProps> = ({
       </div>
 
       {/* Video Player Overlay */}
-      {isPlaying && video && (
+      {isPlaying && (video || lipSyncVideo) && (
         <div className="absolute inset-0 z-20">
           <ShotVideoPlayer
-            videoUrl={video}
+            videoUrl={video || ''}
+            lipSyncVideo={lipSyncVideo || undefined}
             className="w-full h-full"
             controls={true}
             autoPlay={true}

@@ -7,7 +7,8 @@ import {
   interpolate,
   spring,
   useCurrentFrame,
-  Audio
+  Audio,
+  Video
 } from 'remotion';
 import type { Shot } from '../../types/shared';
 
@@ -127,25 +128,21 @@ const ShotSequence: React.FC<{
     soundEffectsAudio: shot.soundEffectsAudio
   });
   
-  // Check for video in this priority: videoUrl > generatedVideo > image
-  if (shot.videoUrl || shot.generatedVideo) {
-    const videoSource = shot.videoUrl || shot.generatedVideo || '';
+  // Check for video in this priority: lipSyncVideo > videoUrl > generatedVideo > image
+  const videoSource = shot.lipSyncVideo || shot.videoUrl || shot.generatedVideo;
+  if (videoSource) {
     console.log('Using video source:', videoSource);
     
     return (
       <AbsoluteFill style={{ opacity }}>
         {/* Video component */}
-        <video
+        <Video
           src={videoSource}
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
           }}
-          muted={true}
-          autoPlay
-          playsInline
-          loop
         />
         
         {/* Audio components - just use dialogueAudio directly if it exists */}
@@ -166,48 +163,15 @@ const ShotSequence: React.FC<{
         )}
         
         {/* Shot info overlay */}
-        <div style={{
-          position: 'absolute',
-          bottom: 40,
-          left: 40,
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          padding: '10px 20px',
-          borderRadius: 5,
-        }}>
-          <p style={{ color: 'white', margin: 0, fontSize: 24 }}>
-            {`Shot ${index + 1}: ${shot.type}`}
-          </p>
-          <p style={{ color: 'white', margin: '5px 0 0 0', fontSize: 18, maxWidth: 600 }}>
-            {shot.description}
-          </p>
-          {shot.dialogueAudio && (
-            <p style={{ color: 'lightblue', margin: '5px 0 0 0', fontSize: 14 }}>
-              🔊 Audio: {shot.dialogue || "No dialogue text"}
-            </p>
-          )}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+          <h3 className="text-white font-medium">Shot {index + 1}</h3>
+          <p className="text-white/80 text-sm">{shot.description}</p>
         </div>
       </AbsoluteFill>
     );
   }
   
-  console.log('Falling back to image:', imageUrl);
-  
-  // Create audio components based on what's available
-  const DialogueAudioComponent = shot.dialogueAudio ? (
-    <Audio 
-      src={shot.dialogueAudio} 
-      volume={audioVolume}
-    />
-  ) : null;
-  
-  const SoundEffectsComponent = shot.soundEffectsAudio ? (
-    <Audio 
-      src={shot.soundEffectsAudio} 
-      volume={audioVolume * 0.7}
-    />
-  ) : null;
-  
-  // Fallback to static image if no video
+  // Fallback to image if no video available
   return (
     <AbsoluteFill style={{ opacity }}>
       <Img
@@ -218,32 +182,6 @@ const ShotSequence: React.FC<{
           objectFit: 'cover',
         }}
       />
-      
-      {/* Audio components */}
-      {DialogueAudioComponent}
-      {SoundEffectsComponent}
-      
-      {/* Shot info overlay */}
-      <div style={{
-        position: 'absolute',
-        bottom: 40,
-        left: 40,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        padding: '10px 20px',
-        borderRadius: 5,
-      }}>
-        <p style={{ color: 'white', margin: 0, fontSize: 24 }}>
-          {`Shot ${index + 1}: ${shot.type}`}
-        </p>
-        <p style={{ color: 'white', margin: '5px 0 0 0', fontSize: 18, maxWidth: 600 }}>
-          {shot.description}
-        </p>
-        {shot.dialogueAudio && (
-          <p style={{ color: 'lightblue', margin: '5px 0 0 0', fontSize: 14 }}>
-            🔊 Audio: {shot.dialogue || "No dialogue text"}
-          </p>
-        )}
-      </div>
     </AbsoluteFill>
   );
 }; 

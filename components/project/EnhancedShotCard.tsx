@@ -27,13 +27,15 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
     generateVideo,
     updateShot,
     storyId,
-    sceneId
+    sceneId,
+    generateLipSync
   } = useShotContext();
 
   const [showSoundEffects, setShowSoundEffects] = useState(false);
   const [showDialogue, setShowDialogue] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [showAudioPreview, setShowAudioPreview] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const handleSoundEffectsSave = async (value: string) => {
     try {
@@ -195,6 +197,10 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
     }
   };
 
+  const handlePlayToggle = () => {
+    setIsPlaying(!isPlaying);
+  };
+
   return (
     <div className="relative w-full h-full">
       {/* Shot content */}
@@ -205,8 +211,8 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
           video={shot.generatedVideo}
           type={shot.type}
           isLoading={isImageLoading}
-          isPlaying={false}
-          onPlayToggle={() => {}}
+          isPlaying={isPlaying}
+          onPlayToggle={handlePlayToggle}
         />
 
         {/* Shot Details */}
@@ -347,7 +353,7 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
           dialogueAudio={shot.dialogueAudio}
           onSave={handleDialogueSave}
           onGenerateAudio={handleGenerateDialogue}
-          onGenerateLipSync={() => generateVideo(index)}
+          onGenerateLipSync={() => generateLipSync(index)}
           isLoading={isGeneratingAudio}
           hasVideo={!!shot.generatedVideo}
         />
