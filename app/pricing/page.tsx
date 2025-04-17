@@ -85,7 +85,7 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-background relative">
       <Particles />
-      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff]/50 via-[#f5f7ff]/30 to-white/20 dark:bg-gradient-to-b dark:from-[#5f7fc5]/50 dark:via-[#0a0e2a]/30 dark:to-[#0a0e2a]/20" />
+      <div className="fixed top-0 left-0 w-full h-full z-[-1] pointer-events-none bg-gradient-to-b from-[#e0e8ff]/50 via-[#f5f7ff]/30 to-white/20 dark:bg-gradient-to-b dark:from-[#5f7fc5]/50 dark:via-[#0a0e2a]/30 dark:to-[#0a0e2a]/20" />
       
       {/* Navigation */}
       <header className={`fixed w-full transition-transform duration-300 ${

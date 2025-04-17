@@ -9,6 +9,10 @@ import { getTranslation } from "../../lib/getTranslation";
 import { locales, type Locale } from "../../locales";
 import LocalizedNav from "./LocalizedNav";
 import { FAQ } from "../../../registry/magicui/faq";
+import dynamic from "next/dynamic";
+
+// Dynamic import of the Particles component
+const Particles = dynamic(() => import("../../../components/Particle"), { ssr: false });
 
 type Params = {
   locale: string;
@@ -150,7 +154,8 @@ export default async function LocalizedPage({ params }: PageProps) {
 
   return (
     <div className="relative flex-col min-h-screen">
-      <div className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a]" />
+      <Particles />
+      <div className="fixed top-0 left-0 w-full h-full z-[-1] pointer-events-none bg-gradient-to-b from-[#e0e8ff] via-[#f5f7ff] to-white dark:bg-gradient-to-b dark:from-[#5f7fc5] dark:via-[#0a0e2a] dark:to-[#0a0e2a]" />
       <LocalizedNav {...navProps} />
 
       {/* Home Page */}

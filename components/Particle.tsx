@@ -39,15 +39,15 @@ export default function Particles() {
         if (!canvas) return;
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 2 + 1;
-        this.speedX = Math.random() * 0.5 - 0.25;
-        this.speedY = Math.random() * 0.5 - 0.25;
+        this.size = Math.random() * 3 + 1;
+        this.speedX = Math.random() * 0.7 - 0.35;
+        this.speedY = Math.random() * 0.7 - 0.35;
         
-        // Different colors based on theme
+        // Different colors based on theme with increased opacity
         if (isDarkMode) {
-          this.color = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
+          this.color = `rgba(255, 255, 255, ${Math.random() * 0.4 + 0.1})`;
         } else {
-          this.color = `rgba(60, 60, 60, ${Math.random() * 0.2})`;
+          this.color = `rgba(60, 60, 60, ${Math.random() * 0.4 + 0.1})`;
         }
       }
 
@@ -72,9 +72,9 @@ export default function Particles() {
       }
     }
 
-    // Create particles
+    // Create particles - increase the number of particles
     const particles: Particle[] = [];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 150; i++) {
       particles.push(new Particle());
     }
 
@@ -89,11 +89,11 @@ export default function Particles() {
         particle.draw();
       });
 
-      // Draw connections - different colors based on theme
+      // Draw connections - different colors based on theme with increased opacity
       ctx.strokeStyle = isDarkMode 
-        ? 'rgba(255, 255, 255, 0.1)' 
-        : 'rgba(60, 60, 60, 0.1)';
-      ctx.lineWidth = 0.5;
+        ? 'rgba(255, 255, 255, 0.2)'
+        : 'rgba(60, 60, 60, 0.2)';
+      ctx.lineWidth = 0.7;
 
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
@@ -101,7 +101,7 @@ export default function Particles() {
           const dy = particles[i].y - particles[j].y;
           const distance = Math.sqrt(dx * dx + dy * dy);
 
-          if (distance < 100) {
+          if (distance < 120) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
@@ -124,7 +124,7 @@ export default function Particles() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none"
+      className="fixed top-0 left-0 w-full h-full z-10 pointer-events-none"
     />
   );
 } 
