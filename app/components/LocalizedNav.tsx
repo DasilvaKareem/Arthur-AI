@@ -7,6 +7,7 @@ import { Logo } from "../../components/ui/logo";
 import { useScrollDirection } from "../hooks/useScrollDirection";
 import { Menu, X } from "lucide-react";
 import { Locale } from "../locales";
+import WalletConnect from "../../components/WalletConnect";
 
 interface LocalizedNavProps {
   locale: Locale;
@@ -55,6 +56,10 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
         </div>
         {/* Desktop Navigation Buttons */}
         <nav className="hidden md:flex items-center gap-6">
+          {/* Wallet Connect Button */}
+          <div className="hidden md:block">
+            <WalletConnect />
+          </div>
           <Link 
             href={links.signin}
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -84,6 +89,10 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
       {isMobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 right-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container py-4 flex flex-col gap-4">
+            {/* Wallet Connect in Mobile Menu */}
+            <div className="px-4">
+              <WalletConnect />
+            </div>
             <Link 
               href={links.signin}
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
