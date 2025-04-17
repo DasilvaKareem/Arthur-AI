@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 
 const inter = Inter({ subsets: ["latin"] });
 const ThemeDetector = dynamic(() => import("../components/ThemeDetector"), { ssr: false });
+const LanguageRedirect = dynamic(() => import("./components/LanguageRedirect").then(mod => mod.LanguageRedirect), { ssr: false });
 
 export const metadata: Metadata = {
   title: "Arthur AI - AI Storytelling",
@@ -38,7 +39,9 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <ThemeDetector />
-              {children}
+              <LanguageRedirect>
+                {children}
+              </LanguageRedirect>
               <Toaster position="top-right" closeButton />
               <Analytics />
               <SpeedInsights />
