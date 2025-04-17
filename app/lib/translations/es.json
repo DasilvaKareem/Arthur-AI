@@ -17,6 +17,32 @@
       "description": "Sé el primero en acceder al futuro de la narración con IA. Los miembros beta tempranos obtienen soporte prioritario, acceso a comentarios y ventajas de lanzamiento.",
       "accessLabel": "Solicita acceso para exclusivo acceso anticipado",
       "email": "tu@ejemplo.com"
+    },
+    "storiesSection": {
+      "title": "Convierte Tus Historias En Animación",
+      "subtitle": "Descubre cómo Arthur AI te ayuda a dar vida a tu imaginación, desde el texto hasta la historia animada.",
+      "cards": [
+        {
+          "title": "Narrador de IA",
+          "description": "Solo proporciona una premisa básica, y nuestro narrador de IA creará una narrativa completa con personajes, conflicto y resolución."
+        },
+        {
+          "title": "Storyboard Dinámico",
+          "description": "Ve cómo tu historia cobra vida con nuestro storyboard automatizado que crea escenas visuales a partir de tu narrativa."
+        },
+        {
+          "title": "Voz y Sonido",
+          "description": "Añade profundidad a tu animación con voces, diálogos y efectos de sonido atmosféricos generados por IA."
+        },
+        {
+          "title": "Animación con Un Clic",
+          "description": "Transforma tu storyboard en una secuencia completamente animada con solo un clic."
+        }
+      ]
+    },
+    "faq": {
+      "title": "Preguntas Frecuentes",
+      "subtitle": "Todo lo que necesitas saber sobre la plataforma de narración y animación de Arthur AI."
     }
   },
   "features": {

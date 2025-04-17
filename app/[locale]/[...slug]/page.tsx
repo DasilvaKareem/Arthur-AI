@@ -8,6 +8,7 @@ import Image from "next/image";
 import { getTranslation } from "../../lib/getTranslation";
 import { locales, type Locale } from "../../locales";
 import LocalizedNav from "./LocalizedNav";
+import { FAQ } from "../../../registry/magicui/faq";
 
 type Params = {
   locale: string;
@@ -39,8 +40,8 @@ export default async function LocalizedPage({ params }: PageProps) {
     home: createLocalizedLink(locale, ""),
     features: createLocalizedLink(locale, "features"),
     pricing: createLocalizedLink(locale, "pricing"),
-    signin: createLocalizedLink(locale, "auth/signin"),
-    signup: createLocalizedLink(locale, "auth/signup"),
+    signin: "/auth/signin",
+    signup: "/auth/signup",
     terms: createLocalizedLink(locale, "terms"),
     privacy: createLocalizedLink(locale, "privacy"),
   };
@@ -198,9 +199,57 @@ export default async function LocalizedPage({ params }: PageProps) {
               <p className="dark:text-gray-300 text-gray-700 mb-6">
                 {t.home.requestAccess.description}
               </p>
-              {/* LocalizedRequestForm removed */}
+              <form className="flex flex-col gap-4 items-center">
+                <div className="w-full max-w-md">
+                  <label htmlFor="EMAIL" className="text-left font-medium dark:text-gray-300 text-gray-700">
+                    {t.home.requestAccess.accessLabel}
+                  </label>
+                  <input
+                    type="email"
+                    name="EMAIL"
+                    id="EMAIL"
+                    placeholder={t.home.requestAccess.email}
+                    required
+                    className="w-full rounded dark:border-gray-700 border-gray-300 dark:bg-gray-900/50 bg-white/80 px-4 py-2 text-sm dark:text-white text-gray-900 placeholder:dark:text-gray-400 placeholder:text-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="mt-4 rounded w-[200px] bg-blue-600 px-6 py-2 text-white font-semibold hover:bg-blue-700"
+                >
+                  {t.common.requestAccess}
+                </button>
+              </form>
             </div>
           </section>
+
+          {/* Turn Your Stories Into Animation Section */}
+          <section className="relative py-24 z-10">
+            <div className="container">
+              <div className="mx-auto mb-12 max-w-[58rem] text-center">
+                <h2 className="font-bold text-3xl leading-tight sm:text-4xl md:text-5xl dark:text-white text-gray-900">
+                  {t.home.storiesSection.title}
+                </h2>
+                <p className="mt-4 text-muted-foreground sm:text-lg">
+                  {t.home.storiesSection.subtitle}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-7xl mx-auto">
+                {t.home.storiesSection.cards.map((card: { title: string; description: string }, index: number) => (
+                  <div key={index} className="p-8 rounded-lg border dark:border-gray-700 border-gray-300 dark:bg-gray-800/50 bg-white/80 backdrop-blur-sm transition-all hover:shadow-lg">
+                    <h3 className="text-xl font-bold mb-3 dark:text-white text-gray-900">{card.title}</h3>
+                    <p className="text-muted-foreground">{card.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ Section */}
+          <FAQ localeData={{
+            title: t.home.faq.title,
+            subtitle: t.home.faq.subtitle
+          }} locale={locale} />
         </>
       )}
 

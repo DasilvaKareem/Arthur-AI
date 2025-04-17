@@ -17,6 +17,32 @@
       "description": "Be the first to access the future of AI Storytelling. Early beta members get priority support, feedback access, and launch perks.",
       "accessLabel": "Request access for exclusive early access",
       "email": "you@example.com"
+    },
+    "storiesSection": {
+      "title": "Turn Your Stories Into Animation",
+      "subtitle": "Discover how Arthur AI helps you bring your imagination to life, from text to animated story.",
+      "cards": [
+        {
+          "title": "AI Storyteller",
+          "description": "Just provide a basic premise, and our AI storyteller will craft a complete narrative with characters, conflict, and resolution."
+        },
+        {
+          "title": "Dynamic Storyboard",
+          "description": "See your story come to life with our automated storyboarding that creates visual scenes from your narrative."
+        },
+        {
+          "title": "Voice & Sound",
+          "description": "Add depth to your animation with AI-generated voices, dialogue, and atmospheric sound effects."
+        },
+        {
+          "title": "One-Click Animation",
+          "description": "Transform your storyboard into a fully animated sequence with just one click."
+        }
+      ]
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "subtitle": "Everything you need to know about Arthur AI's storytelling and animation platform."
     }
   },
   "features": {
