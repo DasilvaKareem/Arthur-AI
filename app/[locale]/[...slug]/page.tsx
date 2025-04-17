@@ -10,6 +10,7 @@ import { locales, type Locale } from "../../locales";
 import LocalizedNav from "./LocalizedNav";
 import { FAQ } from "../../../registry/magicui/faq";
 import dynamic from "next/dynamic";
+const ClientLanguageSwitcher = dynamic(() => import("../../components/LanguageSwitcher").then(mod => mod.LanguageSwitcher), { ssr: false });
 
 // Dynamic import of the Particles component
 const Particles = dynamic(() => import("../../../components/Particle"), { ssr: false });
@@ -80,8 +81,8 @@ export default async function LocalizedPage({ params }: PageProps) {
       price: t.pricing.plans.free.price,
       features: [
         { name: `3 ${t.pricing.features.storiesPerMonth}`, included: true },
-        { name: `${t.pricing.features.videoGenerations}`, label: "Limited (3 per month)", included: true },
-        { name: `${t.pricing.features.imageGenerations}`, label: "Limited (no custom scenes)", included: true },
+        { name: `${t.pricing.features.videoGenerations}`, label: `${t.pricing.features.limited} (${t.pricing.features.limitedVideoDesc})`, included: true },
+        { name: `${t.pricing.features.imageGenerations}`, label: `${t.pricing.features.limited} (${t.pricing.features.limitedImageDesc})`, included: true },
         { name: t.pricing.features.scriptEditorAccess, included: true },
         { name: t.pricing.features.support, included: true },
         { name: t.pricing.features.dialogue, included: false },
@@ -102,10 +103,10 @@ export default async function LocalizedPage({ params }: PageProps) {
       price: t.pricing.plans.creator.price,
       features: [
         { name: `30 ${t.pricing.features.storiesPerMonth}`, included: true },
-        { name: `${t.pricing.features.videoGenerations}`, label: "60/month", included: true },
-        { name: `${t.pricing.features.imageGenerations}`, label: "Full Access", included: true },
+        { name: `${t.pricing.features.videoGenerations}`, label: `60/${t.pricing.features.month}`, included: true },
+        { name: `${t.pricing.features.imageGenerations}`, label: `${t.pricing.features.fullAccess}`, included: true },
         { name: t.pricing.features.scriptEditorAccess, included: true },
-        { name: "Email support", included: true },
+        { name: t.pricing.features.emailSupport, included: true },
         { name: t.pricing.features.dialogue, included: true },
         { name: t.pricing.features.narration, included: true },
         { name: t.pricing.features.soundEffects, included: true },
@@ -125,16 +126,16 @@ export default async function LocalizedPage({ params }: PageProps) {
       description: t.pricing.plans.pro.description,
       price: t.pricing.plans.pro.price,
       features: [
-        { name: `${t.pricing.features.storiesPerMonth}`, label: "Unlimited", included: true },
-        { name: `${t.pricing.features.videoGenerations}`, label: "Unlimited", included: true },
-        { name: `${t.pricing.features.imageGenerations}`, label: "Unlimited", included: true },
+        { name: `${t.pricing.features.unlimited} ${t.pricing.features.storiesPerMonth}`, included: true },
+        { name: `${t.pricing.features.unlimited} ${t.pricing.features.videoGenerations}`, included: true },
+        { name: `${t.pricing.features.unlimited} ${t.pricing.features.imageGenerations}`, included: true },
         { name: t.pricing.features.scriptEditorAccess, included: true },
-        { name: "Direct line to team", included: true },
-        { name: `${t.pricing.features.dialogue} + Premium voices`, included: true },
+        { name: t.pricing.features.directLineSupport, included: true },
+        { name: `${t.pricing.features.dialogue} + ${t.pricing.features.premiumVoices}`, included: true },
         { name: t.pricing.features.narration, included: true },
         { name: t.pricing.features.soundEffects, included: true },
-        { name: `${t.pricing.features.lipSync} + Emotion Sync`, included: true },
-        { name: `${t.pricing.features.storyboardExport} + High-Res PDF`, included: true },
+        { name: `${t.pricing.features.lipSync} + ${t.pricing.features.emotionSync}`, included: true },
+        { name: `${t.pricing.features.storyboardExport} + ${t.pricing.features.highResPDF}`, included: true },
         { name: t.pricing.features.projectPrivacy, included: true },
       ],
       cta: {
@@ -355,74 +356,116 @@ export default async function LocalizedPage({ params }: PageProps) {
 
       {/* Pricing Page */}
       {path === 'pricing' && (
-        <section className="relative pt-32 pb-20 z-10">
-          <div className="container px-4 mx-auto">
-            <div className="text-center mb-16">
-              <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">
-                {t.pricing.hero.title}
-              </h1>
-              <p className="text-xl text-muted-foreground">
-                {t.pricing.hero.subtitle}
-              </p>
-            </div>
+        <>
+          <section className="relative pt-32 pb-20 z-10">
+            <div className="container px-4 mx-auto">
+              <div className="text-center mb-16">
+                <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">
+                  {t.pricing.hero.title}
+                </h1>
+                <p className="text-xl text-muted-foreground">
+                  {t.pricing.hero.subtitle}
+                </p>
+              </div>
 
-            {/* Pricing Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
-              {plans.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={`rounded-lg border bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-8 ${
-                    plan.highlight
-                      ? "relative border-blue-500 dark:border-blue-400 shadow-lg"
-                      : "border-border"
-                  }`}
-                >
-                  {plan.highlight && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-blue-500 dark:bg-blue-400 text-white text-sm font-medium px-3 py-1 rounded-full shadow-md">
-                        {plan.mostPopular}
-                      </span>
-                    </div>
-                  )}
-                  <div className="mb-8">
-                    <h3 className="text-2xl font-bold mb-2 dark:text-white">{plan.name}</h3>
-                    <p className="text-muted-foreground">{plan.description}</p>
-                    <div className="mt-4">
-                      <span className="text-4xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 bg-clip-text text-transparent">
-                        ${plan.price}
-                      </span>
-                      <span className="text-muted-foreground">/month</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    {plan.features.map((feature) => (
-                      <div key={feature.name} className="flex items-center gap-2">
-                        {feature.included ? (
-                          <Check className="h-5 w-5 text-blue-500 dark:text-blue-400" />
-                        ) : (
-                          <X className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <span className={feature.included ? "dark:text-gray-200" : "text-muted-foreground"}>
-                          {feature.name}
+              {/* Pricing Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-7xl mx-auto">
+                {plans.map((plan) => (
+                  <div
+                    key={plan.name}
+                    className={`rounded-lg border bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm p-8 ${
+                      plan.highlight
+                        ? "relative border-blue-500 dark:border-blue-400 shadow-lg"
+                        : "border-border"
+                    }`}
+                  >
+                    {plan.highlight && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-blue-500 dark:bg-blue-400 text-white text-sm font-medium px-3 py-1 rounded-full shadow-md">
+                          {plan.mostPopular}
                         </span>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                    <div className="mb-8">
+                      <h3 className="text-2xl font-bold mb-2 dark:text-white">{plan.name}</h3>
+                      <p className="text-muted-foreground">{plan.description}</p>
+                      <div className="mt-4">
+                        <span className="text-4xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 bg-clip-text text-transparent">
+                          ${plan.price}
+                        </span>
+                        <span className="text-muted-foreground">{t.pricing.features.perMonth}</span>
+                      </div>
+                    </div>
 
-                  <Link href={plan.cta.href} className="block">
-                    <Button
-                      className={`w-full ${plan.highlight ? 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700' : ''}`}
-                      variant={plan.highlight ? "default" : "outline"}
-                    >
-                      {plan.cta.text}
+                    <div className="space-y-4 mb-8">
+                      {plan.features.map((feature) => (
+                        <div key={feature.name} className="flex items-center gap-2">
+                          {feature.included ? (
+                            <Check className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                          ) : (
+                            <X className="h-5 w-5 text-muted-foreground" />
+                          )}
+                          <span className={feature.included ? "dark:text-gray-200" : "text-muted-foreground"}>
+                            {feature.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Link href={plan.cta.href} className="block">
+                      <Button
+                        className={`w-full ${plan.highlight ? 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700' : ''}`}
+                        variant={plan.highlight ? "default" : "outline"}
+                      >
+                        {plan.cta.text}
+                      </Button>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+          
+          {/* Custom Solution Section */}
+          <section className="relative py-16 z-10">
+            <div className="container px-4 mx-auto">
+              <div className="max-w-3xl mx-auto text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg border p-8">
+                <h2 className="text-2xl font-bold mb-4 dark:text-white">{t.pricing.customSolution.title}</h2>
+                <p className="text-muted-foreground mb-6">
+                  {t.pricing.customSolution.description}
+                </p>
+                <div className="flex justify-center gap-4">
+                  <Link href="/contact">
+                    <Button className="bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700">
+                      {t.pricing.customSolution.contactSales}
                     </Button>
                   </Link>
+                  <Link href="/demo">
+                    <Button variant="outline">{t.pricing.customSolution.bookDemo}</Button>
+                  </Link>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+
+          {/* FAQ Section */}
+          <section className="relative py-16 z-10">
+            <div className="container px-4 mx-auto text-center">
+              <h2 className="text-2xl font-bold mb-4 dark:text-white">{t.pricing.faq.title}</h2>
+              <p className="text-muted-foreground">
+                {t.pricing.faq.description}{" "}
+                <Link href="/faq" className="text-blue-500 dark:text-blue-400 hover:underline">
+                  {t.pricing.faq.checkFaq}
+                </Link>{" "}
+                {t.pricing.faq.or}{" "}
+                <Link href="/contact" className="text-blue-500 dark:text-blue-400 hover:underline">
+                  {t.pricing.faq.contactSupport}
+                </Link>
+                .
+              </p>
+            </div>
+          </section>
+        </>
       )}
 
       {/* Footer */}
@@ -431,7 +474,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           <div className="flex items-center gap-2">
             <span className="font-bold">{t.common.title}</span>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} All rights reserved.
+              © {new Date().getFullYear()} {t.common.allRightsReserved}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -439,32 +482,17 @@ export default async function LocalizedPage({ params }: PageProps) {
               href={links.terms}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              Terms
+              {t.common.terms}
             </Link>
             <Link 
               href={links.privacy}
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              Privacy
+              {t.common.privacy}
             </Link>
 
-            {/* Language Switcher */}
-            <div className="relative group">
-              <button className="text-sm text-muted-foreground hover:text-foreground">
-                {locale.toUpperCase()}
-              </button>
-              <div className="absolute right-0 mt-2 w-24 bg-white dark:bg-gray-800 shadow-lg rounded-md overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
-                {locales.map((l) => (
-                  <Link 
-                    key={l}
-                    href={`/${l}/${slug.join('/')}`} 
-                    className={`block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${l === locale ? 'font-bold' : ''}`}
-                  >
-                    {l.toUpperCase()}
-                  </Link>
-                ))}
-              </div>
-            </div>
+            {/* Improved Language Switcher */}
+            <ClientLanguageSwitcher />
           </div>
         </div>
       </footer>

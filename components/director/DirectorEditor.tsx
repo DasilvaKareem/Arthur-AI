@@ -480,6 +480,7 @@ export const DirectorEditor = ({ scene, storyId }: DirectorEditorProps) => {
                       <SelectItem value="fr">French</SelectItem>
                       <SelectItem value="de">German</SelectItem>
                       <SelectItem value="ja">Japanese</SelectItem>
+                      <SelectItem value="pt">Portuguese</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
