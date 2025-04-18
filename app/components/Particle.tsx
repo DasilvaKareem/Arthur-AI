@@ -119,7 +119,7 @@ export default function Particles() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full z-0 pointer-events-none"
+      className="fixed top-0 left-0 w-full h-full z-[-1] pointer-events-none"
     />
   );
 } 

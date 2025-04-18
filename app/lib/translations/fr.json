@@ -5,6 +5,7 @@
     "signIn": "Se Connecter",
     "features": "Fonctionnalités",
     "pricing": "Tarifs",
+    "contact": "Contactez-nous",
     "watchDemo": "Voir Démo",
     "terms": "Conditions",
     "privacy": "Confidentialité",
@@ -188,6 +189,60 @@
       "checkFaq": "Consultez notre FAQ",
       "contactSupport": "contactez le support",
       "or": "ou"
+    }
+  },
+  "contact": {
+    "hero": {
+      "title": "Contactez notre équipe",
+      "subtitle": "Dites-nous comment nous pouvons vous aider."
+    },
+    "methods": {
+      "sales": {
+        "title": "Discutez avec les ventes",
+        "description": "Parlez à notre équipe sympathique."
+      },
+      "support": {
+        "title": "Discutez avec le support",
+        "description": "Nous sommes là pour vous aider."
+      },
+      "visit": {
+        "title": "Visitez-nous",
+        "description": "Visitez notre siège social.",
+        "cta": "Voir sur Google Maps"
+      },
+      "call": {
+        "title": "Appelez-nous",
+        "description": "Du lundi au vendredi de 8h à 17h.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Connectez-vous avec nous sur les réseaux sociaux"
+    },
+    "faq": {
+      "title": "Questions fréquemment posées",
+      "questions": {
+        "trial": {
+          "question": "Y a-t-il un essai gratuit disponible?",
+          "answer": "Oui, nous offrons un essai gratuit de 14 jours sur tous nos forfaits. Vous pouvez annuler à tout moment pendant votre essai, et vous ne serez pas facturé."
+        },
+        "payment": {
+          "question": "Quelles méthodes de paiement acceptez-vous?",
+          "answer": "Nous acceptons toutes les principales cartes de crédit, notamment Visa, Mastercard et American Express. Nous prenons également en charge les paiements via PayPal et les virements bancaires directs pour les forfaits annuels."
+        },
+        "plan": {
+          "question": "Puis-je changer de forfait ultérieurement?",
+          "answer": "Oui, vous pouvez mettre à niveau ou rétrograder votre forfait à tout moment depuis les paramètres de votre compte."
+        },
+        "support": {
+          "question": "Quel niveau de support est inclus?",
+          "answer": "Tous les forfaits incluent un support par e-mail avec des délais de réponse de 24 à 48 heures. Les forfaits Pro et Entreprise incluent un support prioritaire."
+        },
+        "security": {
+          "question": "Dans quelle mesure mes données sont-elles sécurisées avec Arthur.ai?",
+          "answer": "Vos données sont entièrement cryptées, tant en transit qu'au repos. Nous sommes conformes au RGPD et suivons les meilleures pratiques du secteur en matière de sécurité des données."
+        }
+      }
     }
   }
 } 

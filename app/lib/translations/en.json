@@ -5,6 +5,7 @@
     "signIn": "Sign In",
     "features": "Features",
     "pricing": "Pricing",
+    "contact": "Contact Us",
     "watchDemo": "Watch Demo",
     "terms": "Terms",
     "privacy": "Privacy",
@@ -188,6 +189,60 @@
       "checkFaq": "Check our FAQ",
       "contactSupport": "contact support",
       "or": "or"
+    }
+  },
+  "contact": {
+    "hero": {
+      "title": "Contact our friendly team",
+      "subtitle": "Let us know how we can help."
+    },
+    "methods": {
+      "sales": {
+        "title": "Chat to sales",
+        "description": "Speak to our friendly team."
+      },
+      "support": {
+        "title": "Chat to support",
+        "description": "We're here to help."
+      },
+      "visit": {
+        "title": "Visit us",
+        "description": "Visit our office HQ.",
+        "cta": "View on Google Maps"
+      },
+      "call": {
+        "title": "Call us",
+        "description": "Mon-Fri from 8am to 5pm.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Connect with us on social media"
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "questions": {
+        "trial": {
+          "question": "Is there a free trial available?",
+          "answer": "Yes, we offer a 14-day free trial on all our plans. You can cancel at any time during your trial, and you won't be charged."
+        },
+        "payment": {
+          "question": "What payment methods do you accept?",
+          "answer": "We accept all major credit cards including Visa, Mastercard, and American Express. We also support payments via PayPal and direct bank transfers for annual plans."
+        },
+        "plan": {
+          "question": "Can I change my plan later?",
+          "answer": "Yes, you can upgrade or downgrade your plan at any time from your account settings."
+        },
+        "support": {
+          "question": "What level of support is included?",
+          "answer": "All plans include email support with 24-48 hour response times. Pro and Enterprise plans include priority support."
+        },
+        "security": {
+          "question": "How secure is my data with Arthur.ai?",
+          "answer": "Your data is fully encrypted both in transit and at rest. We're GDPR compliant and follow industry best practices for data security."
+        }
+      }
     }
   }
 } 
