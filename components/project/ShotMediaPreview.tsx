@@ -12,6 +12,7 @@ interface ShotMediaPreviewProps {
   isLoading: boolean;
   isPlaying: boolean;
   onPlayToggle: () => void;
+  width?: number;
 }
 
 export const ShotMediaPreview: React.FC<ShotMediaPreviewProps> = ({
@@ -21,10 +22,14 @@ export const ShotMediaPreview: React.FC<ShotMediaPreviewProps> = ({
   type,
   isLoading,
   isPlaying,
-  onPlayToggle
+  onPlayToggle,
+  width = 825
 }) => {
   return (
-    <div className="relative aspect-video mb-4 rounded-lg overflow-hidden">
+    <div 
+      className="relative aspect-video mb-4 rounded-lg overflow-hidden"
+      style={{ width: `${width}px`, margin: '0 auto' }}
+    >
       {isLoading ? (
         <div className="absolute inset-0 bg-muted flex items-center justify-center">
           <div className="animate-pulse flex flex-col items-center">

@@ -1028,67 +1028,12 @@ function ProjectContent() {
     }
   };
 
-  const handleDownload = () => {
-    // ... existing download code ...
-  };
+  
 
-  const handleExportScene = async () => {
-    if (!currentScene) {
-      toast.error("No scene selected to export");
-      return;
-    }
-    
-    try {
-      const sceneData = {
-        title: currentScene.title,
-        location: currentScene.location,
-        description: currentScene.description,
-        shots: currentScene.shots.map(shot => ({
-          type: shot.type,
-          description: shot.description,
-          generatedImage: shot.generatedImage,
-          generatedVideo: shot.generatedVideo
-        }))
-      };
-      
-      // Create a JSON blob and download it
-      const blob = new Blob([JSON.stringify(sceneData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `scene-${currentScene.title.replace(/\s+/g, '-').toLowerCase()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast.success("Scene exported successfully");
-    } catch (error) {
-      console.error("Error exporting scene:", error);
-      toast.error("Failed to export scene");
-    }
-  };
+ 
+ 
 
-  const uploadTempFile = async (blob: Blob) => {
-    // ... existing code ...
-  };
-
-  const handleCopyToClipboard = async () => {
-    if (!currentScene) {
-      toast.error("No scene selected to copy");
-      return;
-    }
-
-    try {
-      const sceneText = `Scene: ${currentScene.title}\nLocation: ${currentScene.location}\nDescription: ${currentScene.description}\n\nShots:\n${currentScene.shots.map((shot, index) => `${index + 1}. ${shot.type}: ${shot.description}`).join('\n')}`;
-      
-      await navigator.clipboard.writeText(sceneText);
-      toast.success("Scene details copied to clipboard");
-    } catch (error) {
-      console.error("Error copying to clipboard:", error);
-      toast.error("Failed to copy scene details");
-    }
-  };
+ 
 
   const generateShotFromPrompt = async (index: number, description: string) => {
     if (!currentScene) {
@@ -1637,36 +1582,7 @@ function ProjectContent() {
   }, [refreshAuth, user, storyId]);
 
   // Update debug story function
-  const debugStoryStructure = async () => {
-    if (!storyId) {
-      toast.error("No story ID found");
-      return;
-    }
-    
-    try {
-      toast.loading("Fixing story structure...", { id: "fix-story" });
-      
-      // Call the fix-structure API endpoint
-      const response = await fetch(`/api/story/fix-structure?storyId=${storyId}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fix story structure");
-      }
-      
-      const data = await response.json();
-      console.log("Story structure fix result:", data);
-      
-      // Reload the story to get the updated structure
-      await loadStory(storyId);
-      
-      toast.success("Story structure fixed successfully", { id: "fix-story" });
-    } catch (error) {
-      console.error("Error fixing story structure:", error);
-      toast.error(`Failed to fix story: ${error instanceof Error ? error.message : "Unknown error"}`, 
-                 { id: "fix-story" });
-    }
-  };
+
 
   // Function to generate sound effects audio from the description
   const generateSoundEffectsAudio = async (shotId: string) => {
@@ -1848,35 +1764,8 @@ function ProjectContent() {
     }
   };
 
-  const updateSceneShots = async (sceneId: string, updatedShots: Shot[]) => {
-    if (!storyId) return;
-    try {
-      // Create a new scene object with the updated shots
-      const sceneUpdate: Partial<Omit<Scene, "shots" | "id">> = {
-        title: currentScene?.title,
-        location: currentScene?.location,
-        description: currentScene?.description,
-        lighting: currentScene?.lighting,
-        weather: currentScene?.weather,
-        style: currentScene?.style
-      };
-      
-      await updateSceneSubcollection(storyId, sceneId, sceneUpdate);
-    } catch (error) {
-      console.error("Error updating scene shots:", error);
-      toast.error("Failed to update shot");
-    }
-  };
 
-  const handleShotUpdate = async (index: number, updates: Partial<Shot>) => {
-    if (!currentScene) return;
-    const updatedShots = [...currentScene.shots];
-    updatedShots[index] = {
-      ...updatedShots[index],
-      ...updates
-    };
-    await updateSceneShots(currentScene.id, updatedShots);
-  };
+
 
   const handleVideoGenerationError = (error: unknown, shotId: string) => {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -1965,6 +1854,36 @@ function ProjectContent() {
       if (!currentScene?.id || !storyId) return;
       await updateShotDetails(currentScene.id, shotId, updates);
     },
+    deleteShot: async (shotId: string) => {
+      if (!currentScene?.id || !storyId) return;
+      
+      try {
+        // Delete the shot in Firebase
+        await deleteShotSubcollection(storyId, currentScene.id, shotId);
+        
+        // Update local state by filtering out the deleted shot
+        const updatedShots = currentScene.shots.filter(shot => shot.id !== shotId);
+        
+        // Update the scene with the filtered shots
+        const updatedScene = {
+          ...currentScene,
+          shots: updatedShots
+        };
+        
+        // Update scenes state
+        setScenes(prev => 
+          prev.map(scene => 
+            scene.id === currentScene.id ? updatedScene : scene
+          )
+        );
+        
+        // Update current scene state
+        setCurrentScene(updatedScene);
+      } catch (error) {
+        console.error("Error deleting shot:", error);
+        throw error; // Rethrow to be handled by the calling component
+      }
+    },
     isImageLoading,
     isVideoLoading,
     generateImage: generateShotFromPrompt,
@@ -1994,16 +1913,8 @@ function ProjectContent() {
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Use the ProjectHeader component */}
       <ProjectHeader
-        isSaving={isSaving}
-        isLoadingAuth={loading}
         storyTitle={title}
-        onSaveStory={saveStory}
-        onSyncScenes={handleSyncScenes}
-        onExportScene={handleExportScene}
-        onCopyToClipboard={handleCopyToClipboard}
-        onDownloadScript={handleDownload}
         onRenameStory={handleRenameStory}
-        onDebugStory={debugStoryStructure}
       />
       
       <div className="flex flex-col flex-1">
@@ -2011,6 +1922,7 @@ function ProjectContent() {
         <div className="flex-1 overflow-auto bg-background">
           {/* Storyboard-style shot layout */}
           <ShotProvider value={shotContextValue}>
+            {/* Scrollable shot cards with Add Shot button inline */}
             <div className="flex overflow-x-auto p-4 gap-4 pb-6 snap-x">
               {currentScene?.shots.map((shot, index) => (
                 <div 
@@ -2024,15 +1936,21 @@ function ProjectContent() {
                 </div>
               ))}
               
-              {/* Add shot button */}
-              <div className="flex-none w-[825px] min-w-[825px] snap-center flex items-center justify-center">
-                <Button 
-                  onClick={addNewShot} 
-                  className={`${themeColors[userThemeColor as keyof typeof themeColors]} text-white h-40 w-full flex flex-col items-center justify-center shadow-md`}
+              {/* Add shot button - inline with cards */}
+              <div className="flex-none w-[825px] min-w-[825px] snap-center flex flex-col">
+                <div 
+                  className="relative aspect-video mb-4 rounded-lg overflow-hidden bg-white flex flex-col items-center justify-center border border-dashed border-gray-200 cursor-pointer"
+                  onClick={addNewShot}
                 >
-                  <Plus className="h-12 w-12 mb-2" />
-                  <span>Add Shot</span>
-                </Button>
+                  <div className="flex flex-col items-center justify-center h-full w-full">
+                    <div className="bg-red-500 h-24 w-24 rounded-full flex items-center justify-center mb-5">
+                      <Plus className="h-14 w-14 text-white" strokeWidth={1.5} />
+                    </div>
+                    <p className="text-gray-500 text-lg font-normal">Add New Shot</p>
+                  </div>
+                </div>
+                {/* Empty space to match shot card structure */}
+                <div className="h-[120px] opacity-0"></div>
               </div>
             </div>
           </ShotProvider>
@@ -2040,75 +1958,6 @@ function ProjectContent() {
 
         {/* Timeline at the bottom - more reliable display logic */}
         <div className="border-t border-border bg-background">
-          {/* Add debug info to help troubleshoot timeline issues */}
-          <div className="p-1 text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 flex justify-between items-center">
-            <p>Debug: scenes: {scenes?.length || 0}, currentScene: {currentScene?.id || 'null'}, isLoading: {isLoading.toString()}</p>
-            <div className="space-x-2">
-              {storyId && (
-                <button 
-                  onClick={async () => {
-                    console.log("Manually reloading scenes");
-                    if (storyId) {
-                      try {
-                        toast.loading("Reloading scenes...");
-                        await loadStory(storyId);
-                        toast.success("Scenes reloaded");
-                      } catch (error) {
-                        console.error("Error reloading scenes:", error);
-                        toast.error("Failed to reload scenes");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-gray-500 text-white rounded-md text-xs"
-                >
-                  Refresh Scenes
-                </button>
-              )}
-              {storyId && (scenes?.length === 0 || !currentScene) && (
-                <button 
-                  onClick={async () => {
-                    console.log("Manually creating a default scene");
-                    if (storyId) {
-                      try {
-                        toast.loading("Creating default scene...");
-                        
-                        // Create a default scene
-                        const defaultSceneId = await createSceneSubcollection(storyId, {
-                          title: "Scene 1",
-                          location: "Default Location",
-                          description: "Default scene description",
-                          lighting: "NATURAL",
-                          weather: "CLEAR",
-                          style: "CINEMATIC"
-                        });
-                        
-                        // Create a default shot for the scene
-                        await createShotSubcollection(storyId, defaultSceneId, {
-                          type: "WIDE",
-                          description: "Default shot",
-                          prompt: "Default shot",
-                          hasDialogue: false,
-                          hasNarration: false,
-                          hasSoundEffects: false
-                        });
-                        
-                        toast.success("Created default scene. Reloading...");
-                        
-                        // Reload the story
-                        await loadStory(storyId);
-                      } catch (error) {
-                        console.error("Error creating default scene:", error);
-                        toast.error("Failed to create default scene");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-blue-500 text-white rounded-md text-xs"
-                >
-                  Create Default Scene
-                </button>
-              )}
-            </div>
-          </div>
           <SceneTimeline
             scenes={scenes}
             currentScene={currentScene}
