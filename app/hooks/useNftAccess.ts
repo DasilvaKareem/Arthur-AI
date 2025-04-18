@@ -29,7 +29,7 @@ export default function useNftAccess(): NFTAccessStatus {
   
   // Check NFT expiration based on metadata
   useEffect(() => {
-    if (nftData && !metadataLoading && balance && balance.value && BigNumber.isBigNumber(balance.value) && balance.value.gt(0)) {
+    if (nftData && !metadataLoading && balance && BigNumber.isBigNumber(balance) && balance.gt(0)) {
       setIsExpired(!checkExpiration(nftData.metadata));
     }
   }, [nftData, metadataLoading, balance]);
@@ -38,16 +38,15 @@ export default function useNftAccess(): NFTAccessStatus {
   const hasAccess = !isLoading && 
     !!address && 
     !!balance && 
-    !!balance.value &&
-    BigNumber.isBigNumber(balance.value) &&
-    balance.value.gt(0) && 
+    BigNumber.isBigNumber(balance) &&
+    balance.gt(0) && 
     !isExpired;
   
   return {
     hasAccess,
     isLoading,
     error: error as Error | null,
-    balance: balance && balance.value && BigNumber.isBigNumber(balance.value) ? parseInt(balance.value.toString()) : 0,
+    balance: balance && BigNumber.isBigNumber(balance) ? parseInt(balance.toString()) : 0,
     nftMetadata: nftData?.metadata || null,
     isExpired,
     walletAddress: address,

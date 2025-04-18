@@ -5,6 +5,7 @@ interface ShotContextType {
   storyId: string | null;
   sceneId: string | null;
   updateShot: (shotId: string, updates: Partial<Shot>) => Promise<void>;
+  deleteShot: (shotId: string) => Promise<void>;
   isImageLoading: boolean;
   isVideoLoading: boolean;
   generateImage: (index: number, prompt: string) => Promise<void>;

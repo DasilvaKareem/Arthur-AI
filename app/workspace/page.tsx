@@ -17,6 +17,7 @@ import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
 import { useRouter } from "next/navigation";
 import { Slider } from "../../components/ui/slider";
+import ProjectHeader from "../../components/project/ProjectHeader";
 
 // Create a style element with the CSS to hide the header
 const hideProjectHeaderStyle = `
@@ -153,6 +154,8 @@ export default function WorkspacePage() {
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const router = useRouter();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [title, setTitle] = useState("");
 
   // Load story from URL query parameter
   useEffect(() => {

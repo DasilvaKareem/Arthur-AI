@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Button } from "../ui/button";
-import { MessageSquare, Music, Volume2 } from "lucide-react";
+import { MessageSquare, Music, Volume2, Trash } from "lucide-react";
 import type { Shot } from '../../types/shared';
 import { useShotContext } from './ShotContext';
 import { ShotMediaPreview } from './ShotMediaPreview';
@@ -28,7 +28,8 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
     updateShot,
     storyId,
     sceneId,
-    generateLipSync
+    generateLipSync,
+    deleteShot
   } = useShotContext();
 
   const [showSoundEffects, setShowSoundEffects] = useState(false);
@@ -36,6 +37,8 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [showAudioPreview, setShowAudioPreview] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSoundEffectsSave = async (value: string) => {
     try {
@@ -201,19 +204,64 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
     setIsPlaying(!isPlaying);
   };
 
+  const handleDeleteShot = async () => {
+    if (!storyId || !sceneId) {
+      toast.error("Missing story or scene information");
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      
+      // Use the context's deleteShot function
+      await deleteShot(shot.id);
+      
+      toast.success("Shot deleted successfully");
+    } catch (error) {
+      console.error("Error deleting shot:", error);
+      toast.error("Failed to delete shot");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full pb-16">
+      {/* Shot Number Badge */}
+      <div className="absolute top-2 left-2 bg-primary/80 text-white text-sm px-2 py-1 rounded-full z-20 shadow-md">
+        Shot {index + 1}
+      </div>
+      
       {/* Shot content */}
       <div className="w-full h-full">
         {/* Media Preview */}
-        <ShotMediaPreview
-          image={shot.generatedImage}
-          video={shot.generatedVideo}
-          type={shot.type}
-          isLoading={isImageLoading}
-          isPlaying={isPlaying}
-          onPlayToggle={handlePlayToggle}
-        />
+        <div className="relative">
+          <ShotMediaPreview
+            image={shot.generatedImage}
+            video={shot.generatedVideo}
+            type={shot.type}
+            isLoading={isImageLoading}
+            isPlaying={isPlaying}
+            onPlayToggle={handlePlayToggle}
+          />
+          
+          {/* Delete Shot Button - Now inside the Media Preview */}
+          <Button
+            variant="secondary"
+            size="icon"
+            className="absolute bottom-3 right-3 bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-800/50 dark:text-red-400 rounded-full shadow-md z-30 hover:animate-pulse"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={isDeleting}
+            title="Delete shot"
+          >
+            {isDeleting ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+            ) : (
+              <Trash className="h-5 w-5" />
+            )}
+          </Button>
+        </div>
 
         {/* Shot Details */}
         <div className="space-y-3">
@@ -357,6 +405,34 @@ const EnhancedShotCard: React.FC<EnhancedShotCardProps> = React.memo(({
           isLoading={isGeneratingAudio}
           hasVideo={!!shot.generatedVideo}
         />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 bg-background/95 flex flex-col items-center justify-center z-40 p-4 rounded-lg border-2 border-red-500">
+          <Trash className="h-8 w-8 text-red-500 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Delete Shot {index + 1}?</h3>
+          <p className="text-center text-sm text-muted-foreground mb-4">
+            This action cannot be undone. All shot data including audio and video will be permanently deleted.
+          </p>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={handleDeleteShot}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
