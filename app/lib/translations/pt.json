@@ -5,10 +5,65 @@
     "signIn": "Entrar",
     "features": "Recursos",
     "pricing": "Preços",
+    "contact": "Fale Conosco",
     "watchDemo": "Assistir Demo",
     "terms": "Termos",
     "privacy": "Privacidade",
     "allRightsReserved": "Todos os direitos reservados."
+  },
+  "contact": {
+    "hero": {
+      "title": "Entre em contato com nossa equipe",
+      "subtitle": "Diga-nos como podemos ajudar."
+    },
+    "methods": {
+      "sales": {
+        "title": "Fale com vendas",
+        "description": "Converse com nossa equipe amigável."
+      },
+      "support": {
+        "title": "Fale com suporte",
+        "description": "Estamos aqui para ajudar."
+      },
+      "visit": {
+        "title": "Visite-nos",
+        "description": "Visite nosso escritório central.",
+        "cta": "Ver no Google Maps"
+      },
+      "call": {
+        "title": "Ligue para nós",
+        "description": "Segunda a sexta das 8h às 17h.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Conecte-se conosco nas redes sociais"
+    },
+    "faq": {
+      "title": "Perguntas frequentes",
+      "questions": {
+        "trial": {
+          "question": "Existe um período de teste gratuito disponível?",
+          "answer": "Sim, oferecemos um período de teste gratuito de 14 dias em todos os nossos planos. Você pode cancelar a qualquer momento durante o período de teste e não será cobrado."
+        },
+        "payment": {
+          "question": "Quais métodos de pagamento vocês aceitam?",
+          "answer": "Aceitamos todos os principais cartões de crédito, incluindo Visa, Mastercard e American Express. Também suportamos pagamentos via PayPal e transferências bancárias diretas para planos anuais."
+        },
+        "plan": {
+          "question": "Posso mudar meu plano mais tarde?",
+          "answer": "Sim, você pode atualizar ou rebaixar seu plano a qualquer momento nas configurações da sua conta."
+        },
+        "support": {
+          "question": "Qual nível de suporte está incluído?",
+          "answer": "Todos os planos incluem suporte por e-mail com tempos de resposta de 24 a 48 horas. Os planos Pro e Enterprise incluem suporte prioritário."
+        },
+        "security": {
+          "question": "Quão seguros estão meus dados com a Arthur.ai?",
+          "answer": "Seus dados são totalmente criptografados tanto em trânsito quanto em repouso. Cumprimos com o GDPR e seguimos as melhores práticas do setor para segurança de dados."
+        }
+      }
+    }
   },
   "home": {
     "hero": {

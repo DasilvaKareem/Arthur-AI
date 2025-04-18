@@ -16,6 +16,7 @@ interface LocalizedNavProps {
     home: string;
     features: string;
     pricing: string;
+    contact: string;
     signin: string;
     signup: string;
     terms: string;
@@ -50,6 +51,13 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
               className={`text-sm font-medium ${path === 'pricing' ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'} transition-colors`}
             >
               {t.common.pricing}
+            </Link>
+            <Link 
+              href={links.contact}
+              className={`text-sm font-medium ${path === 'contact' ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'} transition-colors !block`}
+              style={{ display: 'block' }}
+            >
+              {t.common.contact}
             </Link>
           </div>
         </div>
@@ -101,6 +109,12 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
               className={`text-sm font-medium ${path === 'pricing' ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'} px-4 py-2 rounded-md hover:bg-accent block`}
             >
               {t.common.pricing}
+            </Link>
+            <Link 
+              href={links.contact}
+              className={`text-sm font-medium ${path === 'contact' ? 'text-primary hover:text-primary/80' : 'text-muted-foreground hover:text-foreground'} px-4 py-2 rounded-md hover:bg-accent block`}
+            >
+              {t.common.contact}
             </Link>
             <div className="border-t pt-4 mt-2">
               <div className="px-4 flex justify-center">

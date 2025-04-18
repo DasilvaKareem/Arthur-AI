@@ -5,10 +5,11 @@
     "signIn": "Đăng Nhập",
     "features": "Tính Năng",
     "pricing": "Bảng Giá",
+    "contact": "Liên Hệ Với Chúng Tôi",
     "watchDemo": "Xem Demo",
     "terms": "Điều Khoản",
     "privacy": "Quyền Riêng Tư",
-    "allRightsReserved": "Tất cả quyền được bảo lưu."
+    "allRightsReserved": "Đã đăng ký Bản quyền."
   },
   "home": {
     "hero": {
@@ -188,6 +189,60 @@
       "checkFaq": "Xem FAQ của chúng tôi",
       "contactSupport": "liên hệ hỗ trợ",
       "or": "hoặc"
+    }
+  },
+  "contact": {
+    "hero": {
+      "title": "Liên hệ với đội ngũ thân thiện của chúng tôi",
+      "subtitle": "Hãy cho chúng tôi biết làm thế nào chúng tôi có thể giúp bạn."
+    },
+    "methods": {
+      "sales": {
+        "title": "Trò chuyện với bộ phận bán hàng",
+        "description": "Nói chuyện với đội ngũ thân thiện của chúng tôi."
+      },
+      "support": {
+        "title": "Trò chuyện với bộ phận hỗ trợ",
+        "description": "Chúng tôi ở đây để giúp đỡ."
+      },
+      "visit": {
+        "title": "Ghé thăm chúng tôi",
+        "description": "Ghé thăm trụ sở chính của chúng tôi.",
+        "cta": "Xem trên Google Maps"
+      },
+      "call": {
+        "title": "Gọi cho chúng tôi",
+        "description": "Thứ Hai-Thứ Sáu từ 8 giờ sáng đến 5 giờ chiều.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Kết nối với chúng tôi trên mạng xã hội"
+    },
+    "faq": {
+      "title": "Câu Hỏi Thường Gặp",
+      "questions": {
+        "trial": {
+          "question": "Có phiên bản dùng thử miễn phí không?",
+          "answer": "Có, chúng tôi cung cấp phiên bản dùng thử miễn phí 14 ngày cho tất cả các gói của chúng tôi. Bạn có thể hủy bất cứ lúc nào trong thời gian dùng thử và sẽ không bị tính phí."
+        },
+        "payment": {
+          "question": "Bạn chấp nhận những phương thức thanh toán nào?",
+          "answer": "Chúng tôi chấp nhận tất cả các thẻ tín dụng chính, bao gồm Visa, Mastercard và American Express. Chúng tôi cũng hỗ trợ thanh toán qua PayPal và chuyển khoản ngân hàng trực tiếp cho các kế hoạch hàng năm."
+        },
+        "plan": {
+          "question": "Tôi có thể thay đổi gói của mình sau này không?",
+          "answer": "Có, bạn có thể nâng cấp hoặc hạ cấp gói của mình bất cứ lúc nào từ cài đặt tài khoản của bạn."
+        },
+        "support": {
+          "question": "Mức độ hỗ trợ nào được bao gồm?",
+          "answer": "Tất cả các gói đều bao gồm hỗ trợ qua email với thời gian phản hồi từ 24 đến 48 giờ. Các gói Pro và Enterprise bao gồm hỗ trợ ưu tiên."
+        },
+        "security": {
+          "question": "Dữ liệu của tôi an toàn như thế nào với Arthur.ai?",
+          "answer": "Dữ liệu của bạn được mã hóa hoàn toàn cả khi truyền tải và lưu trữ. Chúng tôi tuân thủ GDPR và theo các phương pháp tốt nhất trong ngành cho bảo mật dữ liệu."
+        }
+      }
     }
   }
 } 

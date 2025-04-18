@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "../../../components/ui/button";
 import { Logo } from "../../../components/ui/logo";
-import { Check, X } from "lucide-react";
+import { Check, X, MapPin, Phone } from "lucide-react";
 import Image from "next/image";
 import { getTranslation } from "../../lib/getTranslation";
 import { locales, type Locale } from "../../locales";
-import LocalizedNav from "./LocalizedNav";
+import LocalizedNav from "../../components/LocalizedNav";
 import { FAQ } from "../../../registry/magicui/faq";
 import dynamic from "next/dynamic";
 const ClientLanguageSwitcher = dynamic(() => import("../../components/LanguageSwitcher").then(mod => mod.LanguageSwitcher), { ssr: false });
@@ -39,12 +39,19 @@ export default async function LocalizedPage({ params }: PageProps) {
   // Get translations
   const t = await getTranslation(locale as Locale);
   const path = slug.join('/') || 'home';
+  
+  // Check if the path is valid
+  const validPaths = ['home', 'features', 'pricing', 'contact', 'terms', 'privacy'];
+  if (!validPaths.includes(path)) {
+    notFound(); // Invalid path
+  }
 
   // Generate all the links we need server-side
   const links = {
     home: createLocalizedLink(locale, ""),
     features: createLocalizedLink(locale, "features"),
     pricing: createLocalizedLink(locale, "pricing"),
+    contact: createLocalizedLink(locale, "contact"),
     signin: "/auth/signin",
     signup: "/auth/signup",
     terms: createLocalizedLink(locale, "terms"),
@@ -463,6 +470,216 @@ export default async function LocalizedPage({ params }: PageProps) {
                 </Link>
                 .
               </p>
+            </div>
+          </section>
+        </>
+      )}
+
+      {/* Contact Page */}
+      {path === 'contact' && (
+        <>
+          {/* Hero Section */}
+          <section className="relative pt-32 md:pt-40 pb-12">
+            <div className="container">
+              <div className="mx-auto max-w-[58rem] text-center">
+                <div className="flex justify-center mb-8">
+                  <div className="bg-purple-600 rounded-full p-4">
+                    <Logo className="w-10 h-10 text-white" />
+                  </div>
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-4">{t.contact.hero.title}</h1>
+                <p className="text-xl text-muted-foreground">{t.contact.hero.subtitle}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Contact Methods Grid */}
+          <section className="relative container mb-24 z-20">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Chat to sales */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center">
+                <div className="mb-4 p-2 rounded-full bg-muted">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-square">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">{t.contact.methods.sales.title}</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4">{t.contact.methods.sales.description}</p>
+                <Link href="mailto:sales@arthur.ai" className="text-sm text-primary hover:underline">
+                  sales@arthur.ai
+                </Link>
+              </div>
+
+              {/* Chat to support */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center">
+                <div className="mb-4 p-2 rounded-full bg-muted">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-headphones">
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">{t.contact.methods.support.title}</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4">{t.contact.methods.support.description}</p>
+                <Link href="mailto:support@arthur.ai" className="text-sm text-primary hover:underline">
+                  support@arthur.ai
+                </Link>
+              </div>
+
+              {/* Visit us */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center">
+                <div className="mb-4 p-2 rounded-full bg-muted">
+                  <MapPin size={24} />
+                </div>
+                <h3 className="font-semibold text-lg mb-1">{t.contact.methods.visit.title}</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4">{t.contact.methods.visit.description}</p>
+                <Link href="https://maps.google.com" target="_blank" className="text-sm text-primary hover:underline">
+                  {t.contact.methods.visit.cta}
+                </Link>
+              </div>
+
+              {/* Call us */}
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center">
+                <div className="mb-4 p-2 rounded-full bg-muted">
+                  <Phone size={24} />
+                </div>
+                <h3 className="font-semibold text-lg mb-1">{t.contact.methods.call.title}</h3>
+                <p className="text-sm text-muted-foreground text-center mb-4">{t.contact.methods.call.description}</p>
+                <Link href="tel:+15550000000" className="text-sm text-primary hover:underline">
+                  {t.contact.methods.call.phone}
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          {/* Social Media Section */}
+          <section className="relative container mb-24 z-20">
+            <h2 className="text-2xl font-bold text-center mb-10">{t.contact.social.title}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {/* Twitter/X */}
+              <Link href="https://x.com/ArthurAIApp" target="_blank" className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center hover:border-blue-400 transition-colors">
+                <div className="mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-blue-400">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">X</h3>
+              </Link>
+
+              {/* TikTok */}
+              <Link href="https://www.tiktok.com/@arthuraiapp?_t=ZT-8vcRx4gPY0A&_r=1m" target="_blank" className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center hover:border-black transition-colors">
+                <div className="mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.95c-.849-.901-1.23-1.992-1.374-2.774h.004c-.081-.43-.09-.755-.09-.755V.565h-4.031v16.45c0 .112-.006.224-.017.335-.14.43-.084.853-.24 1.248a3.356 3.356 0 0 1-3.057 2.022c-1.845 0-3.336-1.495-3.337-3.335 0-1.845 1.492-3.337 3.337-3.337.377 0 .738.063 1.074.179v-4.106c-.352-.059-.708-.094-1.074-.094-3.49 0-6.322 2.828-6.322 6.317s2.833 6.317 6.322 6.317c3.49 0 6.322-2.828 6.322-6.317l-.009-6.761c1.141.958 2.615 1.526 4.218 1.526V5.564c-.235-.002-.284-.04-.473-.002Z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">TikTok</h3>
+              </Link>
+
+              {/* Instagram */}
+              <Link href="https://www.instagram.com/arthuraiapp/" target="_blank" className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center hover:border-pink-500 transition-colors">
+                <div className="mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-pink-500">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">Instagram</h3>
+              </Link>
+
+              {/* Facebook */}
+              <Link href="https://www.facebook.com/profile.php?id=61567914273453&mibextid=wwXIfr&mibextid=wwXIfr" target="_blank" className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center hover:border-blue-600 transition-colors">
+                <div className="mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-blue-600">
+                    <path d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5a1 1 0 0 1 1-1h3v-4h-3a5 5 0 0 0-5 5v2.01h-2l-.396 3.98h2.396v8.01Z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-lg mb-1">Facebook</h3>
+              </Link>
+            </div>
+          </section>
+
+          {/* FAQ Section */}
+          <section className="relative container pb-24 z-20">
+            <h2 className="text-2xl font-bold text-center mb-10">{t.contact.faq.title}</h2>
+            <div className="space-y-4 max-w-3xl mx-auto">
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between font-medium">
+                    <span>{t.contact.faq.questions.trial.question}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="mt-3 text-muted-foreground">
+                    <p>{t.contact.faq.questions.trial.answer}</p>
+                  </div>
+                </details>
+              </div>
+
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between font-medium">
+                    <span>{t.contact.faq.questions.payment.question}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="mt-3 text-muted-foreground">
+                    <p>{t.contact.faq.questions.payment.answer}</p>
+                  </div>
+                </details>
+              </div>
+
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between font-medium">
+                    <span>{t.contact.faq.questions.plan.question}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="mt-3 text-muted-foreground">
+                    <p>{t.contact.faq.questions.plan.answer}</p>
+                  </div>
+                </details>
+              </div>
+
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between font-medium">
+                    <span>{t.contact.faq.questions.support.question}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="mt-3 text-muted-foreground">
+                    <p>{t.contact.faq.questions.support.answer}</p>
+                  </div>
+                </details>
+              </div>
+
+              <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between font-medium">
+                    <span>{t.contact.faq.questions.security.question}</span>
+                    <span className="transition group-open:rotate-180">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </span>
+                  </summary>
+                  <div className="mt-3 text-muted-foreground">
+                    <p>{t.contact.faq.questions.security.answer}</p>
+                  </div>
+                </details>
+              </div>
             </div>
           </section>
         </>
