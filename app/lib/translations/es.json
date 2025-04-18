@@ -5,7 +5,11 @@
     "signIn": "Iniciar Sesión",
     "features": "Características",
     "pricing": "Precios",
-    "watchDemo": "Ver Demo"
+    "contact": "Contáctanos",
+    "watchDemo": "Ver Demo",
+    "terms": "Términos",
+    "privacy": "Privacidad",
+    "allRightsReserved": "Todos los derechos reservados."
   },
   "home": {
     "hero": {
@@ -42,7 +46,39 @@
     },
     "faq": {
       "title": "Preguntas Frecuentes",
-      "subtitle": "Todo lo que necesitas saber sobre la plataforma de narración y animación de Arthur AI."
+      "subtitle": "Todo lo que necesitas saber sobre la plataforma de narración y animación de Arthur AI.",
+      "questions": [
+        {
+          "name": "¿Qué es Arthur AI?",
+          "description": "Arthur AI es tu compañero de narración que transforma texto en historias animadas. Desde guiones hasta storyboards y animación, te ayudamos a dar vida a tu imaginación con creatividad impulsada por IA.",
+          "cta": "Saber más"
+        },
+        {
+          "name": "¿Cómo funciona?",
+          "description": "Comienza con cualquier texto - un párrafo, historia o idea. Arthur AI lo convierte en un guión profesional, genera storyboards y lo lleva a la vida con animación de IA.",
+          "cta": "Ver el proceso"
+        },
+        {
+          "name": "¿Puedo usar mis propias herramientas de IA?",
+          "description": "¡Sí! Arthur AI admite claves API personalizadas para Luma Labs, Gemini, Sync Labs y Elevenlabs. Usa tus modelos de IA preferidos para personalizar tu flujo de trabajo creativo.",
+          "cta": "Ver integraciones"
+        },
+        {
+          "name": "¿Qué puedo crear?",
+          "description": "Desde videos de marketing hasta cortos animados, contenido educativo o avances de libros - si puedes escribirlo, Arthur puede ayudarte a animarlo. Perfecto para creadores, educadores y empresas.",
+          "cta": "Explorar posibilidades"
+        },
+        {
+          "name": "¿Qué hay del estilo?",
+          "description": "Elige entre una variedad de estilos de animación, desde la calidez inspirada en Studio Ghibli hasta el minimalismo moderno. Personaliza cada aspecto de la identidad visual de tu historia.",
+          "cta": "Ver estilos"
+        },
+        {
+          "name": "¿Listo para empezar?",
+          "description": "Únete a nuestra comunidad creativa hoy. Comienza con nuestro plan gratuito, o desbloquea libertad creativa completa con nuestro plan Pro a $49/mes. Soluciones empresariales disponibles.",
+          "cta": "Comenzar"
+        }
+      ]
     }
   },
   "features": {
@@ -127,7 +163,86 @@
       "soundEffects": "Efectos de Sonido y Música",
       "lipSync": "Animación de Sincronización Labial",
       "storyboardExport": "Exportación de Storyboard",
-      "projectPrivacy": "Privacidad del Proyecto"
+      "projectPrivacy": "Privacidad del Proyecto",
+      "perMonth": "/mes",
+      "month": "mes",
+      "unlimited": "Ilimitado",
+      "limited": "Limitado",
+      "limitedVideoDesc": "3 por mes",
+      "limitedImageDesc": "sin escenas personalizadas",
+      "fullAccess": "Acceso Completo",
+      "emailSupport": "Soporte por email",
+      "directLineSupport": "Línea directa al equipo",
+      "premiumVoices": "Voces premium",
+      "emotionSync": "Sincronización de Emociones",
+      "highResPDF": "PDF de Alta Resolución"
+    },
+    "customSolution": {
+      "title": "¿Necesitas una solución personalizada?",
+      "description": "Nuestro plan empresarial puede ser adaptado a tus requisitos específicos. Ponte en contacto con nuestro equipo de ventas para discutir tus necesidades.",
+      "contactSales": "Contactar Ventas",
+      "bookDemo": "Reservar una Demo"
+    },
+    "faq": {
+      "title": "Preguntas Frecuentes",
+      "description": "¿Tienes preguntas sobre nuestros precios?",
+      "checkFaq": "Consulta nuestras FAQ",
+      "contactSupport": "contacta con soporte",
+      "or": "o"
+    }
+  },
+  "contact": {
+    "hero": {
+      "title": "Contacta con nuestro amable equipo",
+      "subtitle": "Déjanos saber cómo podemos ayudarte."
+    },
+    "methods": {
+      "sales": {
+        "title": "Habla con ventas",
+        "description": "Conversa con nuestro amable equipo."
+      },
+      "support": {
+        "title": "Habla con soporte",
+        "description": "Estamos aquí para ayudar."
+      },
+      "visit": {
+        "title": "Visítanos",
+        "description": "Visita nuestra oficina central.",
+        "cta": "Ver en Google Maps"
+      },
+      "call": {
+        "title": "Llámanos",
+        "description": "Lunes a viernes de 8am a 5pm.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Conéctate con nosotros en redes sociales"
+    },
+    "faq": {
+      "title": "Preguntas frecuentes",
+      "questions": {
+        "trial": {
+          "question": "¿Hay una prueba gratuita disponible?",
+          "answer": "Sí, ofrecemos una prueba gratuita de 14 días en todos nuestros planes. Puedes cancelar en cualquier momento durante tu prueba y no se te cobrará."
+        },
+        "payment": {
+          "question": "¿Qué métodos de pago aceptan?",
+          "answer": "Aceptamos todas las principales tarjetas de crédito, incluyendo Visa, Mastercard y American Express. También admitimos pagos a través de PayPal y transferencias bancarias directas para planes anuales."
+        },
+        "plan": {
+          "question": "¿Puedo cambiar mi plan más adelante?",
+          "answer": "Sí, puedes actualizar o degradar tu plan en cualquier momento desde la configuración de tu cuenta."
+        },
+        "support": {
+          "question": "¿Qué nivel de soporte está incluido?",
+          "answer": "Todos los planes incluyen soporte por correo electrónico con tiempos de respuesta de 24 a 48 horas. Los planes Pro y Enterprise incluyen soporte prioritario."
+        },
+        "security": {
+          "question": "¿Qué tan seguros están mis datos con Arthur.ai?",
+          "answer": "Tus datos están completamente encriptados tanto en tránsito como en reposo. Cumplimos con GDPR y seguimos las mejores prácticas de la industria para la seguridad de datos."
+        }
+      }
     }
   }
 } 

@@ -1,0 +1,248 @@
+{
+  "common": {
+    "title": "Arthur AI",
+    "requestAccess": "Solicitar Acesso",
+    "signIn": "Entrar",
+    "features": "Recursos",
+    "pricing": "Preços",
+    "contact": "Fale Conosco",
+    "watchDemo": "Assistir Demo",
+    "terms": "Termos",
+    "privacy": "Privacidade",
+    "allRightsReserved": "Todos os direitos reservados."
+  },
+  "contact": {
+    "hero": {
+      "title": "Entre em contato com nossa equipe",
+      "subtitle": "Diga-nos como podemos ajudar."
+    },
+    "methods": {
+      "sales": {
+        "title": "Fale com vendas",
+        "description": "Converse com nossa equipe amigável."
+      },
+      "support": {
+        "title": "Fale com suporte",
+        "description": "Estamos aqui para ajudar."
+      },
+      "visit": {
+        "title": "Visite-nos",
+        "description": "Visite nosso escritório central.",
+        "cta": "Ver no Google Maps"
+      },
+      "call": {
+        "title": "Ligue para nós",
+        "description": "Segunda a sexta das 8h às 17h.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Conecte-se conosco nas redes sociais"
+    },
+    "faq": {
+      "title": "Perguntas frequentes",
+      "questions": {
+        "trial": {
+          "question": "Existe um período de teste gratuito disponível?",
+          "answer": "Sim, oferecemos um período de teste gratuito de 14 dias em todos os nossos planos. Você pode cancelar a qualquer momento durante o período de teste e não será cobrado."
+        },
+        "payment": {
+          "question": "Quais métodos de pagamento vocês aceitam?",
+          "answer": "Aceitamos todos os principais cartões de crédito, incluindo Visa, Mastercard e American Express. Também suportamos pagamentos via PayPal e transferências bancárias diretas para planos anuais."
+        },
+        "plan": {
+          "question": "Posso mudar meu plano mais tarde?",
+          "answer": "Sim, você pode atualizar ou rebaixar seu plano a qualquer momento nas configurações da sua conta."
+        },
+        "support": {
+          "question": "Qual nível de suporte está incluído?",
+          "answer": "Todos os planos incluem suporte por e-mail com tempos de resposta de 24 a 48 horas. Os planos Pro e Enterprise incluem suporte prioritário."
+        },
+        "security": {
+          "question": "Quão seguros estão meus dados com a Arthur.ai?",
+          "answer": "Seus dados são totalmente criptografados tanto em trânsito quanto em repouso. Cumprimos com o GDPR e seguimos as melhores práticas do setor para segurança de dados."
+        }
+      }
+    }
+  },
+  "home": {
+    "hero": {
+      "title": "Conte Histórias Incríveis com Arthur AI",
+      "subtitle": "Experimente a magia da narração de histórias com IA com Arthur. Transforme qualquer texto em vídeos animados deslumbrantes usando imagens inspiradas no Studio Ghibli e IA avançada."
+    },
+    "requestAccess": {
+      "title": "Solicitar Acesso",
+      "description": "Seja o primeiro a acessar o futuro da narração de histórias com IA. Os membros do teste inicial recebem suporte prioritário, acesso a feedback e privilégios de lançamento.",
+      "accessLabel": "Solicite acesso para ter acesso antecipado exclusivo",
+      "email": "voce@exemplo.com"
+    },
+    "storiesSection": {
+      "title": "Transforme Suas Histórias em Animações",
+      "subtitle": "Descubra como o Arthur AI ajuda a transformar sua imaginação em realidade, do texto às histórias animadas.",
+      "cards": [
+        {
+          "title": "Narrador de IA",
+          "description": "Basta fornecer uma ideia básica, e nosso narrador de IA criará uma história completa com personagens, conflitos e resoluções."
+        },
+        {
+          "title": "Storyboard Dinâmico",
+          "description": "Veja sua história ganhar vida com storyboards gerando automaticamente cenas visuais a partir da sua narrativa."
+        },
+        {
+          "title": "Voz & Som",
+          "description": "Adicione profundidade às suas animações com vozes, diálogos e efeitos sonoros gerados por IA."
+        },
+        {
+          "title": "Animação com Um Clique",
+          "description": "Transforme seu storyboard em uma sequência de animação completa com apenas um clique."
+        }
+      ]
+    },
+    "faq": {
+      "title": "Perguntas Frequentes",
+      "subtitle": "Tudo o que você precisa saber sobre a plataforma de narração de histórias e animação do Arthur AI.",
+      "questions": [
+        {
+          "name": "O que é o Arthur AI?",
+          "description": "Arthur AI é seu companheiro de narração que transforma texto em histórias animadas. De roteiros a storyboards e animações, ajudamos a transformar sua imaginação em realidade com criatividade assistida por IA.",
+          "cta": "Saiba mais"
+        },
+        {
+          "name": "Como funciona?",
+          "description": "Comece com qualquer texto - um parágrafo, história ou ideia. O Arthur AI o transforma em um roteiro profissional, cria storyboards e o anima com animação de IA.",
+          "cta": "Ver processo"
+        },
+        {
+          "name": "Posso usar minhas próprias ferramentas de IA?",
+          "description": "Sim! O Arthur AI suporta chaves API personalizadas para Luma Labs, Gemini, Sync Labs e Elevenlabs. Use seus modelos de IA preferidos para personalizar seu fluxo de trabalho criativo.",
+          "cta": "Ver integrações"
+        },
+        {
+          "name": "O que posso criar?",
+          "description": "De vídeos de marketing a curtas animados, conteúdo educacional a trailers de livros - se você pode escrever, Arthur pode ajudar a animar. Perfeito para criadores, educadores e empresas.",
+          "cta": "Explorar possibilidades"
+        },
+        {
+          "name": "E quanto aos estilos?",
+          "description": "Escolha entre diversos estilos de animação, do calor inspirado no Studio Ghibli ao minimalismo moderno. Personalize todos os aspectos da identidade visual em sua história.",
+          "cta": "Ver estilos"
+        },
+        {
+          "name": "Pronto para começar?",
+          "description": "Junte-se à nossa comunidade criativa hoje mesmo. Comece com nosso plano gratuito, ou desbloqueie a liberdade criativa total com nosso plano Pro por $49/mês. Soluções empresariais disponíveis.",
+          "cta": "Começar"
+        }
+      ]
+    }
+  },
+  "features": {
+    "hero": {
+      "title": "Crie animações lindas com apenas alguns cliques",
+      "subtitle": "Deixe o software complexo e o keyframing tedioso no passado. Diga 'sim' às ferramentas de animação baseadas em nuvem que automatizam fluxos de trabalho, simplificam a criação de conteúdo e permitem entregas mais rápidas."
+    },
+    "featuresList": {
+      "textToScript": {
+        "title": "Texto para Roteiro",
+        "subtitle": "Escrita de Roteiro Assistida por IA",
+        "description": "Transforme uma ideia simples em um roteiro de filme ou animação estruturado. Arthur entende sua intenção e a formata como um roteiro real - com personagens, cenas e diálogos."
+      },
+      "scriptToStoryboard": {
+        "title": "Roteiro para Storyboard",
+        "subtitle": "Imagens de Storyboard Automáticas",
+        "description": "Arthur converte seu roteiro em um storyboard visual com quadros, personagens e análise de cena. Perfeito para planejar sua lista de cenas."
+      },
+      "storyboardToAnimation": {
+        "title": "Storyboard para Animação",
+        "subtitle": "Criação de Cenas com Um Clique",
+        "description": "Dê vida às suas cenas com animações geradas a partir de storyboards. Arthur usa ferramentas de IA de ponta para transformar imagens estáticas em sequências cinematográficas."
+      }
+    },
+    "whyChoose": {
+      "title": "Por que escolher Arthur AI?",
+      "subtitle": "Nossa plataforma é projetada com criadores em mente, tornando a animação acessível a todos.",
+      "bestStoryGeneration": {
+        "title": "Melhor Geração de Histórias",
+        "description": "Crie as melhores histórias usando RAG para impulsionar uma boa escrita de roteiros."
+      },
+      "advancedAnimation": {
+        "title": "Recursos de Animação Avançados",
+        "description": "Crie efeitos sonoros, sincronização labial e personalize com vídeo."
+      },
+      "noTechnicalExperience": {
+        "title": "Sem necessidade de experiência técnica",
+        "description": "Nossa plataforma é projetada para criadores de todos os níveis de habilidade. Não é necessária experiência em programação ou animação."
+      }
+    },
+    "cta": {
+      "title": "Pronto para começar a criar?",
+      "description": "Junte-se a milhares de criadores trazendo suas ideias à vida com Arthur AI.",
+      "startFreeTrial": "Iniciar Teste Gratuito",
+      "viewPricing": "Ver Preços"
+    }
+  },
+  "pricing": {
+    "hero": {
+      "title": "Desbloqueie criatividade ilimitada com Arthur AI",
+      "subtitle": "Escolha o plano perfeito para suas necessidades de narração."
+    },
+    "plans": {
+      "free": {
+        "name": "Gratuito",
+        "description": "Perfeito para indivíduos começando",
+        "price": "0",
+        "cta": "Começar"
+      },
+      "creator": {
+        "name": "Plano Criador",
+        "description": "Para criadores de conteúdo e pequenas empresas",
+        "price": "49",
+        "cta": "Iniciar Teste Gratuito",
+        "mostPopular": "Mais Popular"
+      },
+      "pro": {
+        "name": "Plano Pro",
+        "description": "Para criadores profissionais e equipes em crescimento",
+        "price": "199",
+        "cta": "Iniciar Teste Gratuito"
+      }
+    },
+    "features": {
+      "storiesPerMonth": "histórias por mês",
+      "videoGenerations": "Gerações de Vídeo",
+      "imageGenerations": "Gerações de Imagem",
+      "scriptEditorAccess": "Acesso ao Editor de Roteiros",
+      "support": "Suporte da comunidade",
+      "dialogue": "Diálogo / Dublagem de Roteiro",
+      "narration": "Narração (Texto para Voz)",
+      "soundEffects": "Efeitos Sonoros & Música",
+      "lipSync": "Animação de Sincronização Labial",
+      "storyboardExport": "Exportação de Storyboard",
+      "projectPrivacy": "Privacidade do Projeto",
+      "perMonth": "/mês",
+      "month": "mês",
+      "unlimited": "Ilimitado",
+      "limited": "Limitado",
+      "limitedVideoDesc": "3 por mês",
+      "limitedImageDesc": "sem cenas personalizadas",
+      "fullAccess": "Acesso Completo",
+      "emailSupport": "Suporte por email",
+      "directLineSupport": "Linha direta para a equipe",
+      "premiumVoices": "Vozes premium",
+      "emotionSync": "Sincronização de Emoções",
+      "highResPDF": "PDF de Alta Resolução"
+    },
+    "customSolution": {
+      "title": "Precisa de uma solução personalizada?",
+      "description": "Nosso plano empresarial pode ser adaptado às suas necessidades específicas. Entre em contato com nossa equipe de vendas para discutir suas necessidades.",
+      "contactSales": "Contatar Vendas",
+      "bookDemo": "Agendar Demo"
+    },
+    "faq": {
+      "title": "Perguntas Frequentes",
+      "description": "Tem perguntas sobre nossos preços?",
+      "checkFaq": "Verifique nossas perguntas frequentes",
+      "contactSupport": "contate o suporte",
+      "or": "ou"
+    }
+  }
+} 

@@ -5,7 +5,11 @@
     "signIn": "Sign In",
     "features": "Features",
     "pricing": "Pricing",
-    "watchDemo": "Watch Demo"
+    "contact": "Contact Us",
+    "watchDemo": "Watch Demo",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "allRightsReserved": "All rights reserved."
   },
   "home": {
     "hero": {
@@ -42,7 +46,39 @@
     },
     "faq": {
       "title": "Frequently Asked Questions",
-      "subtitle": "Everything you need to know about Arthur AI's storytelling and animation platform."
+      "subtitle": "Everything you need to know about Arthur AI's storytelling and animation platform.",
+      "questions": [
+        {
+          "name": "What is Arthur AI?",
+          "description": "Arthur AI is your storytelling companion that transforms text into animated stories. From scripts to storyboards to animation, we help bring your imagination to life with AI-powered creativity.",
+          "cta": "Learn more"
+        },
+        {
+          "name": "How does it work?",
+          "description": "Start with any text - a paragraph, story, or pitch. Arthur AI converts it into a professional screenplay, generates storyboards, and brings it to life with AI animation.",
+          "cta": "See the process"
+        },
+        {
+          "name": "Can I use my own AI tools?",
+          "description": "Yes! Arthur AI supports custom API keys for Luma Labs, Gemini, Sync Labs, and Elevenlabs. Use your preferred AI models to customize your creative workflow.",
+          "cta": "View integrations"
+        },
+        {
+          "name": "What can I create?",
+          "description": "From marketing videos to animated shorts, educational content to book trailers - if you can write it, Arthur can help you animate it. Perfect for creators, educators, and businesses.",
+          "cta": "Explore possibilities"
+        },
+        {
+          "name": "What about style?",
+          "description": "Choose from a variety of animation styles, from Studio Ghibli-inspired warmth to modern minimalism. Customize every aspect of your story's visual identity.",
+          "cta": "View styles"
+        },
+        {
+          "name": "Ready to start?",
+          "description": "Join our creative community today. Start with our free tier, or unlock full creative freedom with our Pro plan at $49/month. Enterprise solutions available.",
+          "cta": "Get started"
+        }
+      ]
     }
   },
   "features": {
@@ -127,7 +163,86 @@
       "soundEffects": "Sound Effects & Music",
       "lipSync": "Lip Sync Animation",
       "storyboardExport": "Storyboard Export",
-      "projectPrivacy": "Project Privacy"
+      "projectPrivacy": "Project Privacy",
+      "perMonth": "/month",
+      "month": "month",
+      "unlimited": "Unlimited",
+      "limited": "Limited",
+      "limitedVideoDesc": "3 per month",
+      "limitedImageDesc": "no custom scenes",
+      "fullAccess": "Full Access",
+      "emailSupport": "Email support",
+      "directLineSupport": "Direct line to team",
+      "premiumVoices": "Premium voices",
+      "emotionSync": "Emotion Sync",
+      "highResPDF": "High-Res PDF"
+    },
+    "customSolution": {
+      "title": "Need a custom solution?",
+      "description": "Our enterprise plan can be tailored to your specific requirements. Get in touch with our sales team to discuss your needs.",
+      "contactSales": "Contact Sales",
+      "bookDemo": "Book a Demo"
+    },
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "description": "Have questions about our pricing?",
+      "checkFaq": "Check our FAQ",
+      "contactSupport": "contact support",
+      "or": "or"
+    }
+  },
+  "contact": {
+    "hero": {
+      "title": "Contact our friendly team",
+      "subtitle": "Let us know how we can help."
+    },
+    "methods": {
+      "sales": {
+        "title": "Chat to sales",
+        "description": "Speak to our friendly team."
+      },
+      "support": {
+        "title": "Chat to support",
+        "description": "We're here to help."
+      },
+      "visit": {
+        "title": "Visit us",
+        "description": "Visit our office HQ.",
+        "cta": "View on Google Maps"
+      },
+      "call": {
+        "title": "Call us",
+        "description": "Mon-Fri from 8am to 5pm.",
+        "phone": "+1 (555) 000-0000"
+      }
+    },
+    "social": {
+      "title": "Connect with us on social media"
+    },
+    "faq": {
+      "title": "Frequently asked questions",
+      "questions": {
+        "trial": {
+          "question": "Is there a free trial available?",
+          "answer": "Yes, we offer a 14-day free trial on all our plans. You can cancel at any time during your trial, and you won't be charged."
+        },
+        "payment": {
+          "question": "What payment methods do you accept?",
+          "answer": "We accept all major credit cards including Visa, Mastercard, and American Express. We also support payments via PayPal and direct bank transfers for annual plans."
+        },
+        "plan": {
+          "question": "Can I change my plan later?",
+          "answer": "Yes, you can upgrade or downgrade your plan at any time from your account settings."
+        },
+        "support": {
+          "question": "What level of support is included?",
+          "answer": "All plans include email support with 24-48 hour response times. Pro and Enterprise plans include priority support."
+        },
+        "security": {
+          "question": "How secure is my data with Arthur.ai?",
+          "answer": "Your data is fully encrypted both in transit and at rest. We're GDPR compliant and follow industry best practices for data security."
+        }
+      }
     }
   }
 } 
