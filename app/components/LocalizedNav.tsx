@@ -64,7 +64,7 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
         {/* Desktop Navigation Buttons */}
         <nav className="hidden md:flex items-center gap-6">
           <Link 
-            href={links.signin}
+            href="/auth/signin"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             {t.common.signIn}
@@ -93,7 +93,7 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
         <div className="md:hidden absolute top-16 left-0 right-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container py-4 flex flex-col gap-4">
             <Link 
-              href={links.signin}
+              href="/auth/signin"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
             >
               {t.common.signIn}
