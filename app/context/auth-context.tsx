@@ -90,13 +90,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const savedUserEmail = localStorage.getItem('userEmail');
         if (savedUserEmail) {
           console.log("🔍 Found saved user email:", savedUserEmail);
-          toast.info("Session expired. Please sign in again.");
           
-          // Clear saved data
-          localStorage.removeItem('userEmail');
-          
-          // Redirect to sign in if we found saved data but no current user
+          // Only show toast if we're not already on an auth page
           if (!pathname?.includes('/auth/')) {
+            toast.info("Session expired. Please sign in again.");
+            localStorage.removeItem('userEmail');
             router.push('/auth/signin');
           }
         }
@@ -105,7 +103,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error("❌ Error refreshing auth:", error);
       authRecoveryAttempts.current += 1;
       
-      if (authRecoveryAttempts.current > 3) {
+      // Only redirect after 5 failed attempts (up from 3)
+      if (authRecoveryAttempts.current > 5) {
         console.log("⚠️ Multiple auth recovery failures, redirecting to signin");
         toast.error("Authentication error. Please sign in again.");
         
@@ -151,8 +150,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const now = Date.now();
       const inactiveTime = now - lastActiveAt.current;
       
-      // If user becomes active after being inactive for more than 10 minutes
-      if (inactiveTime < 5000 && inactiveTime > 10 * 60 * 1000) {
+      // Only refresh if user becomes active after being inactive for more than 30 minutes (up from 10)
+      if (inactiveTime < 5000 && inactiveTime > 30 * 60 * 1000) {
         console.log("👋 User returned after inactivity, refreshing auth");
         refreshAuth();
       }
@@ -170,72 +169,68 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Listen for auth state changes
   useEffect(() => {
     console.log("🔐 Setting up auth listeners...");
-    
-    if (!firebaseAuth) {
-      console.error("❌ Firebase Auth not initialized");
-      setLoading(false);
-      return;
-    }
 
-    // Listen for auth state changes
-    const unsubscribeAuthState = onAuthStateChanged(firebaseAuth, (currentUser) => {
-      console.log("🔄 Auth state changed:", currentUser?.email);
-      
-      if (currentUser) {
-        // Save email in local storage for recovery purposes
-        localStorage.setItem('userEmail', currentUser.email || '');
-      } else {
-        // Clear stored email if signed out
-        localStorage.removeItem('userEmail');
+    // Set persistence on initialization
+    const initializeAuth = async () => {
+      if (!firebaseAuth) return;
+      try {
+        await setPersistence(firebaseAuth, browserLocalPersistence);
+        console.log("✅ Auth persistence set to LOCAL");
+      } catch (error) {
+        console.error("❌ Error setting auth persistence:", error);
+      }
+    };
+    initializeAuth();
+
+    // Set up token refresh interval
+    const setupTokenRefresh = () => {
+      if (tokenRefreshInterval.current) {
+        clearInterval(tokenRefreshInterval.current);
       }
       
-      setUser(currentUser);
-      setLoading(false);
-    });
-
-    // Listen for token changes
-    const unsubscribeToken = onIdTokenChanged(firebaseAuth, async (currentUser) => {
-      console.log("🎫 Token changed:", currentUser?.email);
-      
-      if (currentUser) {
-        try {
-          // Get fresh token
-          const token = await currentUser.getIdToken();
-          console.log("✅ Fresh token obtained:", token.substring(0, 10) + "...");
-          
-          // Clear any existing interval
-          if (tokenRefreshInterval.current) {
-            clearInterval(tokenRefreshInterval.current);
+      // Refresh token every 55 minutes (up from 50, tokens expire after 1 hour)
+      tokenRefreshInterval.current = setInterval(async () => {
+        const currentUser = firebaseAuth?.currentUser;
+        if (currentUser) {
+          try {
+            await currentUser.getIdToken(true);
+            console.log("✅ Token refreshed via interval");
+          } catch (error) {
+            console.error("❌ Error refreshing token via interval:", error);
+            // Don't redirect on interval refresh failures
           }
-          
-          // Set up token refresh (every 10 minutes)
-          tokenRefreshInterval.current = setInterval(async () => {
-            try {
-              // Safely check if firebaseAuth and currentUser exist
-              const auth = firebaseAuth;
-              if (auth && auth.currentUser) {
-                const newToken = await auth.currentUser.getIdToken(true);
-                console.log("🔄 Token refreshed:", new Date().toISOString());
-              } else {
-                console.warn("⚠️ Attempted to refresh token but no user is logged in");
-                if (tokenRefreshInterval.current) {
-                  clearInterval(tokenRefreshInterval.current);
-                  tokenRefreshInterval.current = null;
-                }
-              }
-            } catch (error) {
-              console.error("❌ Token refresh failed:", error);
-              await refreshAuth();
-            }
-          }, 10 * 60 * 1000); // Refresh every 10 minutes
-        } catch (error) {
-          console.error("❌ Error handling token:", error);
         }
+      }, 55 * 60 * 1000);
+    };
+
+    // Set up auth state listener
+    const unsubscribeAuthState = onAuthStateChanged(firebaseAuth as Auth, async (user) => {
+      console.log("👤 Auth state changed:", user?.email);
+      setUser(user);
+      setLoading(false);
+      
+      if (user) {
+        // Save email for recovery
+        localStorage.setItem('userEmail', user.email || '');
+        // Set up token refresh after successful auth
+        setupTokenRefresh();
       } else {
-        // Clear refresh interval if user is null
+        // Clear saved data if no user
+        localStorage.removeItem('userEmail');
         if (tokenRefreshInterval.current) {
           clearInterval(tokenRefreshInterval.current);
-          tokenRefreshInterval.current = null;
+        }
+      }
+    });
+
+    // Set up token change listener
+    const unsubscribeToken = onIdTokenChanged(firebaseAuth as Auth, async (user) => {
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          console.log("✅ Token updated");
+        } catch (error) {
+          console.error("❌ Error getting token:", error);
         }
       }
     });
@@ -252,8 +247,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           
           // Save email for recovery
           localStorage.setItem('userEmail', currentUser.email || '');
+          // Set up token refresh
+          setupTokenRefresh();
         } catch (error) {
           console.error("❌ Error refreshing initial token:", error);
+          refreshAuth(); // Try to recover
         }
       }
     };

@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase/client';
 import type { Shot, Scene, Story } from '../../types/shared';
-import ShotCard from "../../components/project/ShotCard";
 import SceneSidebar from "../../components/project/SceneSidebar"; // Import the new component
 import SceneTimeline from "../../components/project/SceneTimeline"; // Import the new timeline component
 import ProjectHeader from "../../components/project/ProjectHeader"; // Import the new header component
@@ -25,6 +24,11 @@ import { debounce } from 'lodash';
 import { SoundEffectsEditor } from "../../components/SoundEffectsEditor";
 import ShotVideoPlayer from "../../components/project/ShotVideoPlayer";
 import StoryboardView from "../../components/StoryboardView";
+import EnhancedShotCard from "../../components/project/EnhancedShotCard";
+import { ShotProvider } from '../../components/project/ShotContext';
+import { AudioService } from '../../lib/services/audioService';
+import { Slider } from "../../components/ui/slider";
+import { Maximize2, Minimize2 } from "lucide-react";
 
 interface VideoGenerationShot {
   imageUrl: string | null;
@@ -78,6 +82,8 @@ function ProjectContent() {
   const [viewMode, setViewMode] = useState<'editor' | 'storyboard'>('editor');
   // Add state for temporary dialogue values
   const [tempDialogueValues, setTempDialogueValues] = useState<Record<string, string>>({});
+  const [isImageLoading, setIsImageLoading] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
 
   // Add effect to get user's theme color from localStorage
   useEffect(() => {
@@ -837,234 +843,205 @@ function ProjectContent() {
   }, [storyId, setScenes, setCurrentScene]);
 
   // Generate lip sync for a shot with dialogue
-  const generateLipSync = useCallback(async (shotIndex: number) => {
-    if (!currentScene?.shots[shotIndex] || !storyId) {
-        toast.error("Cannot generate lip sync: Missing scene, shot, or story ID");
-        return;
-    }
-    const shot = currentScene.shots[shotIndex];
-    if (!shot.dialogue) {
-      toast.error("No dialogue found for this shot");
-      return;
-    }
-
-    if (!shot.generatedVideo) {
-      toast.error("Please generate a video for this shot first");
-      return;
-    }
-
+  const generateLipSync = async (sceneId: string, shotId: string, storyId: string) => {
     try {
+      // Validate scene, shot, and story ID
+      if (!sceneId || !shotId || !storyId) {
+        toast.error("Missing scene, shot, or story ID");
+        return;
+      }
+
+      // Get the current scene and shot
+      const scene = scenes.find((s) => s.id === sceneId);
+      const shot = scene?.shots.find((s) => s.id === shotId);
+
+      if (!scene || !shot) {
+        toast.error("Scene or shot not found");
+        return;
+      }
+
+      // Validate required components
+      if (!shot.dialogue) {
+        toast.error("Shot has no dialogue text");
+        return;
+      }
+
+      if (!shot.dialogueAudio) {
+        toast.error("Shot has no dialogue audio");
+        return;
+      }
+
+      if (!shot.generatedVideo) {
+        toast.error("Shot has no generated video");
+        return;
+      }
+
       // Show loading toast
-      toast.loading("Generating lip sync...", {
-        id: "lipsync-generation",
-      });
+      const loadingToast = toast.loading("Generating lip sync...");
 
-      // First, generate speech from dialogue using ElevenLabs
-      const ttsResponse = await fetch("/api/tts", {
+      // Start lip sync generation
+      const response = await fetch("/api/lipsync", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          text: shot.dialogue,
-          voiceId: shot.voiceId || "21m00Tcm4TlvDq8ikWAM", // Default voice ID
-          modelId: "eleven_multilingual_v2"
-        }),
-      });
-
-      if (!ttsResponse.ok) {
-        const errorData = await ttsResponse.json();
-        throw new Error(errorData.error || "Failed to generate speech");
-      }
-
-      const ttsData = await ttsResponse.json();
-      
-      // Upload the audio to a temporary URL
-      const audioUrl = await uploadTemporaryFile(ttsData.audio, "audio/wav");
-
-      // Start lip sync generation using Sync Labs
-      const lipsyncResponse = await fetch("/api/lipsync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoUrl: shot.generatedVideo,
-          audioUrl: audioUrl,
-          outputFormat: "mp4"
-        }),
-      });
-
-      if (!lipsyncResponse.ok) {
-        const errorData = await lipsyncResponse.json();
-        throw new Error(errorData.error || "Failed to start lip sync generation");
-      }
-
-      const lipsyncData = await lipsyncResponse.json();
-      console.log("Lip sync generation started with ID:", lipsyncData.id);
-
-      // Poll for lip sync generation status
-      const pollStatus = async () => {
-        try {
-          const statusResponse = await fetch(`/api/lipsync?id=${lipsyncData.id}`);
-          if (!statusResponse.ok) {
-            throw new Error("Failed to check lip sync generation status");
+          input: {
+            video_url: shot.generatedVideo,
+            audio_url: shot.dialogueAudio
           }
-          
-          const statusData = await statusResponse.json();
-          console.log("Lip sync generation status:", statusData.state);
+        }),
+      });
 
-          if (statusData.state === "completed") {
-            try {
-              // Update the shot with the lip synced video URL
-              const updatedShots = [...currentScene.shots];
-              if (updatedShots[shotIndex]) {
-                updatedShots[shotIndex] = {
-                  ...updatedShots[shotIndex],
-                  lipSyncAudio: ttsData.audio,
-                  lipSyncVideo: statusData.assets.video,
-                } as Shot;
-                
-                const updatedScene = { ...currentScene, shots: updatedShots };
-                setCurrentScene(updatedScene);
-                setScenes(scenes.map(scene => 
-                  scene.id === currentScene.id ? updatedScene : scene
-                ));
-                console.log("Successfully updated shot with lip sync");
-                toast.success("Lip sync generated successfully!", {
-                  id: "lipsync-generation",
-                });
-              }
-            } catch (error) {
-              console.error("Error updating shot with lip sync:", error);
-              toast.error("Failed to save lip sync. Please try again.", {
-                id: "lipsync-generation",
-              });
+      if (!response.ok) {
+        const error = await response.text();
+        toast.error(`Failed to start lip sync generation: ${error}`, {
+          id: loadingToast,
+        });
+        return;
+      }
+
+      const data = await response.json();
+      const jobId = data.id;
+
+      // Poll for completion
+      let retries = 0;
+      const maxRetries = 60; // 10 minutes with 10-second intervals
+      
+      while (retries < maxRetries) {
+        try {
+          const statusResponse = await fetch(`/api/lipsync?id=${jobId}`);
+          if (!statusResponse.ok) {
+            const error = await statusResponse.text();
+            console.error(`Status check failed (attempt ${retries}):`, error);
+            
+            // Only update toast after several failures to avoid flickering
+            if (retries % 3 === 0) {
+              toast.loading(`Status check failed, retrying (${retries})...`, { id: loadingToast });
             }
-          } else if (statusData.state === "failed") {
-            throw new Error(statusData.failure_reason || "Lip sync generation failed");
+            
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            continue;
+          }
+
+          const statusData = await statusResponse.json();
+          console.log("Lip sync status:", statusData);
+
+          // Update toast with current status
+          if (statusData.status) {
+            toast.loading(`Lip sync: ${statusData.status}`, { id: loadingToast });
+          }
+
+          // Check for terminal statuses
+          if (statusData.status === "COMPLETED" && statusData.outputUrl) {
+            try {
+              console.log("Lip sync completed, updating Firebase...", {
+                sceneId,
+                shotId,
+                storyId,
+                outputUrl: statusData.outputUrl
+              });
+
+              // Update Firebase with the lip sync video URL
+              const updateData = {
+                lipSyncVideo: statusData.outputUrl,
+                // Keep the original video URL
+                videoUrl: shot.generatedVideo
+              };
+
+              console.log("Updating shot with data:", updateData);
+
+              // Update Firebase
+              await updateShotDetails(sceneId, shotId, updateData);
+
+              // Update the shot with the lip synced video
+              const updatedShot = {
+                ...shot,
+                ...updateData
+              };
+
+              // Update the scene with the new shot
+              const updatedScene = {
+                ...scene,
+                shots: scene.shots.map((s) =>
+                  s.id === shotId ? updatedShot : s
+                ),
+              };
+
+              // Update scenes state
+              setScenes(
+                scenes.map((s) => (s.id === sceneId ? updatedScene : s))
+              );
+
+              // Also update currentScene if this is the current scene
+              if (currentScene?.id === sceneId) {
+                setCurrentScene(updatedScene);
+              }
+
+              // Close any open dialogs by simulating an Escape key press
+              const escapeEvent = new KeyboardEvent('keydown', {
+                key: 'Escape',
+                code: 'Escape',
+                keyCode: 27,
+                which: 27,
+                bubbles: true,
+                cancelable: true
+              });
+              document.dispatchEvent(escapeEvent);
+
+              toast.success("Lip sync generated successfully!", {
+                id: loadingToast,
+              });
+              return;
+            } catch (updateError) {
+              console.error("Error updating shot with lip sync video:", updateError);
+              toast.error("Failed to save lip sync video", { id: loadingToast });
+              return;
+            }
+          } else if (["FAILED", "REJECTED", "CANCELLED"].includes(statusData.status)) {
+            toast.error(`Lip sync generation ${statusData.status}: ${statusData.error || "Unknown error"}`, {
+              id: loadingToast,
+            });
+            return;
           } else {
-            // Continue polling
-            setTimeout(pollStatus, 3000);
+            // Job is still processing, continue polling
+            retries++;
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
         } catch (error) {
-          console.error("Error during lip sync status polling:", error);
-          toast.error(error instanceof Error ? error.message : "Failed to check lip sync generation status. Please try again.", {
-            id: "lipsync-generation",
-          });
+          console.error("Error checking lip sync status:", error);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 10000));
         }
-      };
-
-      pollStatus();
-    } catch (error) {
-      console.error("Error generating lip sync:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate lip sync. Please try again.");
-    }
-  }, [currentScene, storyId, setScenes, setCurrentScene]);
-
-  // Helper function to upload temporary files
-  const uploadTemporaryFile = async (base64Data: string, contentType: string): Promise<string> => {
-    try {
-      // Convert base64 to blob
-      const byteCharacters = atob(base64Data);
-      const byteArrays = [];
-      
-      for (let offset = 0; offset < byteCharacters.length; offset += 1024) {
-        const slice = byteCharacters.slice(offset, offset + 1024);
-        const byteNumbers = new Array(slice.length);
-        
-        for (let i = 0; i < slice.length; i++) {
-          byteNumbers[i] = slice.charCodeAt(i);
-        }
-        
-        const byteArray = new Uint8Array(byteNumbers);
-        byteArrays.push(byteArray);
       }
-      
-      const blob = new Blob(byteArrays, { type: contentType });
-      
-      // Create FormData and append blob
-      const formData = new FormData();
-      formData.append('file', blob, `temp-${Date.now()}.${contentType.split('/')[1]}`);
-      
-      // Upload to your storage service (e.g., Firebase Storage)
-      const storageRef = ref(storage, `temp/${Date.now()}.${contentType.split('/')[1]}`);
-      await uploadBytes(storageRef, blob);
-      
-      // Get download URL
-      const downloadUrl = await getDownloadURL(storageRef);
-      return downloadUrl;
+
+      // If we've reached max retries, show timeout error
+      if (retries >= maxRetries) {
+        toast.error("Lip sync generation timed out after 10 minutes", {
+          id: loadingToast,
+        });
+      }
     } catch (error) {
-      console.error("Error uploading temporary file:", error);
-      throw error;
+      console.error("Error in generateLipSync:", error);
+      toast.error(`Failed to generate lip sync: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
-  const handleDownload = () => {
-    // ... existing download code ...
-  };
+  
 
-  const handleExportScene = async () => {
-    if (!currentScene) {
-      toast.error("No scene selected to export");
-      return;
-    }
-    
-    try {
-      const sceneData = {
-        title: currentScene.title,
-        location: currentScene.location,
-        description: currentScene.description,
-        shots: currentScene.shots.map(shot => ({
-          type: shot.type,
-          description: shot.description,
-          generatedImage: shot.generatedImage,
-          generatedVideo: shot.generatedVideo
-        }))
-      };
-      
-      // Create a JSON blob and download it
-      const blob = new Blob([JSON.stringify(sceneData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `scene-${currentScene.title.replace(/\s+/g, '-').toLowerCase()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      toast.success("Scene exported successfully");
-    } catch (error) {
-      console.error("Error exporting scene:", error);
-      toast.error("Failed to export scene");
-    }
-  };
+ 
+ 
 
-  const uploadTempFile = async (blob: Blob) => {
-    // ... existing code ...
-  };
-
-  const handleCopyToClipboard = async () => {
-    if (!currentScene) {
-      toast.error("No scene selected to copy");
-      return;
-    }
-
-    try {
-      const sceneText = `Scene: ${currentScene.title}\nLocation: ${currentScene.location}\nDescription: ${currentScene.description}\n\nShots:\n${currentScene.shots.map((shot, index) => `${index + 1}. ${shot.type}: ${shot.description}`).join('\n')}`;
-      
-      await navigator.clipboard.writeText(sceneText);
-      toast.success("Scene details copied to clipboard");
-    } catch (error) {
-      console.error("Error copying to clipboard:", error);
-      toast.error("Failed to copy scene details");
-    }
-  };
+ 
 
   const generateShotFromPrompt = async (index: number, description: string) => {
-    if (!currentScene) return;
+    if (!currentScene) {
+      toast.error("No current scene selected");
+      return;
+    }
     
+    setIsImageLoading(true);
     try {
       // Validate the prompt first
       const cleanedPrompt = description?.trim();
@@ -1073,7 +1050,13 @@ function ProjectContent() {
         return;
       }
       
-      setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: true }));
+      const shotId = currentScene.shots[index]?.id;
+      if (!shotId) {
+        toast.error("Invalid shot index");
+        return;
+      }
+      
+      setImageLoadingStates(prev => ({ ...prev, [shotId]: true }));
       
       // Call the image generation API
       const response = await fetch("/api/image", {
@@ -1100,7 +1083,6 @@ function ProjectContent() {
       let retries = 30; // 30 retries with 2 second delay = 1 minute timeout
       
       while (retries > 0 && !imageUrl) {
-        // Wait for 2 seconds between polling attempts
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         try {
@@ -1142,7 +1124,7 @@ function ProjectContent() {
       };
       
       // Update Firebase with the new image URL
-      await updateShotDetails(currentScene.id, currentScene.shots[index].id, { 
+      await updateShotDetails(currentScene.id, shotId, { 
         generatedImage: imageUrl 
       });
       
@@ -1158,11 +1140,21 @@ function ProjectContent() {
       console.error("Error generating shot:", error);
       toast.error("Failed to generate shot image: " + (error as Error).message);
     } finally {
-      setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
+      if (currentScene?.shots[index]?.id) {
+        setImageLoadingStates(prev => ({ ...prev, [currentScene.shots[index].id]: false }));
+      }
+      setIsImageLoading(false);
     }
   };
 
-  const generateShotVideo = async (shotId: string) => {
+  const generateShotVideo = async (index: number) => {
+    if (!currentScene?.shots[index]) {
+      toast.error("Invalid shot index");
+      return;
+    }
+    
+    const shotId = currentScene.shots[index].id;
+    setIsVideoLoading(true);
     try {
       // Set loading state for this specific shot to true
       setVideoLoadingStates((prev) => ({ ...prev, [shotId]: true }));
@@ -1171,19 +1163,8 @@ function ProjectContent() {
       // Show starting toast
       toast.loading("Starting video generation...", { id: `video-${shotId}` });
       
-      const currentShot = currentScene?.shots.find((s) => s.id === shotId);
-
-      if (!currentShot) {
-        console.error(`Shot with id ${shotId} not found`);
-        setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
-        toast.error("Shot not found", { id: `video-${shotId}` });
-        return;
-      }
-
-      console.log("Generating video for shot:", currentShot);
-
       // Validate shot has an image before sending
-      if (!currentShot.generatedImage) {
+      if (!currentScene.shots[index].generatedImage) {
         const errorMessage = "Shot has no generated image. Please generate an image first.";
         console.error(errorMessage);
         setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
@@ -1192,7 +1173,7 @@ function ProjectContent() {
         return;
       }
 
-      if (!currentShot.description && !currentShot.prompt) {
+      if (!currentScene.shots[index].description && !currentScene.shots[index].prompt) {
         const errorMessage = "Shot has no description or prompt. Please add a description.";
         console.error(errorMessage);
         setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
@@ -1203,11 +1184,11 @@ function ProjectContent() {
 
       // Log what we're sending to the API for debugging
       const requestBody = {
-        shotId,
+        shotId: shotId,
         storyId,
         shots: [{
-          imageUrl: currentShot.generatedImage,
-          prompt: currentShot.description || currentShot.prompt,
+          imageUrl: currentScene.shots[index].generatedImage,
+          prompt: currentScene.shots[index].description || currentScene.shots[index].prompt,
           duration: 5 // Default duration in seconds
         }],
         style: currentScene?.style || "hyperrealistic"
@@ -1382,13 +1363,9 @@ function ProjectContent() {
       // Set loading state for this specific shot back to false
       setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
     } catch (error) {
-      console.error("Error generating video:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      
-      setVideoStatusMessages((prev) => ({ ...prev, [shotId]: `Error: ${errorMessage}` }));
-      setVideoLoadingStates((prev) => ({ ...prev, [shotId]: false }));
-      
-      toast.error(`Video generation failed: ${errorMessage}`, { id: `video-${shotId}` });
+      handleVideoGenerationError(error, shotId);
+    } finally {
+      setIsVideoLoading(false);
     }
   };
 
@@ -1526,7 +1503,7 @@ function ProjectContent() {
     
     try {
       for (let i = 0; i < currentScene.shots.length; i++) {
-        await generateShotVideo(currentScene.shots[i].id);
+        await generateShotVideo(i);
       }
       toast.success("Scene video generation complete");
     } catch (error) {
@@ -1605,40 +1582,11 @@ function ProjectContent() {
   }, [refreshAuth, user, storyId]);
 
   // Update debug story function
-  const debugStoryStructure = async () => {
-    if (!storyId) {
-      toast.error("No story ID found");
-      return;
-    }
-    
-    try {
-      toast.loading("Fixing story structure...", { id: "fix-story" });
-      
-      // Call the fix-structure API endpoint
-      const response = await fetch(`/api/story/fix-structure?storyId=${storyId}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fix story structure");
-      }
-      
-      const data = await response.json();
-      console.log("Story structure fix result:", data);
-      
-      // Reload the story to get the updated structure
-      await loadStory(storyId);
-      
-      toast.success("Story structure fixed successfully", { id: "fix-story" });
-    } catch (error) {
-      console.error("Error fixing story structure:", error);
-      toast.error(`Failed to fix story: ${error instanceof Error ? error.message : "Unknown error"}`, 
-                 { id: "fix-story" });
-    }
-  };
+
 
   // Function to generate sound effects audio from the description
   const generateSoundEffectsAudio = async (shotId: string) => {
-    if (!currentScene) return;
+    if (!currentScene || !storyId) return;
     
     const currentShot = currentScene.shots.find(s => s.id === shotId);
     if (!currentShot) {
@@ -1655,31 +1603,22 @@ function ProjectContent() {
     try {
       toast.loading("Generating sound effects audio...", { id: `sfx-audio-${shotId}` });
       
-      // Call the sound-effects API to generate audio
-      const response = await fetch("/api/sound-effects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: currentShot.soundEffects,
-          // Optionally use a specific voice, or let it use the default
-          voiceId: currentShot.voiceId || undefined
-        })
-      });
+      // Use AudioService to generate and upload with proper path structure
+      const result = await AudioService.generateSoundEffects(
+        currentShot.soundEffects,
+        storyId,
+        currentScene.id,
+        shotId
+      );
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate sound effects audio");
+      if (!result.success) {
+        throw new Error("Failed to generate sound effects audio");
       }
       
-      const data = await response.json();
-      console.log("Sound effects generated successfully:", data.processedPrompt);
-      
-      // Upload the audio to a temporary URL for storage
-      const audioUrl = await uploadTemporaryFile(data.audio, "audio/wav");
-      
-      // Update the shot with the sound effects audio URL
+      // Update the shot with the sound effects audio URL (as a string)
       await updateShotDetails(currentScene.id, shotId, {
-        soundEffectsAudio: audioUrl
+        soundEffectsAudio: result.audioUrl, // Save just the URL string
+        hasSoundEffects: true
       });
       
       // Update local state immediately
@@ -1692,7 +1631,8 @@ function ProjectContent() {
             shots: scene.shots.map(shot => 
               shot.id !== shotId ? shot : { 
                 ...shot, 
-                soundEffectsAudio: audioUrl 
+                soundEffectsAudio: result.audioUrl, // Save just the URL string
+                hasSoundEffects: true
               }
             )
           };
@@ -1708,14 +1648,15 @@ function ProjectContent() {
           shots: prevScene.shots.map(shot => 
             shot.id !== shotId ? shot : { 
               ...shot, 
-              soundEffectsAudio: audioUrl 
+              soundEffectsAudio: result.audioUrl, // Save just the URL string
+              hasSoundEffects: true
             }
           )
         };
       });
       
       toast.success("Sound effects audio generated!", { id: `sfx-audio-${shotId}` });
-      return audioUrl;
+      return result.audioUrl;
     } catch (error) {
       console.error("Error generating sound effects audio:", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate sound effects audio", 
@@ -1761,473 +1702,262 @@ function ProjectContent() {
   };
 
   // Add function to generate dialogue audio
-  const generateDialogueAudio = async (shotId: string) => {
-    if (!currentScene) return;
-    
-    const currentShot = currentScene.shots.find(s => s.id === shotId);
-    if (!currentShot) {
-      console.error(`Shot with id ${shotId} not found`);
-      toast.error("Shot not found");
+  const generateDialogueAudio = async (shot: Shot) => {
+    if (!currentScene || !storyId) {
+      toast.error('Missing required data');
       return;
     }
-    
-    if (!currentShot.dialogue) {
-      toast.error("No dialogue text found. Please add dialogue first.");
-      return;
-    }
-    
-    if (!currentShot.voiceId) {
-      toast.error("No voice selected. Please select a voice first.");
-      return;
-    }
-    
+
     try {
-      toast.loading("Generating audio...", { id: `audio-${shotId}` });
+      toast.loading('Generating audio...');
       
-      // Call the TTS API to generate audio
-      const response = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      // Generate speech from dialogue
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          text: currentShot.dialogue,
-          voiceId: currentShot.voiceId,
-          modelId: "eleven_multilingual_v2"
-        })
+          text: shot.dialogue,
+          voiceId: shot.voiceId || '21m00Tcm4TlvDq8ikWAM',
+        }),
       });
-      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate audio");
+        throw new Error('Failed to generate audio');
       }
-      
+
       const data = await response.json();
-      
-      // Upload the audio to a temporary URL for storage
-      const audioUrl = await uploadTemporaryFile(data.audio, "audio/wav");
-      
-      // Update the shot with the audio URL
-      await updateShotDetails(currentScene.id, shotId, {
-        dialogueAudio: audioUrl
+      if (!data.audio) {
+        throw new Error('No audio data received');
+      }
+
+      // Convert base64 to blob
+      const audioBlob = await fetch(`data:audio/mp3;base64,${data.audio}`).then(r => r.blob());
+
+      // Upload to Firebase Storage
+      const storageRef = ref(storage, `stories/${storyId}/scenes/${currentScene.id}/shots/${shot.id}/dialogue.mp3`);
+      await uploadBytes(storageRef, audioBlob);
+      const audioUrl = await getDownloadURL(storageRef);
+
+      // Update shot in Firebase - ensure hasDialogue is set to true since we have dialogue audio
+      await updateShotSubcollection(storyId, currentScene.id, shot.id, {
+        dialogueAudio: audioUrl,
+        hasDialogue: true, // Explicitly set to true since we have dialogue audio
+        dialogue: shot.dialogue // Ensure dialogue text is preserved
       });
-      
-      // Update local state immediately
-      setScenes(prevScenes => 
-        prevScenes.map(scene => {
-          if (scene.id !== currentScene.id) return scene;
-          
-          return {
-            ...scene,
-            shots: scene.shots.map(shot => 
-              shot.id !== shotId ? shot : { 
-                ...shot, 
-                dialogueAudio: audioUrl 
-              }
-            )
-          };
-        })
+
+      // Update local state
+      const updatedShots = currentScene.shots.map(s => 
+        s.id === shot.id ? { 
+          ...s, 
+          dialogueAudio: audioUrl,
+          hasDialogue: true // Also update local state
+        } : s
       );
-      
-      // Also update currentScene
-      setCurrentScene(prevScene => {
-        if (!prevScene) return prevScene;
-        
-        return {
-          ...prevScene,
-          shots: prevScene.shots.map(shot => 
-            shot.id !== shotId ? shot : { 
-              ...shot, 
-              dialogueAudio: audioUrl 
-            }
-          )
-        };
-      });
-      
-      toast.success("Audio generated successfully!", { id: `audio-${shotId}` });
-      return audioUrl;
+      setCurrentScene({ ...currentScene, shots: updatedShots });
+
+      toast.success('Audio generated successfully');
     } catch (error) {
-      console.error("Error generating audio:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate audio", 
-        { id: `audio-${shotId}` });
-      return null;
+      console.error('Error generating audio:', error);
+      toast.error('Failed to generate audio');
     }
+  };
+
+
+
+
+  const handleVideoGenerationError = (error: unknown, shotId: string) => {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    setVideoStatusMessages(prev => ({ ...prev, [shotId]: `Error: ${errorMessage}` }));
+    setVideoLoadingStates(prev => ({ ...prev, [shotId]: false }));
+    toast.error(`Video generation failed: ${errorMessage}`, { id: `video-${shotId}` });
+  };
+
+  const handleSaveDialogue = async (shot: Shot) => {
+    if (!currentScene || !storyId) {
+      toast.error('Missing required data');
+      return;
+    }
+
+    try {
+      console.log('🎤 Kareem - Starting dialogue save for shot:', {
+        shotId: shot.id,
+        dialogue: shot.dialogue,
+        voiceId: shot.voiceId
+      });
+
+      // First save the dialogue text and voice selection
+      await updateShotSubcollection(storyId, currentScene.id, shot.id, {
+        dialogue: shot.dialogue,
+        voiceId: shot.voiceId,
+        hasDialogue: true
+      });
+
+      console.log('🎤 Kareem - Generating audio with params:', {
+        text: shot.dialogue,
+        voiceId: shot.voiceId,
+        storyId,
+        sceneId: currentScene.id,
+        shotId: shot.id
+      });
+
+      // Then generate the audio with all required IDs
+      const result = await AudioService.generateDialogue(
+        shot.dialogue || '',
+        shot.voiceId || '21m00Tcm4TlvDq8ikWAM',
+        storyId,
+        currentScene.id,
+        shot.id
+      );
+
+      console.log('🎤 Kareem - Audio generation result:', result);
+
+      if (!result.success) {
+        throw new Error('Failed to generate dialogue audio');
+      }
+
+      // Update the shot with the new audio URL
+      await updateShotSubcollection(storyId, currentScene.id, shot.id, {
+        dialogueAudio: result.audioUrl,
+        hasDialogue: true
+      });
+
+      console.log('🎤 Kareem - Successfully updated shot:', {
+        shotId: shot.id,
+        dialogueAudio: result.audioUrl
+      });
+
+      // Update local state
+      const updatedShots = currentScene.shots.map(s => 
+        s.id === shot.id ? { 
+          ...s, 
+          dialogue: shot.dialogue, 
+          voiceId: shot.voiceId,
+          dialogueAudio: result.audioUrl,
+          hasDialogue: true
+        } : s
+      );
+      setCurrentScene({ ...currentScene, shots: updatedShots });
+
+      toast.success('Dialogue saved successfully');
+    } catch (error) {
+      console.error('🎤 Kareem - Error saving dialogue:', error);
+      toast.error('Failed to save dialogue');
+    }
+  };
+
+  const shotContextValue = {
+    storyId,
+    sceneId: currentScene?.id || null,
+    updateShot: async (shotId: string, updates: Partial<Shot>) => {
+      if (!currentScene?.id || !storyId) return;
+      await updateShotDetails(currentScene.id, shotId, updates);
+    },
+    deleteShot: async (shotId: string) => {
+      if (!currentScene?.id || !storyId) return;
+      
+      try {
+        // Delete the shot in Firebase
+        await deleteShotSubcollection(storyId, currentScene.id, shotId);
+        
+        // Update local state by filtering out the deleted shot
+        const updatedShots = currentScene.shots.filter(shot => shot.id !== shotId);
+        
+        // Update the scene with the filtered shots
+        const updatedScene = {
+          ...currentScene,
+          shots: updatedShots
+        };
+        
+        // Update scenes state
+        setScenes(prev => 
+          prev.map(scene => 
+            scene.id === currentScene.id ? updatedScene : scene
+          )
+        );
+        
+        // Update current scene state
+        setCurrentScene(updatedScene);
+      } catch (error) {
+        console.error("Error deleting shot:", error);
+        throw error; // Rethrow to be handled by the calling component
+      }
+    },
+    isImageLoading,
+    isVideoLoading,
+    generateImage: generateShotFromPrompt,
+    generateVideo: generateShotVideo,
+    generateLipSync: async (index: number) => {
+      if (!currentScene?.shots[index]) {
+        toast.error("Invalid shot index");
+        return;
+      }
+      await generateLipSync(currentScene.id, currentScene.shots[index].id, storyId as string);
+    }
+  };
+
+  const handleGenerateLipSync = async (index: number) => {
+    if (!currentScene) {
+      toast.error("No scene selected");
+      return;
+    }
+    if (!storyId) {
+      toast.error("No story ID found");
+      return;
+    }
+    await generateLipSync(currentScene.id, currentScene.shots[index].id, storyId as string);
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Use the ProjectHeader component */}
       <ProjectHeader
-        isSaving={isSaving}
-        isLoadingAuth={loading}
         storyTitle={title}
-        onSaveStory={saveStory}
-        onSyncScenes={handleSyncScenes}
-        onExportScene={handleExportScene}
-        onCopyToClipboard={handleCopyToClipboard}
-        onDownloadScript={handleDownload}
         onRenameStory={handleRenameStory}
-        onDebugStory={debugStoryStructure}
       />
       
       <div className="flex flex-col flex-1">
         {/* Main content area */}
         <div className="flex-1 overflow-auto bg-background">
           {/* Storyboard-style shot layout */}
-          <div className="flex overflow-x-auto p-4 gap-4 pb-6 snap-x">
-            {currentScene?.shots.map((shot, index) => (
-              <div key={shot.id} className="flex-none w-[825px] min-w-[825px] snap-center flex flex-col">
-                {/* Shot frame */}
-                <div className="aspect-video bg-muted/10 dark:bg-muted/20 border border-border rounded-lg overflow-hidden relative">
-                  {shot.generatedImage ? (
-                    <div className="w-full h-full relative">
-                      <Image 
-                        src={shot.generatedImage} 
-                        alt={`Shot ${index + 1}`} 
-                        layout="fill" 
-                        objectFit="cover"
-                      />
-                      {shot.generatedVideo && (
-                        <div className="absolute inset-0">
-                          <ShotVideoPlayer
-                            videoUrl={shot.generatedVideo}
-                            className="w-full h-full"
-                            controls={false}
-                            autoPlay={false}
-                            loop={true}
-                            clickToPlay={true}
-                            overlayInfo={{
-                              title: `Shot ${index + 1}: ${shot.type}`,
-                              description: shot.description.substring(0, 100) + (shot.description.length > 100 ? '...' : '')
-                            }}
-                          />
-                        </div>
-                      )}
-                      {videoLoadingStates[shot.id] && (
-                        <div className="absolute inset-0 flex flex-col justify-center items-center bg-black/75 text-white">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-2"></div>
-                          <p className="text-sm font-medium max-w-xs text-center px-4">{videoStatusMessages[shot.id] || "Generating video..."}</p>
-                          {videoStatusMessages[shot.id]?.includes("Error") && (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="mt-2 bg-red-500 text-white hover:bg-red-600 border-0"
-                              onClick={() => generateShotVideo(shot.id)}
-                            >
-                              <RefreshCw className="h-3 w-3 mr-1" /> Retry
-                            </Button>
-                          )}
-                        </div>
-                      )}
+          <ShotProvider value={shotContextValue}>
+            {/* Scrollable shot cards with Add Shot button inline */}
+            <div className="flex overflow-x-auto p-4 gap-4 pb-6 snap-x">
+              {currentScene?.shots.map((shot, index) => (
+                <div 
+                  key={shot.id} 
+                  className="flex-none w-[825px] min-w-[825px] snap-center flex flex-col"
+                >
+                  <EnhancedShotCard
+                    shot={shot}
+                    index={index}
+                  />
+                </div>
+              ))}
+              
+              {/* Add shot button - inline with cards */}
+              <div className="flex-none w-[825px] min-w-[825px] snap-center flex flex-col">
+                <div 
+                  className="relative aspect-video mb-4 rounded-lg overflow-hidden bg-white flex flex-col items-center justify-center border border-dashed border-gray-200 cursor-pointer"
+                  onClick={addNewShot}
+                >
+                  <div className="flex flex-col items-center justify-center h-full w-full">
+                    <div className="bg-red-500 h-24 w-24 rounded-full flex items-center justify-center mb-5">
+                      <Plus className="h-14 w-14 text-white" strokeWidth={1.5} />
                     </div>
-                  ) : (
-                    <div className="w-full h-full flex flex-col justify-center items-center text-muted-foreground">
-                      {imageLoadingStates[shot.id] ? (
-                        <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-2"></div>
-                          <p className="text-sm">Generating image...</p>
-                        </div>
-                      ) : (
-                        <Button 
-                          className="bg-primary/90 hover:bg-primary text-primary-foreground dark:bg-primary/80 dark:hover:bg-primary/90 shadow-sm"
-                          onClick={() => generateShotFromPrompt(index, shot.description)}
-                        >
-                          <Camera className="mr-2 h-4 w-4" /> Generate
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                    {index + 1} - {shot.type}
+                    <p className="text-gray-500 text-lg font-normal">Add New Shot</p>
                   </div>
-                  
-                  {/* Add sound effects icon */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="absolute top-2 right-12 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white rounded-full"
-                    onClick={() => toggleSoundEffectsPopup(shot.id)}
-                    title={shot.hasSoundEffects ? "Edit sound effects" : "Add sound effects"}
-                  >
-                    <Music className={`h-4 w-4 ${shot.hasSoundEffects ? "text-green-500" : ""}`} />
-                  </Button>
-                  
-                  {/* Add dialogue icon */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="absolute top-2 right-2 h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white rounded-full"
-                    onClick={() => toggleDialoguePopup(shot.id)}
-                    title={shot.hasDialogue ? "Edit dialogue" : "Add dialogue"}
-                  >
-                    <MessageSquare className={`h-4 w-4 ${shot.hasDialogue ? "text-green-500" : ""}`} />
-                  </Button>
-                  
-                  {/* Sound Effects Popup */}
-                  {showingSoundEffects[shot.id] && (
-                    <div className="absolute top-10 right-2 z-20 bg-background border border-border rounded-lg shadow-lg p-2 w-52 max-w-[95%]">
-                      <h3 className="text-xs font-medium mb-1 flex justify-between items-center">
-                        Sound Effects
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-5 w-5 p-0" 
-                          onClick={() => toggleSoundEffectsPopup(shot.id)}
-                        >
-                          ✕
-                        </Button>
-                      </h3>
-                      <SoundEffectsEditor
-                        shotId={shot.id}
-                        initialHasSoundEffects={shot.hasSoundEffects || false}
-                        initialSoundEffects={shot.soundEffects || ""}
-                        soundEffectsAudio={shot.soundEffectsAudio || null}
-                        onSave={handleSoundEffectsSave}
-                        onGenerateAudio={generateSoundEffectsAudio}
-                        onClose={() => toggleSoundEffectsPopup(shot.id)}
-                      />
-                      <div className="text-xs text-blue-500 mt-1">
-                        Click "Save" to update.
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Dialogue Popup */}
-                  {showingDialogue[shot.id] && (
-                    <div className="absolute top-10 right-2 z-20 bg-background border border-border rounded-lg shadow-lg p-2 w-52 max-w-[95%]">
-                      <h3 className="text-xs font-medium mb-1 flex justify-between items-center">
-                        Character Dialogue
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-5 w-5 p-0" 
-                          onClick={() => toggleDialoguePopup(shot.id)}
-                        >
-                          ✕
-                        </Button>
-                      </h3>
-                      <textarea
-                        className="w-full bg-background border border-input rounded p-1.5 text-xs text-foreground"
-                        rows={2}
-                        placeholder="Add character dialogue..."
-                        value={tempDialogueValues[shot.id] !== undefined ? tempDialogueValues[shot.id] : (shot.dialogue || "")}
-                        onChange={(e) => {
-                          // Just update our temporary state
-                          setTempDialogueValues(prev => ({
-                            ...prev,
-                            [shot.id]: e.target.value
-                          }));
-                        }}
-                      />
-                      <div className="mt-1 text-xs font-medium">Voice</div>
-                      <select
-                        value={shot.voiceId || ""}
-                        onChange={(e) => handleVoiceSelect(e, index)}
-                        className="w-full bg-background border border-input rounded p-1.5 text-xs text-foreground"
-                      >
-                        <option value="">Select voice</option>
-                        <option value="21m00Tcm4TlvDq8ikWAM">Rachel</option>
-                        <option value="AZnzlk1XvdvUeBnXmlld">Domi</option>
-                        <option value="EXAVITQu4vr4xnSDxMaL">Bella</option>
-                        <option value="ErXwobaYiN019PkySvjV">Antoni</option>
-                        <option value="MF3mGyEYCl7XYWbV9V6O">Elli</option>
-                        <option value="TxGEqnHWrfWFTfGW9XjX">Josh</option>
-                        <option value="VR6AewLTigWG4xSOukaG">Arnold</option>
-                        <option value="pNInz6obpgDQGcFmaJgB">Adam</option>
-                        <option value="yoZ06aMxZJJ28xfdgOL">Sam</option>
-                      </select>
-                      
-                      {/* Audio and Lip Sync Options */}
-                      {shot.dialogue && shot.voiceId && (
-                        <div className="mt-2 space-y-2">
-                          {/* Display audio player if dialogueAudio exists */}
-                          {shot.dialogueAudio && (
-                            <div className="mb-2">
-                              <div className="text-xs font-medium mb-1 flex items-center">
-                                <Volume2 className="h-3 w-3 mr-1 text-green-500" /> 
-                                Audio Preview
-                              </div>
-                              <audio 
-                                src={shot.dialogueAudio} 
-                                controls 
-                                className="w-full h-7"
-                              />
-                            </div>
-                          )}
-                          
-                          <Button 
-                            className="w-full text-xs h-7 flex items-center justify-center"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => generateDialogueAudio(shot.id)}
-                          >
-                            <Volume2 className="h-3 w-3 mr-1" /> 
-                            {shot.dialogueAudio ? "Regenerate Audio" : "Generate Audio"}
-                          </Button>
-                          
-                          {shot.generatedVideo && (
-                            <Button 
-                              className="w-full text-xs h-7 flex items-center justify-center"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => generateLipSync(index)}
-                              disabled={!shot.dialogue || !shot.voiceId}
-                            >
-                              <Video className="h-3 w-3 mr-1" /> Generate Lip Sync
-                            </Button>
-                          )}
-
-                          {!shot.generatedVideo && (
-                            <div className="text-xs text-amber-500">
-                              Generate video for this shot to enable lip sync
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      <Button 
-                        className="w-full mt-2 text-xs"
-                        onClick={() => handleDialogueSave(shot.id, shot.voiceId || "")}
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  )}
                 </div>
-                
-                {/* Shot description input */}
-                <textarea
-                  className="w-full mt-2 bg-background border border-input rounded-md p-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  rows={3}
-                  placeholder={`Shot ${index + 1} description`}
-                  value={shotDescriptions[shot.id] ?? shot.description}
-                  onChange={(e) => handleShotDescriptionChange(e, index)}
-                  onBlur={() => handleShotDescriptionBlur(index)}
-                  id={`shot-${index}-prompt`}
-                />
-                
-                {/* Action buttons */}
-                <div className="shot-actions flex gap-2 mt-2">
-                  {shot.generatedImage && (
-                    <button
-                      className={`flex items-center px-3 py-1 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-md ${
-                        videoLoadingStates[shot.id] ? 'opacity-90 cursor-not-allowed' : ''
-                      }`}
-                      onClick={() => generateShotVideo(shot.id)}
-                      disabled={videoLoadingStates[shot.id]}
-                    >
-                      {videoLoadingStates[shot.id] ? (
-                        <>
-                          <span className="animate-spin h-4 w-4 mr-2 border-t-2 border-b-2 border-white rounded-full"></span>
-                          <span>{videoStatusMessages[shot.id] || "Generating..."}</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                          Generate Video
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
+                {/* Empty space to match shot card structure */}
+                <div className="h-[120px] opacity-0"></div>
               </div>
-            ))}
-            
-            {/* Add shot button */}
-            <div className="flex-none w-[825px] min-w-[825px] snap-center flex items-center justify-center">
-              <Button 
-                onClick={addNewShot} 
-                className={`${themeColors[userThemeColor as keyof typeof themeColors]} text-white h-40 w-full flex flex-col items-center justify-center shadow-md`}
-              >
-                <Plus className="h-12 w-12 mb-2" />
-                <span>Add Shot</span>
-              </Button>
             </div>
-          </div>
+          </ShotProvider>
         </div>
 
         {/* Timeline at the bottom - more reliable display logic */}
         <div className="border-t border-border bg-background">
-          {/* Add debug info to help troubleshoot timeline issues */}
-          <div className="p-1 text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 flex justify-between items-center">
-            <p>Debug: scenes: {scenes?.length || 0}, currentScene: {currentScene?.id || 'null'}, isLoading: {isLoading.toString()}</p>
-            <div className="space-x-2">
-              {storyId && (
-                <button 
-                  onClick={async () => {
-                    console.log("Manually reloading scenes");
-                    if (storyId) {
-                      try {
-                        toast.loading("Reloading scenes...");
-                        await loadStory(storyId);
-                        toast.success("Scenes reloaded");
-                      } catch (error) {
-                        console.error("Error reloading scenes:", error);
-                        toast.error("Failed to reload scenes");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-gray-500 text-white rounded-md text-xs"
-                >
-                  Refresh Scenes
-                </button>
-              )}
-              {storyId && (scenes?.length === 0 || !currentScene) && (
-                <button 
-                  onClick={async () => {
-                    console.log("Manually creating a default scene");
-                    if (storyId) {
-                      try {
-                        toast.loading("Creating default scene...");
-                        
-                        // Create a default scene
-                        const defaultSceneId = await createSceneSubcollection(storyId, {
-                          title: "Scene 1",
-                          location: "Default Location",
-                          description: "Default scene description",
-                          lighting: "NATURAL",
-                          weather: "CLEAR",
-                          style: "CINEMATIC"
-                        });
-                        
-                        // Create a default shot for the scene
-                        await createShotSubcollection(storyId, defaultSceneId, {
-                          type: "WIDE",
-                          description: "Default shot",
-                          prompt: "Default shot",
-                          hasDialogue: false,
-                          hasNarration: false,
-                          hasSoundEffects: false
-                        });
-                        
-                        toast.success("Created default scene. Reloading...");
-                        
-                        // Reload the story
-                        await loadStory(storyId);
-                      } catch (error) {
-                        console.error("Error creating default scene:", error);
-                        toast.error("Failed to create default scene");
-                      }
-                    }
-                  }}
-                  className="px-2 py-1 bg-blue-500 text-white rounded-md text-xs"
-                >
-                  Create Default Scene
-                </button>
-              )}
-            </div>
-          </div>
           <SceneTimeline
             scenes={scenes}
             currentScene={currentScene}
@@ -2264,26 +1994,6 @@ function ProjectContent() {
       </div>
 
       {/* View Mode Selector */}
-      <div className="border-b border-border px-4 py-2 flex items-center">
-        <div className="flex space-x-2">
-          <Button
-            variant={viewMode === 'editor' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('editor')}
-          >
-            Editor View
-          </Button>
-          <Button
-            variant={viewMode === 'storyboard' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('storyboard')}
-          >
-            Storyboard View
-          </Button>
-        </div>
-      </div>
-
-      {/* View Mode Selector - only show when not in an iframe */}
       {!isEmbedded && (
         <div className="border-b border-border px-4 py-2 flex items-center">
           <div className="flex space-x-2">

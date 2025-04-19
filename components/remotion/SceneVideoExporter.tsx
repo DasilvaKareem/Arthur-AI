@@ -16,6 +16,8 @@ const SceneVideoWrapper = (props: Record<string, unknown>) => {
     shots={(props.shots as Shot[]) || []} 
     title={(props.title as string) || ''} 
     shotDurations={(props.shotDurations as Record<string, number>) || {}} 
+    audioVolume={(props.audioVolume as number) || 0.8}
+    musicVolume={(props.musicVolume as number) || 0.5}
   />;
 };
 

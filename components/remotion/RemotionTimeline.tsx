@@ -16,6 +16,8 @@ const SceneVideoWrapper: React.FC<{
   shots: Shot[];
   title: string;
   shotDurations: Record<string, number>;
+  audioVolume?: number;
+  musicVolume?: number;
 }> = (props) => {
   return <SceneComposition {...props} />;
 };
@@ -217,6 +219,8 @@ export const RemotionTimeline: React.FC<RemotionTimelineProps> = ({ scene, story
                 shots: customShots,
                 title: scene.title,
                 shotDurations: shotDurations,
+                audioVolume: 0.8, // Default to 80% volume
+                musicVolume: 0.8 // Default to 80% volume
               }}
               errorFallback={(error) => {
                 console.error('Remotion Player error:', error);

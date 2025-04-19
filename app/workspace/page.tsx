@@ -7,7 +7,7 @@ import ChatArea from "../../components/ChatArea";
 import ProjectContent from "../project/page";
 import DocEditor from "../../components/DocEditor";
 import { Button } from "../../components/ui/button";
-import { FileText, Layers, PanelLeft, Save, Video } from "lucide-react";
+import { FileText, Layers, PanelLeft, Save, Video, Minimize2, Maximize2 } from "lucide-react";
 import ProtectedRoute from "../components/auth/protected-route";
 import { cn } from "../../lib/utils";
 import ProjectsSidebar from "../../components/ProjectsSidebar";
@@ -16,6 +16,8 @@ import { getStory, updateStory, getStoryWithSubcollections, removeNestedScenes, 
 import { useAuth } from "../hooks/useAuth";
 import SceneTimeline from "../../components/project/SceneTimeline";
 import { useRouter } from "next/navigation";
+import { Slider } from "../../components/ui/slider";
+import ProjectHeader from "../../components/project/ProjectHeader";
 
 // Create a style element with the CSS to hide the header
 const hideProjectHeaderStyle = `
@@ -152,6 +154,8 @@ export default function WorkspacePage() {
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const router = useRouter();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [title, setTitle] = useState("");
 
   // Load story from URL query parameter
   useEffect(() => {
@@ -538,6 +542,7 @@ export default function WorkspacePage() {
 
 function StoryboardWrapper({ projectId, refreshTrigger }: { projectId: string | null, refreshTrigger?: number }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [widthScale, setWidthScale] = useState(1);
   const projectRef = useRef<HTMLIFrameElement>(null);
   
   useEffect(() => {
@@ -703,6 +708,20 @@ function StoryboardWrapper({ projectId, refreshTrigger }: { projectId: string | 
 
   return (
     <div className="h-full w-full flex flex-col">
+      {/* Width Scale Controls */}
+      <div className="absolute top-2 right-2 flex items-center gap-2 bg-black/60 text-white text-xs px-2 py-1 rounded z-10">
+        <Minimize2 className="h-3 w-3" />
+        <Slider
+          value={[widthScale]}
+          min={0.5}
+          max={2}
+          step={0.1}
+          className="w-24"
+          onValueChange={(value) => setWidthScale(value[0])}
+        />
+        <Maximize2 className="h-3 w-3" />
+      </div>
+
       <div className="flex-1 relative">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -719,6 +738,12 @@ function StoryboardWrapper({ projectId, refreshTrigger }: { projectId: string | 
           src={`/project?id=${projectId}`} 
           className="w-full h-full border-none"
           title="Project Content"
+          style={{
+            transform: `scale(${widthScale})`,
+            transformOrigin: 'top left',
+            width: `${100 / widthScale}%`,
+            height: `${100 / widthScale}%`
+          }}
         />
       </div>
       

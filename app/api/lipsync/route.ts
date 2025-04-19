@@ -7,64 +7,69 @@ if (!process.env.SYNC_LABS_API_KEY) {
 }
 
 const SYNC_LABS_API_KEY = process.env.SYNC_LABS_API_KEY;
+const SYNC_LABS_API_URL = "https://api.sync.so/v2";
+
+// Configure fetch options
+const fetchOptions = {
+  headers: {
+    'x-api-key': SYNC_LABS_API_KEY,
+    'Content-Type': 'application/json'
+  }
+};
 
 export async function POST(req: Request) {
   try {
     // Parse the request body
     const body = await req.json();
-    console.log("Received lip sync request:", {
-      videoUrl: body.videoUrl,
-      audioUrl: body.audioUrl,
-      outputFormat: body.outputFormat
+    console.log("Received lip sync generation request:", {
+      hasVideoUrl: !!body.input?.video_url,
+      hasAudioUrl: !!body.input?.audio_url
     });
     
-    const { videoUrl, audioUrl, outputFormat = "mp4" } = body;
+    const { input } = body;
     
     // Validate required fields
-    if (!videoUrl || !audioUrl) {
-      throw new Error("Missing video or audio URL");
+    if (!input?.video_url) {
+      throw new Error("Missing video URL for lip sync");
+    }
+    
+    if (!input?.audio_url) {
+      throw new Error("Missing audio URL for lip sync");
     }
 
-    // Configure generation options
-    const options = {
-      method: 'POST',
-      headers: { 
-        'x-api-key': SYNC_LABS_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'lipsync-1.9.0-beta',
-        input: [
-          {
-            type: 'video',
-            url: videoUrl,
-          },
-          {
-            type: 'audio',
-            url: audioUrl,
-          },
-        ],
-        options: { output_format: outputFormat },
-        webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/lipsync/webhook`,
-      }),
-    };
+    // Log the full request for debugging
+    console.log("Sending request to Sync Labs:", {
+      url: `${SYNC_LABS_API_URL}/generate`,
+      videoUrl: input.video_url,
+      audioUrl: input.audio_url
+    });
 
-    // Start the lip sync generation
-    const response = await fetch('https://api.sync.so/v2/generate', options);
-    
+    // Create the Sync Labs lip sync job with the new format
+    const response = await fetch(`${SYNC_LABS_API_URL}/generate`, {
+      ...fetchOptions,
+      method: 'POST',
+      body: JSON.stringify({
+        model: "lipsync-1.9.0-beta",
+        options: {
+          output_format: "mp4"
+        },
+        input: [
+          { type: "video", url: input.video_url },
+          { type: "audio", url: input.audio_url }
+        ]
+      })
+    });
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to start lip sync generation");
+      const errorText = await response.text();
+      console.error("Sync Labs API error response:", errorText);
+      throw new Error(`Sync Labs API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log("Lip sync generation started with ID:", data.id);
-    
-    return NextResponse.json({ 
-      id: data.id,
-      status: "processing",
-      message: "Lip sync generation started successfully"
-    });
+    console.log("Sync Labs job created:", data);
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Error generating lip sync:", error);
     return NextResponse.json({ 
@@ -74,18 +79,54 @@ export async function POST(req: Request) {
   }
 }
 
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing job ID" }, { status: 400 });
+    }
+
+    // Check job status with Sync Labs using the new endpoint
+    const response = await fetch(`${SYNC_LABS_API_URL}/generate/${id}`, {
+      ...fetchOptions,
+      method: 'GET'
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Sync Labs status API error response:", errorText);
+      throw new Error(`Sync Labs status API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log("Sync Labs job status:", data);
+
+    // Map Sync Labs status to our format
+    return NextResponse.json({
+      status: data.status,
+      outputUrl: data.outputUrl,
+      error: data.error
+    });
+  } catch (error) {
+    console.error("Error checking lip sync status:", error);
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Failed to check job status",
+      details: error instanceof Error ? error.stack : undefined
+    }, { status: 500 });
+  }
+}
+
 // Webhook endpoint to handle generation completion
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    console.log("Received lip sync webhook:", body);
-
-    // Handle the webhook data
-    // You can update your database or trigger other actions here
+    console.log("Received webhook:", body);
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error handling lip sync webhook:", error);
+    console.error("Error handling webhook:", error);
     return NextResponse.json({ 
       error: error instanceof Error ? error.message : "Failed to handle webhook",
       details: error instanceof Error ? error.stack : undefined

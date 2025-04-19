@@ -15,6 +15,7 @@ export interface Shot {
   generatedVideo?: string | null;
   lipSyncAudio?: string | null;
   lipSyncVideo?: string | null;
+  originalVideo?: string | null;
   voiceId?: string | null;
   location?: string | null;
   lighting?: string | null;

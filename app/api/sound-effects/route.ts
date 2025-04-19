@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ElevenLabsClient } from "elevenlabs";
 
 // Validate ElevenLabs configuration
 if (!process.env.ELEVENLABS_API_KEY) {
@@ -6,7 +7,9 @@ if (!process.env.ELEVENLABS_API_KEY) {
   throw new Error("ELEVENLABS_API_KEY is not configured");
 }
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const client = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY
+});
 
 // Default voice for sound effects - using a deep male voice for most sound effects
 const DEFAULT_SOUND_EFFECTS_VOICE = "ErXwobaYiN019PkySvjV"; // Antoni
@@ -16,57 +19,49 @@ export async function POST(req: Request) {
     // Parse the request body
     const body = await req.json();
     console.log("Received sound effects generation request:", {
-      description: body.description,
-      voiceId: body.voiceId || DEFAULT_SOUND_EFFECTS_VOICE
+      prompt: body.prompt
     });
     
-    const { description, voiceId = DEFAULT_SOUND_EFFECTS_VOICE } = body;
+    const { prompt } = body;
     
     // Validate required fields
-    if (!description) {
-      throw new Error("Missing sound effects description");
+    if (!prompt) {
+      throw new Error("Missing sound effects prompt");
     }
 
-    // Process the sound effects description to make it more like audio instructions
-    // For example, turn "birds chirping" into "Birds are chirping loudly in the background"
-    const processedPrompt = processSoundEffectsDescription(description);
+    // Process the sound effects prompt to make it more descriptive
+    const processedPrompt = processSoundEffectsPrompt(prompt);
+    console.log("Processed sound effects prompt:", processedPrompt);
 
-    // Configure generation options with specific settings for sound effects
-    // - Higher stability for more consistent sound
-    // - Lower similarity boost to make it more expressive
-    const options = {
-      method: 'POST',
-      headers: { 
-        'xi-api-key': ELEVENLABS_API_KEY,
-        'Content-Type': 'application/json'
+    // Make a direct fetch call to the sound effects endpoint
+    const response = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
+      method: "POST",
+      headers: {
+        "xi-api-key": process.env.ELEVENLABS_API_KEY as string,
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        text: processedPrompt,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: {
-          stability: 0.65,
-          similarity_boost: 0.5
-        }
-      }),
-    };
+        text: processedPrompt
+      })
+    });
 
-    // Start the text-to-speech generation
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, options);
-    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to generate sound effects audio");
+      const errorText = await response.text();
+      console.error("Sound effects generation failed:", {
+        status: response.status,
+        error: errorText
+      });
+      throw new Error(`Failed to generate sound effects: ${errorText}`);
     }
 
     // Get the audio data as an ArrayBuffer
-    const audioData = await response.arrayBuffer();
-    
-    // Convert ArrayBuffer to base64
-    const base64Audio = Buffer.from(audioData).toString('base64');
+    const audioBuffer = await response.arrayBuffer();
+    // Convert to base64
+    const base64Audio = Buffer.from(audioBuffer).toString('base64');
     
     return NextResponse.json({ 
       audio: base64Audio,
-      processedPrompt,
+      prompt: processedPrompt,
       status: "completed",
       message: "Sound effects generated successfully"
     });
@@ -79,10 +74,10 @@ export async function POST(req: Request) {
   }
 }
 
-// Function to process sound effects descriptions into better audio prompts
-function processSoundEffectsDescription(description: string): string {
-  // Split the description by commas, new lines, or semicolons
-  const effectParts = description.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
+// Function to process sound effects prompts into better audio instructions
+function processSoundEffectsPrompt(prompt: string): string {
+  // Split the prompt by commas, new lines, or semicolons
+  const effectParts = prompt.split(/[,;\n]+/).map(part => part.trim()).filter(Boolean);
   
   // Process each effect and combine with pauses
   const processedEffects = effectParts.map(effect => {

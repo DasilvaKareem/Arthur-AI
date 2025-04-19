@@ -235,13 +235,21 @@ export async function updateScene(storyId: string, sceneId: string, updates: Par
           description: shotData.description || "",
           hasDialogue: shotData.hasDialogue || false,
           hasNarration: shotData.hasNarration || false,
-          hasSoundEffects: shotData.hasSoundEffects || false,
+          hasSoundEffects: !!shotData.soundEffectsAudio,
           prompt: shotData.prompt || shotData.description || "",
           narration: shotData.narration || "",
           dialogue: shotData.dialogue || "",
           soundEffects: shotData.soundEffects || "",
           generatedImage: shotData.generatedImage || null,
-          generatedVideo: shotData.generatedVideo || null
+          generatedVideo: shotData.generatedVideo || null,
+          lipSyncVideo: shotData.lipSyncVideo || null,
+          lipSyncAudio: shotData.lipSyncAudio || null,
+          dialogueAudio: shotData.dialogueAudio || null,
+          soundEffectsAudio: shotData.soundEffectsAudio || null,
+          voiceId: shotData.voiceId || null,
+          location: shotData.location || null,
+          lighting: shotData.lighting || null,
+          weather: shotData.weather || null
         } as Shot;
       });
       
@@ -516,7 +524,7 @@ export async function getStoryWithSubcollections(storyId: string): Promise<Story
           description: shotData.description || "",
           hasDialogue: shotData.hasDialogue || false,
           hasNarration: shotData.hasNarration || false,
-          hasSoundEffects: shotData.hasSoundEffects || false,
+          hasSoundEffects: !!shotData.soundEffectsAudio,
           prompt: shotData.prompt || shotData.description || "",
           narration: shotData.narration || "",
           dialogue: shotData.dialogue || "",
@@ -525,6 +533,8 @@ export async function getStoryWithSubcollections(storyId: string): Promise<Story
           generatedVideo: shotData.generatedVideo || null,
           lipSyncVideo: shotData.lipSyncVideo || null,
           lipSyncAudio: shotData.lipSyncAudio || null,
+          dialogueAudio: shotData.dialogueAudio || null,
+          soundEffectsAudio: shotData.soundEffectsAudio || null,
           voiceId: shotData.voiceId || null,
           location: shotData.location || null,
           lighting: shotData.lighting || null,
@@ -716,33 +726,43 @@ export async function updateShotSubcollection(
   updates: Partial<Omit<Shot, 'id'>>
 ): Promise<void> {
   try {
-    // Add some extra validation
     if (!storyId || !sceneId || !shotId) {
-      console.error("Missing required IDs:", { storyId, sceneId, shotId });
       throw new Error("Missing required IDs for updating shot");
     }
-    
-    console.log(`Updating shot ${shotId} in scene ${sceneId} with data:`, 
-      // If we have a generatedVideo field, log it specially
-      updates.generatedVideo 
-        ? { ...updates, generatedVideo: `${updates.generatedVideo.substring(0, 30)}...` }
-        : updates
-    );
     
     const shotRef = doc(db, 'stories', storyId, 'scenes', sceneId, 'shots', shotId);
     
     // Verify the shot exists first
     const shotDoc = await getDoc(shotRef);
     if (!shotDoc.exists()) {
-      console.error(`Shot ${shotId} not found in scene ${sceneId}`);
       throw new Error(`Shot not found: ${shotId}`);
     }
     
-    // Update the doc
-    await updateDoc(shotRef, {
-      ...updates,
+    // Process updates to handle undefined values
+    const processedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {} as Record<string, any>);
+    
+    // Prepare the update data with proper boolean flags
+    const updateData = {
+      ...processedUpdates,
+      hasDialogue: !!processedUpdates.dialogue || !!processedUpdates.dialogueAudio,
+      hasNarration: !!processedUpdates.narration,
+      hasSoundEffects: !!processedUpdates.soundEffectsAudio,
       updatedAt: serverTimestamp()
+    };
+    
+    // Log the update data for debugging
+    console.log('🎤 Updating shot with data:', {
+      shotId,
+      updateData
     });
+    
+    // Update the shot document
+    await updateDoc(shotRef, updateData);
     
     // Update the story's updatedAt field
     const storyRef = doc(db, 'stories', storyId);
@@ -750,7 +770,11 @@ export async function updateShotSubcollection(
       updatedAt: serverTimestamp()
     });
     
-    console.log(`Successfully updated shot ${shotId}`);
+    // Log successful update
+    console.log('🎤 Successfully updated shot:', {
+      shotId,
+      updateData
+    });
   } catch (error) {
     console.error(`Error updating shot ${shotId}:`, error);
     throw error;
