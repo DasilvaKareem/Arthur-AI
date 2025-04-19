@@ -69,7 +69,7 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
             <WalletConnect />
           </div>
           <Link 
-            href={links.signin}
+            href="/auth/signin"
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             {t.common.signIn}
@@ -102,7 +102,7 @@ export default function LocalizedNav({ locale, path, translations: t, links }: L
               <WalletConnect />
             </div>
             <Link 
-              href={links.signin}
+              href="/auth/signin"
               className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground px-4 py-2 rounded-md hover:bg-accent block"
             >
               {t.common.signIn}

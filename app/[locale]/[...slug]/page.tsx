@@ -208,7 +208,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           {/* Request Access Section */}
           <section id="request-access" className="relative z-10 container py-12 text-center">
             <div className="mx-auto max-w-4xl rounded-lg border dark:border-gray-700 border-gray-300 dark:bg-gray-800/50 bg-white/80 p-8 backdrop-blur-sm">
-              <h2 className="text-3xl font-bold mb-4 dark:text-white text-gray-900">{t.home.requestAccess.title}</h2>
+              <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.home.requestAccess.title}</h2>
               <p className="dark:text-gray-300 text-gray-700 mb-6">
                 {t.home.requestAccess.description}
               </p>
@@ -240,7 +240,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           <section className="relative py-24 z-10">
             <div className="container">
               <div className="mx-auto mb-12 max-w-[58rem] text-center">
-                <h2 className="font-bold text-3xl leading-tight sm:text-4xl md:text-5xl dark:text-white text-gray-900">
+                <h2 className="font-bold text-3xl leading-tight sm:text-4xl md:text-5xl bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">
                   {t.home.storiesSection.title}
                 </h2>
                 <p className="mt-4 text-muted-foreground sm:text-lg">
@@ -314,7 +314,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           <section className="relative py-20 z-10">
             <div className="container px-4 mx-auto">
               <div className="text-center mb-16">
-                <h2 className="text-3xl font-bold mb-4">{t.features.whyChoose.title}</h2>
+                <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.features.whyChoose.title}</h2>
                 <p className="text-xl text-muted-foreground">
                   {t.features.whyChoose.subtitle}
                 </p>
@@ -341,7 +341,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           <section className="relative py-16 z-10">
             <div className="container px-4 mx-auto">
               <div className="max-w-3xl mx-auto text-center bg-white/80 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg border p-8">
-                <h2 className="text-2xl font-bold mb-4">{t.features.cta.title}</h2>
+                <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.features.cta.title}</h2>
                 <p className="text-muted-foreground mb-6">
                   {t.features.cta.description}
                 </p>
@@ -458,7 +458,7 @@ export default async function LocalizedPage({ params }: PageProps) {
           {/* FAQ Section */}
           <section className="relative py-16 z-10">
             <div className="container px-4 mx-auto text-center">
-              <h2 className="text-2xl font-bold mb-4 dark:text-white">{t.pricing.faq.title}</h2>
+              <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.pricing.faq.title}</h2>
               <p className="text-muted-foreground">
                 {t.pricing.faq.description}{" "}
                 <Link href="/faq" className="text-blue-500 dark:text-blue-400 hover:underline">
@@ -487,7 +487,7 @@ export default async function LocalizedPage({ params }: PageProps) {
                     <Logo className="w-10 h-10 text-white" />
                   </div>
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-4">{t.contact.hero.title}</h1>
+                <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.contact.hero.title}</h1>
                 <p className="text-xl text-muted-foreground">{t.contact.hero.subtitle}</p>
               </div>
             </div>
@@ -553,7 +553,7 @@ export default async function LocalizedPage({ params }: PageProps) {
 
           {/* Social Media Section */}
           <section className="relative container mb-24 z-20">
-            <h2 className="text-2xl font-bold text-center mb-10">{t.contact.social.title}</h2>
+            <h2 className="text-2xl font-bold text-center mb-10 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.contact.social.title}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
               {/* Twitter/X */}
               <Link href="https://x.com/ArthurAIApp" target="_blank" className="bg-background/80 backdrop-blur-sm rounded-lg border p-6 flex flex-col items-center hover:border-blue-400 transition-colors">
@@ -599,7 +599,7 @@ export default async function LocalizedPage({ params }: PageProps) {
 
           {/* FAQ Section */}
           <section className="relative container pb-24 z-20">
-            <h2 className="text-2xl font-bold text-center mb-10">{t.contact.faq.title}</h2>
+            <h2 className="text-2xl font-bold text-center mb-10 bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-300 dark:to-blue-500 bg-clip-text text-transparent">{t.contact.faq.title}</h2>
             <div className="space-y-4 max-w-3xl mx-auto">
               <div className="bg-background/80 backdrop-blur-sm rounded-lg border p-4">
                 <details className="group">

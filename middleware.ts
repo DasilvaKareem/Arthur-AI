@@ -10,20 +10,19 @@ export function middleware(request: NextRequest) {
     locale => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
   )
   
-  // If it doesn't have a locale, redirect to the default locale
-  if (!pathnameHasLocale) {
-    // Exclude API routes and static files
-    if (
-      !pathname.startsWith('/api') && 
-      !pathname.startsWith('/_next') && 
-      !pathname.includes('.') &&
-      pathname !== '/'
-    ) {
-      // Redirect to the default locale (en)
-      return NextResponse.redirect(
-        new URL(`/en${pathname}`, request.url)
-      )
-    }
+  // Only localize specific pages: homepage, pricing, features, and contact
+  const shouldLocalize = 
+    pathname === '/' ||
+    pathname === '/pricing' ||
+    pathname === '/features' ||
+    pathname === '/contact';
+  
+  // If it doesn't have a locale and should be localized, redirect to the default locale
+  if (!pathnameHasLocale && shouldLocalize) {
+    // Redirect to the default locale (en)
+    return NextResponse.redirect(
+      new URL(`/en${pathname}`, request.url)
+    )
   }
   
   return NextResponse.next()
